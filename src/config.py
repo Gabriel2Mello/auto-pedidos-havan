@@ -12,3 +12,28 @@ BASE_URL = ORIGIN + '/Fornecedor'
 CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
 
 BASE_PATH_PEDIDOS = Path(environ['HAVAN_PEDIDOS'])
+
+
+CAMPOS = {
+    'sisplan': 'Sisplan - 002 - NUNES ENXOVAIS IND, COM, IMP E EXP LTDA',
+    'operacao': 55, 'cliente': 53, 'representante': 51, 'tabela_preco': 49,
+    'transporte': 48, 'prazo_entrega': 28, 'prazo_producao': 26, 
+    'historico': 18, 'tipo_venda': 16, 'numero': 13, 'ped_cliente': 12, 
+    'saida': 6, 'entrega': 7, 'fatura': 8, 'classe_gerencial': 1, 'grid': 2,
+    'nome': 0, 'combo_empresa': 0
+}
+
+PRODUTOS_GOVERNADOR = [
+    'DIVERTIDA','FORMATO','ASSENTO','GUARDANAPO',
+    'AVENTAL','TROCADOR','ALMOFADA DECOR 38X38 HAVAN BABY',
+    'AMAMENTAÇÃO','DESCANSO','MINI','GUIRLANDA','ABRAÇO'
+]
+
+COORD_ABA_PEDIDO = (87, 10)
+COORD_ITENS_PEDIDO = (150,-13)
+ATALHO_IMPORTAR = 'm'
+ATALHO_HAVAN = 'h'
+ATALHO_INCLUIR = '%i'
+ATALHO_DESISTIR = '%d'
+ATALHO_GRAVAR = '%g'
+
