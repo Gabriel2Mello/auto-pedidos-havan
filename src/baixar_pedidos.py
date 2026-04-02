@@ -1,5 +1,6 @@
 from src.config import USER_AGENT, BASE_URL, ORIGIN, BASE_PATH_PEDIDOS, UNRAR_TOOL, CONTENT_TYPE
 from io import BytesIO
+from concurrent.futures import ThreadPoolExecutor, as_completed
 # Third-party libraries
 import rarfile
 from bs4 import BeautifulSoup
@@ -38,7 +39,7 @@ def extrair_xml(content):
             return f.read()
 
 
-def baixar_arquivos(scraper, pedido):
+def baixar(scraper, pedido):
     html_grid = grid_pedido(scraper, pedido)
 
     soup = BeautifulSoup(html_grid, 'html.parser')
@@ -72,7 +73,7 @@ def baixar_arquivos(scraper, pedido):
     raise RuntimeError(f'Pedido {pedido} não encontrado')
 
 
-def salvar_arquivos(pdf, xml, pedido):
+def salvar(pdf, xml, pedido):
     pasta_havan = BASE_PATH_PEDIDOS / 'Havan Pedidos'
     pasta_pedido = pasta_havan / str(pedido)
 
@@ -87,4 +88,43 @@ def salvar_arquivos(pdf, xml, pedido):
         pasta_pedido / f'Arq de integracao {pedido}.xml', 'wb'
     ) as f:
         f.write(xml)
+
+
+def processar(scraper, pedido):
+    try:
+        print(f'Baixando pedido {pedido}...')
+
+        pdf, xml = baixar(scraper, pedido)
+        salvar(pdf, xml, pedido)
+
+        print(f'Pedido {pedido} concluído')
+        return True
+
+    except Exception as e:
+        print(f'Erro no pedido {pedido}: {e}')
+        return False
+
+
+def pool_pedidos(scraper, numero_pedidos):
+    max_threads = 10
+    resultados = {}
+
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:
+        futures = {executor.submit(processar, scraper, pedido): pedido for pedido in numero_pedidos}
+
+        for future in as_completed(futures):
+            pedido = futures[future]
+
+            try:
+                sucesso = future.result()
+                resultados[pedido] = sucesso
+            except Exception as e:
+                print(f'Erro inesperado no pedido {pedido}: {e}')
+                resultados[pedido] = False
+
+    print('\nRESUMO DOS PEDIDOS:')
+    for pedido, sucesso in resultados.items():
+        status = 'Concluído' if sucesso else 'Falhou'
+        print(f'{pedido}: {status}')
+
 
