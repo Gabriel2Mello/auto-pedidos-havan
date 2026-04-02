@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Third-party libraries
 import rarfile
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 rarfile.UNRAR_TOOL = UNRAR_TOOL
 
@@ -106,12 +107,22 @@ def pool_pedidos(scraper, numero_pedidos):
     max_threads = 10
     resultados = {}
 
-    with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        futures = {executor.submit(
-            processar, scraper, pedido
-        ): pedido for pedido in numero_pedidos}
+    print('\nIniciando processo de download...')
 
-        for future in as_completed(futures):
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:
+        futures = {
+            executor.submit(processar, scraper, pedido): pedido
+            for pedido in numero_pedidos
+        }
+
+        format='{l_bar}|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+        for future in tqdm(
+            as_completed(futures),
+            total=len(futures),
+            desc='Baixando pedidos',
+            bar_format=format
+        ):
+
             pedido = futures[future]
 
             try:
@@ -123,7 +134,7 @@ def pool_pedidos(scraper, numero_pedidos):
 
     print('\nRESUMO DOS PEDIDOS:')
     for pedido, sucesso in resultados.items():
-        status = 'Concluído' if sucesso else 'Falhou'
+        status = 'Baixado' if sucesso else 'Falhou'
         print(f'{pedido}: {status}')
 
 

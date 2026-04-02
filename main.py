@@ -37,7 +37,7 @@ def main():
     """
 
     elapsed_time = perf_counter() - start_time
-    print(f'\nDone in {elapsed_time:0.2f} seconds')
+    print(f'\nTerminado {elapsed_time:0.2f} segundos')
 
 
 
