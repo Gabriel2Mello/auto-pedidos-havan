@@ -92,12 +92,9 @@ def salvar(pdf, xml, pedido):
 
 def processar(scraper, pedido):
     try:
-        print(f'Baixando pedido {pedido}...')
-
         pdf, xml = baixar(scraper, pedido)
         salvar(pdf, xml, pedido)
 
-        print(f'Pedido {pedido} concluído')
         return True
 
     except Exception as e:
@@ -110,7 +107,9 @@ def pool_pedidos(scraper, numero_pedidos):
     resultados = {}
 
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        futures = {executor.submit(processar, scraper, pedido): pedido for pedido in numero_pedidos}
+        futures = {executor.submit(
+            processar, scraper, pedido
+        ): pedido for pedido in numero_pedidos}
 
         for future in as_completed(futures):
             pedido = futures[future]
