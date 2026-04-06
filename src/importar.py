@@ -87,49 +87,6 @@ def get_field_title(parent, class_name, title):
     )
 
 
-def inicia_app():
-    app = Application(backend='win32').connect(
-        title=CAMPOS['sisplan'],
-        class_name='TApplication'
-    )
-
-    dlg = app.window(
-        title=CAMPOS['sisplan'],
-        class_name='TApplication'
-    )
-
-    dlg.restore()
-    dlg.wait('visible', timeout=10)
-    dlg.set_focus()
-
-    main = app.window(
-        title_re='.*VenPedidoGrade.*',
-        class_name='TfmPrincipal'
-    )
-    main.set_focus()
-
-    return main
-
-
-def importa_arq_integracao(xml_path):
-    app_abrir = Application(
-        backend='win32'
-    ).connect(title='Abrir', class_name='#32770')
-
-    janela = app_abrir.window(
-        title='Abrir', class_name='#32770'
-    )
-    janela.wait('visible', timeout=10)
-
-    nome_field = get_field_index(
-        janela, 'Edit', 'nome'
-    )
-    nome_field.set_focus()
-
-    nome_field.set_edit_text(str(xml_path))
-    nome_field.type_keys('{ENTER}')
-
-
 def mapear_campos(aba_pedido):
     return {
         'numero': get_field_index(
@@ -171,47 +128,37 @@ def mapear_campos(aba_pedido):
     }
 
 
-def preencher_dados_fixos(campos):
-    campos['cliente'].set_text('00022')
-    campos['representante'].set_text('00001')
-    campos['transporte'].set_text('00001')
-    campos['tabela_preco'].set_text('004')
-    campos['historico'].set_text('02')
-    campos['tipo_venda'].set_text('1')
-    campos['operacao'].set_text('1')
-
-    campos['classe_gerencial'].set_focus()
-    campos['classe_gerencial'].type_keys('20001{TAB}')
-
-
-def preencher_datas(campos, data_fatura, data_entrega):
-    campos['data_fatura'].set_text(data_fatura)
-    campos['data_entrega'].set_text(data_entrega)
-    campos['data_saida'].set_text(data_entrega)
-
-
-def selecionar_empresa_matriz(aba_pedido):
-    combo_empresa = get_field_index(
-        aba_pedido, 'TComboBox', 'combo_empresa'
+def inicia_app():
+    app = Application(backend='win32').connect(
+        title=CAMPOS['sisplan'],
+        class_name='TApplication'
     )
 
-    combo_empresa.set_focus()
-    combo_empresa.type_keys('{UP}')
+    dlg = app.window(
+        title=CAMPOS['sisplan'],
+        class_name='TApplication'
+    )
 
+    dlg.restore()
+    dlg.wait('visible', timeout=10)
+    dlg.set_focus()
 
-def importar_integracao(numero_pedidos):
-    main_win = inicia_app()
+    main = app.window(
+        title_re='.*VenPedidoGrade.*',
+        class_name='TfmPrincipal'
+    )
+    main.set_focus()
 
     pedido_grade = get_field_title(
-        main_win, 'TTabSheet', '1002 - Pedido Por Grade'
+        main, 'TTabSheet', '1002 - Pedido Por Grade'
     )
 
     aba_pedido = get_field_title(
-        main_win, 'TTabSheet', 'Pedido'
+        main, 'TTabSheet', 'Pedido'
     )
 
     itens_pedido = get_field_title(
-        main_win, 'TTabSheet', 'Itens Pedido'
+        main, 'TTabSheet', 'Itens Pedido'
     )
 
     grid = get_field_index(
@@ -220,40 +167,107 @@ def importar_integracao(numero_pedidos):
 
     campos = mapear_campos(aba_pedido)
 
-    for pedido in numero_pedidos:
+    return pedido_grade, aba_pedido, grid, campos
 
-        caminho_pedido = PATH_HAVAN / pedido
 
-        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
-        send_keys(ATALHO_INCLUIR)
+def importa_arq_integracao(xml_path):
+    app_abrir = Application(
+        backend='win32'
+    ).connect(title='Abrir', class_name='#32770')
 
-        sleep(1)
-        campos['numero'].type_keys('{TAB}')
-        numero_interno = campos['numero'].window_text()
+    janela = app_abrir.window(
+        title='Abrir', class_name='#32770'
+    )
+    janela.wait('visible', timeout=10)
 
-        preencher_dados_fixos(campos)
+    nome_field = get_field_index(
+        janela, 'Edit', 'nome'
+    )
+    nome_field.set_focus()
 
-        xml_path = caminho_xml(caminho_pedido, pedido)
+    nome_field.set_edit_text(str(xml_path))
+    nome_field.type_keys('{ENTER}')
 
-        xml_root = carregar_xml(xml_path)
-        produto = produto_xml(xml_root)
 
-        empresa = definir_empresa(produto)
-        if empresa == 'MATRIZ':
-            selecionar_empresa_matriz(aba_pedido)
 
-        data_fatura, data_entrega = data_xml(xml_root)
-        preencher_datas(campos, data_fatura, data_entrega)
+def preencher_dados_fixos(campos):
+    sleep(1)
+    campos['cliente'].set_text('00022')
+    sleep(1)
+    campos['representante'].set_text('00001')
+    sleep(1)
+    campos['transporte'].set_text('00001')
+    sleep(1)
+    campos['tabela_preco'].set_text('004')
+    sleep(1)
+    campos['historico'].set_text('02')
+    sleep(1)
+    campos['tipo_venda'].set_text('1')
+    sleep(1)
+    campos['operacao'].set_text('1')
+    sleep(1)
 
-        aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
+    campos['classe_gerencial'].set_focus()
+    sleep(1)
+    campos['classe_gerencial'].type_keys('20001{TAB}')
+    sleep(1)
 
-        grid.click_input(button='right') # OPÇÕES DO GRID
-        send_keys(ATALHO_IMPORTAR)
-        send_keys(ATALHO_HAVAN)
 
-        sleep(1)
-        importa_arq_integracao(xml_path)
-        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+def preencher_datas(campos, data_fatura, data_entrega):
+    sleep(1)
+    campos['data_fatura'].set_text(data_fatura)
+    sleep(1)
+    campos['data_entrega'].set_text(data_entrega)
+    sleep(1)
+    campos['data_saida'].set_text(data_entrega)
+    sleep(1)
 
-        send_keys(ATALHO_DESISTIR)
 
+def selecionar_empresa_matriz(aba_pedido):
+    combo_empresa = get_field_index(
+        aba_pedido, 'TComboBox', 'combo_empresa'
+    )
+
+    combo_empresa.set_focus()
+    sleep(1)
+    combo_empresa.type_keys('{UP}')
+    sleep(1)
+
+
+def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
+    caminho_pedido = PATH_HAVAN / pedido
+
+    pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+    send_keys(ATALHO_INCLUIR)
+
+    sleep(1)
+    campos['numero'].type_keys('{TAB}')
+    numero_interno = campos['numero'].window_text()
+
+    preencher_dados_fixos(campos)
+
+    xml_path = caminho_xml(caminho_pedido, pedido)
+
+    xml_root = carregar_xml(xml_path)
+    produto = produto_xml(xml_root)
+
+    empresa = definir_empresa(produto)
+    if empresa == 'MATRIZ':
+        selecionar_empresa_matriz(aba_pedido)
+
+    data_fatura, data_entrega = data_xml(xml_root)
+    preencher_datas(campos, data_fatura, data_entrega)
+
+    aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
+
+    grid.click_input(button='right') # OPÇÕES DO GRID
+    send_keys(ATALHO_IMPORTAR)
+    send_keys(ATALHO_HAVAN)
+
+    sleep(1)
+    importa_arq_integracao(xml_path)
+    pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+
+    send_keys(ATALHO_DESISTIR)
+
+    return numero_interno

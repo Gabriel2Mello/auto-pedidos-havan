@@ -1,6 +1,6 @@
 from src.login import realizar_login
-from src.baixar_pedidos import pool_pedidos
-from src.importar_pedidos import importar_integracao
+from src.baixar import baixar_pedidos
+from src.importar import importar_pedido, inicia_app
 from time import perf_counter
 # Third-party libraries
 from cloudscraper import create_scraper
@@ -19,23 +19,19 @@ def main():
     scraper = create_scraper()
     realizar_login(scraper)
 
-    pool_pedidos(scraper, numero_pedidos)
+    baixar_pedidos(scraper, numero_pedidos)
 
-    importar_integracao(numero_pedidos)
-    """
+    pedido_grade, aba_pedido, grid, campos = inicia_app()
+
     for pedido in numero_pedidos:
         try:
-            print('\nBaixando pedido:', pedido)
+            numero_interno = importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos)
+            print(f'\nInterno: {numero_interno}')
 
-            pdf, xml = baixar_arquivos(scraper, pedido)
-
-            salvar_arquivos(pdf, xml, pedido)
-
-            print(f'Pedido {pedido} concluído')
 
         except Exception as e:
             print(f'Erro no pedido {pedido}: {e}')
-    """
+
 
     elapsed_time = perf_counter() - start_time
     print(f'\nTerminado {elapsed_time:0.2f} segundos')

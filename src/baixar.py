@@ -40,7 +40,7 @@ def extrair_xml(content):
             return f.read()
 
 
-def baixar(scraper, pedido):
+def baixar_arquivos(scraper, pedido):
     html_grid = grid_pedido(scraper, pedido)
 
     soup = BeautifulSoup(html_grid, 'html.parser')
@@ -93,7 +93,7 @@ def salvar(pdf, xml, pedido):
 
 def processar(scraper, pedido):
     try:
-        pdf, xml = baixar(scraper, pedido)
+        pdf, xml = baixar_arquivos(scraper, pedido)
         salvar(pdf, xml, pedido)
 
         return True
@@ -103,7 +103,7 @@ def processar(scraper, pedido):
         return False
 
 
-def pool_pedidos(scraper, numero_pedidos):
+def baixar_pedidos(scraper, numero_pedidos):
     max_threads = 10
     resultados = {}
 
@@ -119,7 +119,7 @@ def pool_pedidos(scraper, numero_pedidos):
         for future in tqdm(
             as_completed(futures),
             total=len(futures),
-            desc='Baixando pedidos',
+            desc='Baixando',
             bar_format=format
         ):
 
