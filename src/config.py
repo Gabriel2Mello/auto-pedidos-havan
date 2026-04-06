@@ -39,3 +39,4 @@ ATALHO_GRAVAR = '%g'
 
 SUMATRA = environ['SUMATRA']
 IMPRESSORA = environ['IMPRESSORA_PEDIDO']
+

@@ -1,4 +1,13 @@
-from src.config import USER_AGENT, BASE_URL, ORIGIN, BASE_PATH_PEDIDOS, UNRAR_TOOL, CONTENT_TYPE
+from src.config import (
+    USER_AGENT,
+    BASE_URL,
+    ORIGIN,
+    BASE_PATH_PEDIDOS,
+    UNRAR_TOOL,
+    CONTENT_TYPE
+)
+from src.utils import caminho_pdf, caminho_xml
+
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
 # Third-party libraries
@@ -8,14 +17,17 @@ from tqdm import tqdm
 
 rarfile.UNRAR_TOOL = UNRAR_TOOL
 
-def grid_pedido(scraper, pedido):
-    headers = {
-        'User-Agent': USER_AGENT,
-        'Referer': BASE_URL + '/PedidoCompra/Index',
-        'Origin': ORIGIN,
-        'Content-Type': CONTENT_TYPE
-    }
+GRID_PEDIDO_URL = f'{BASE_URL}/PedidoCompra/GridIndexPedidoCompra'
+PEDIDO_INDEX_URL = f'{BASE_URL}/PedidoCompra/Index'
 
+DEFAULT_HEADERS = {
+    'User-Agent': USER_AGENT,
+    'Referer': PEDIDO_INDEX_URL,
+    'Origin': ORIGIN,
+    'Content-Type': CONTENT_TYPE
+}
+
+def grid_pedido(scraper, pedido):
     data = {
         'Pedido': f"{pedido}",
         'OpcaoSituacaoPedidoCompra': 'T',
@@ -23,8 +35,8 @@ def grid_pedido(scraper, pedido):
     }
 
     response = scraper.post(
-        url=BASE_URL + '/PedidoCompra/GridIndexPedidoCompra',
-        headers=headers,
+        url=GRID_PEDIDO_URL,
+        headers=DEFAULT_HEADERS,
         data=data
     )
     response.raise_for_status()
@@ -74,27 +86,23 @@ def baixar_arquivos(scraper, pedido):
     raise RuntimeError(f'Pedido {pedido} não encontrado')
 
 
-def salvar(pdf, xml, pedido):
-    pasta_havan = BASE_PATH_PEDIDOS / 'Havan Pedidos'
-    pasta_pedido = pasta_havan / str(pedido)
+def salvar(caminho, arquivo):
+    with open(caminho, 'wb') as f:
+        f.write(arquivo)
 
+
+def salvar_arquivos(pdf, xml, pedido):
+    pasta_pedido = BASE_PATH_PEDIDOS / str(pedido)
     pasta_pedido.mkdir(parents=True, exist_ok=True)
 
-    with open(
-        pasta_pedido / f'ordem_de_compra {pedido}.pdf', 'wb'
-    ) as f:
-        f.write(pdf)
-
-    with open(
-        pasta_pedido / f'arq_de_integracao {pedido}.xml', 'wb'
-    ) as f:
-        f.write(xml)
+    salvar(caminho_pdf(pedido), pdf)
+    salvar(caminho_xml(pedido), xml)
 
 
 def processar(scraper, pedido):
     try:
         pdf, xml = baixar_arquivos(scraper, pedido)
-        salvar(pdf, xml, pedido)
+        salvar_arquivos(pdf, xml, pedido)
 
         return True
 

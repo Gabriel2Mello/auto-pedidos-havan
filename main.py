@@ -2,6 +2,7 @@ from src.login import realizar_login
 from src.baixar import baixar_pedidos
 from src.handle_app import inicia_app
 from src.importar import importar_pedido
+from src.imprimir import imprimir_pedido
 from time import perf_counter
 # Third-party libraries
 from cloudscraper import create_scraper
@@ -27,8 +28,9 @@ def main():
     for pedido in numero_pedidos:
         try:
             numero_interno = importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos)
-            print(f'\nInterno: {numero_interno}')
 
+            print(f'\nInterno: {numero_interno}')
+            imprimir_pedido(pedido, numero_interno)
 
         except Exception as e:
             print(f'Erro no pedido {pedido}: {e}')
