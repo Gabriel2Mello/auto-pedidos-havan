@@ -1,6 +1,7 @@
 from src.login import realizar_login
 from src.baixar import baixar_pedidos
-from src.importar import importar_pedido, inicia_app
+from src.handle_app import inicia_app
+from src.importar import importar_pedido
 from time import perf_counter
 # Third-party libraries
 from cloudscraper import create_scraper
