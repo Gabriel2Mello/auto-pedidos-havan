@@ -115,7 +115,7 @@ def pool_pedidos(scraper, numero_pedidos):
             for pedido in numero_pedidos
         }
 
-        format='{l_bar}|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+        format='{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         for future in tqdm(
             as_completed(futures),
             total=len(futures),
