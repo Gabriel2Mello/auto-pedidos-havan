@@ -81,12 +81,12 @@ def salvar(pdf, xml, pedido):
     pasta_pedido.mkdir(parents=True, exist_ok=True)
 
     with open(
-        pasta_pedido / f'Ordem de compra {pedido}.pdf', 'wb'
+        pasta_pedido / f'ordem_de_compra {pedido}.pdf', 'wb'
     ) as f:
         f.write(pdf)
 
     with open(
-        pasta_pedido / f'Arq de integracao {pedido}.xml', 'wb'
+        pasta_pedido / f'arq_de_integracao {pedido}.xml', 'wb'
     ) as f:
         f.write(xml)
 
