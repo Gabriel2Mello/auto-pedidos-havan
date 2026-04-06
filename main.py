@@ -1,5 +1,6 @@
 from src.login import realizar_login
 from src.baixar_pedidos import pool_pedidos
+from src.importar_pedidos import importar_integracao
 from time import perf_counter
 # Third-party libraries
 from cloudscraper import create_scraper
@@ -20,7 +21,7 @@ def main():
 
     pool_pedidos(scraper, numero_pedidos)
 
-
+    importar_integracao(numero_pedidos)
     """
     for pedido in numero_pedidos:
         try:

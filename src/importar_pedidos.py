@@ -19,7 +19,7 @@ def formata_data(data_xml, dias=0):
 
 
 def caminho_xml(caminho_pedido, ped_cli):
-    return caminho_pedido / f'Arq de integracao {ped_cli}.xml'
+    return caminho_pedido / f'arq_de_integracao {ped_cli}.xml'
 
 
 def carregar_xml(arquivo):
@@ -181,7 +181,7 @@ def preencher_dados_fixos(campos):
     campos['operacao'].set_text('1')
 
     campos['classe_gerencial'].set_focus()
-    campos['classe_gerencial'].type_keys('20001{TAB}') # VENDA DE PRODUTOS
+    campos['classe_gerencial'].type_keys('20001{TAB}')
 
 
 def preencher_datas(campos, data_fatura, data_entrega):
@@ -199,7 +199,7 @@ def selecionar_empresa_matriz(aba_pedido):
     combo_empresa.type_keys('{UP}')
 
 
-def importar_integracao(ped_cli):
+def importar_integracao(numero_pedidos):
     main_win = inicia_app()
 
     pedido_grade = get_field_title(
@@ -220,38 +220,40 @@ def importar_integracao(ped_cli):
 
     campos = mapear_campos(aba_pedido)
 
-    caminho_pedido = PATH_HAVAN / ped_cli
+    for pedido in numero_pedidos:
 
-    pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
-    send_keys(ATALHO_INCLUIR)
+        caminho_pedido = PATH_HAVAN / pedido
 
-    sleep(1)
-    campos['numero'].type_keys('{TAB}')
-    numero_interno = campos['numero'].window_text()
+        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+        send_keys(ATALHO_INCLUIR)
 
-    preencher_dados_fixos(campos)
+        sleep(1)
+        campos['numero'].type_keys('{TAB}')
+        numero_interno = campos['numero'].window_text()
 
-    xml_path = caminho_xml(caminho_pedido, ped_cli)
- 
-    xml_root = carregar_xml(xml_path)
-    produto = produto_xml(xml_root)
+        preencher_dados_fixos(campos)
 
-    empresa = definir_empresa(produto)
-    if empresa == 'MATRIZ':
-        selecionar_empresa_matriz(aba_pedido)
+        xml_path = caminho_xml(caminho_pedido, pedido)
 
-    data_fatura, data_entrega = data_xml(xml_root)
-    preencher_datas(campos, data_fatura, data_entrega)
+        xml_root = carregar_xml(xml_path)
+        produto = produto_xml(xml_root)
 
-    aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
+        empresa = definir_empresa(produto)
+        if empresa == 'MATRIZ':
+            selecionar_empresa_matriz(aba_pedido)
 
-    grid.click_input(button='right') # OPÇÕES DO GRID
-    send_keys(ATALHO_IMPORTAR)
-    send_keys(ATALHO_HAVAN)
+        data_fatura, data_entrega = data_xml(xml_root)
+        preencher_datas(campos, data_fatura, data_entrega)
 
-    sleep(1)
-    importa_arq_integracao(xml_path)
-    pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+        aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
 
-    send_keys(ATALHO_DESISTIR)
+        grid.click_input(button='right') # OPÇÕES DO GRID
+        send_keys(ATALHO_IMPORTAR)
+        send_keys(ATALHO_HAVAN)
+
+        sleep(1)
+        importa_arq_integracao(xml_path)
+        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+
+        send_keys(ATALHO_DESISTIR)
 
