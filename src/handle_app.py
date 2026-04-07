@@ -1,4 +1,3 @@
-# Standart library
 from src.config import CAMPOS
 # Third-party libraries
 from pywinauto.application import Application

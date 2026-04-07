@@ -7,11 +7,7 @@ from src.config import (
     PRODUTOS_GOVERNADOR,
     COORD_ABA_PEDIDO,
     COORD_ITENS_PEDIDO,
-    ATALHO_INCLUIR,
-    ATALHO_IMPORTAR,
-    ATALHO_HAVAN,
-    ATALHO_DESISTIR,
-    ATALHO_GRAVAR
+    ATALHOS
 )
 from src.handle_app import importa_arq_integracao
 from src.utils import caminho_xml, formata_data, normalizar
@@ -86,7 +82,7 @@ def selecionar_empresa_matriz(combo_empresa):
 
 def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
     pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
-    send_keys(ATALHO_INCLUIR)
+    send_keys(ATALHOS['incluir'])
 
     sleep(1)
     campos['numero'].type_keys('{TAB}')
@@ -109,14 +105,14 @@ def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
     aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
 
     grid.click_input(button='right') # OPÇÕES DO GRID
-    send_keys(ATALHO_IMPORTAR)
-    send_keys(ATALHO_HAVAN)
+    send_keys(ATALHOS['importar'])
+    send_keys(ATALHOS['havan'])
 
     sleep(1)
     importa_arq_integracao(xml_path)
     pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
 
-    #send_keys(ATALHO_DESISTIR)
+    send_keys(ATALHOS['desistir'])
 
     return numero_interno
 
