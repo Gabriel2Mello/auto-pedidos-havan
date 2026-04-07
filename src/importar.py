@@ -14,33 +14,23 @@ from src.utils import caminho_xml, formata_data, normalizar
 
 
 def carregar_xml(arquivo):
-    tree = ET.parse(arquivo)
-    return tree.getroot()
+    return ET.parse(arquivo).getroot()
 
 
-def data_xml(root):
-    data_fatura = root.findtext(
-        'DadosEntregaFaturamento/PrazoPagamento/PrevisaoData'
-    )
-    data_entrega = root.findtext(
-        'DadosEntregaFaturamento/DataInicialSemanaEntrega'
-    )
+def extrair_dados_xml(root):
+    data_fatura = root.findtext('.//PrazoPagamento/PrevisaoData')
+    data_entrega = root.findtext('.//DataInicialSemanaEntrega')
 
-    if not data_fatura or not data_entrega:
-        raise RuntimeError('Data no xml não encontrada')
+    produto_raw = root.findtext('.//DescricaoProduto')
 
-    return formata_data(data_fatura), formata_data(data_entrega, 1)
+    if not all([data_fatura, data_entrega, produto_raw]):
+        raise RuntimeError('Dados não encontrados no XML')
 
-
-def produto_xml(root):
-    produto = root.findtext(
-        'ItensOrdemCompra/ItemOrdemCompra/DescricaoProduto'
-    )
-
-    if not produto:
-        raise RuntimeError('Produto não encontrado')
-
-    return normalizar(produto)
+    return {
+        'data_fatura': formata_data(data_fatura),
+        'data_entrega': formata_data(data_entrega, 1),
+        'produto': normalizar(produto_raw)
+    }
 
 
 def definir_empresa(produto):
@@ -50,13 +40,18 @@ def definir_empresa(produto):
 
 
 def preencher_dados_fixos(campos):
-    campos['cliente'].set_text('00022')
-    campos['representante'].set_text('00001')
-    campos['transporte'].set_text('00001')
-    campos['tabela_preco'].set_text('004')
-    campos['historico'].set_text('02')
-    campos['tipo_venda'].set_text('1')
-    campos['operacao'].set_text('1')
+    dados = {
+        'cliente': '00022',
+        'representante': '00001',
+        'transporte': '00001',
+        'tabela_preco': '004',
+        'historico': '02',
+        'tipo_venda': '1',
+        'operacao': '1'
+    }
+
+    for nome, valor in dados.items():
+        campos[nome].set_text(valor)
 
     campos['classe_gerencial'].set_focus()
     campos['classe_gerencial'].type_keys('20001{TAB}')
@@ -64,41 +59,39 @@ def preencher_dados_fixos(campos):
 
 def preencher_datas(campos, data_fatura, data_entrega):
     campos['data_fatura'].set_text(data_fatura)
-    sleep(1)
+    sleep(0.5)
     campos['data_entrega'].set_text(data_entrega)
-    sleep(1)
+    sleep(0.5)
     campos['data_saida'].set_text(data_entrega)
-    sleep(1)
+    sleep(0.5)
 
 
 def selecionar_empresa_matriz(combo_empresa):
     combo_empresa.set_focus()
-    sleep(1)
     combo_empresa.type_keys('{UP}')
-    sleep(1)
+    sleep(0.5)
 
 
 def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
     pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
     send_keys(ATALHOS['incluir'])
+    sleep(0.5)
 
-    sleep(1)
     campos['numero'].type_keys('{TAB}')
     numero_interno = campos['numero'].window_text()
 
-    preencher_dados_fixos(campos)
-
     xml_path = caminho_xml(pedido)
     xml_root = carregar_xml(xml_path)
+    dados_xml = extrair_dados_xml(xml_root)
 
-    produto = produto_xml(xml_root)
+    preencher_dados_fixos(campos)
 
-    empresa = definir_empresa(produto)
-    if empresa == 'MATRIZ':
+    if definir_empresa(dados_xml['produto']) == 'MATRIZ':
         selecionar_empresa_matriz(campos['empresa'])
 
-    data_fatura, data_entrega = data_xml(xml_root)
-    preencher_datas(campos, data_fatura, data_entrega)
+    preencher_datas(
+        campos, dados_xml['data_fatura'], dados_xml['data_entrega']
+    )
 
     aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
 
