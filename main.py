@@ -23,8 +23,8 @@ def main():
     realizar_login(scraper)
 
     baixar_pedidos(scraper, numero_pedidos)
-
     pedido_grade, aba_pedido, grid, campos = inicia_app()
+
     for pedido in numero_pedidos:
         try:
             numero_interno = importar_pedido(

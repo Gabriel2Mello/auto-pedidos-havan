@@ -6,13 +6,20 @@ from src.config import (
     SENHA_PORTAL
 )
 
+LOGIN_INDEX_URL   = f'{BASE_URL}/Login/Index'
+FAZER_LOGIN_URL   = f'{BASE_URL}/Login/FazerLogin?Length=5'
+PEDIDO_COMPRA_URL = f'{BASE_URL}/PedidoCompra/Index'
+
+
+def configurar_sessao(scraper):
+    scraper.headers.update({
+        'User-Agent': USER_AGENT,
+        'Origin': ORIGIN
+    })
+
 
 def realizar_login(scraper):
-    headers = {
-        'User-Agent': USER_AGENT,
-        'Referer': USER_AGENT + '/informativo',
-        'Origin': ORIGIN
-    }
+    configurar_sessao(scraper)
 
     payload = {
         'TipoLogin': '0',
@@ -20,13 +27,11 @@ def realizar_login(scraper):
         'SenhaMd5': SENHA_PORTAL
     }
 
-    scraper.get(
-        url=BASE_URL + '/Login/Index'
-    ).raise_for_status()
+    scraper.get(url=LOGIN_INDEX_URL).raise_for_status()
 
     scraper.post(
-        url=BASE_URL + '/Login/FazerLogin?Length=5',
-        headers=headers,
+        url=FAZER_LOGIN_URL,
+        headers={'Referer': LOGIN_INDEX_URL},
         data=payload,
         allow_redirects=True
     ).raise_for_status()
@@ -35,14 +40,9 @@ def realizar_login(scraper):
 
 
 def get_pedido_compra(scraper):
-    headers = {
-        'User-Agent': USER_AGENT,
-        'Referer': BASE_URL
-    }
-
     scraper.get(
-        url=BASE_URL + '/PedidoCompra/Index',
-        headers=headers,
+        url=PEDIDO_COMPRA_URL,
+        headers={'Referer': BASE_URL},
         allow_redirects=True
     ).raise_for_status()
 
