@@ -59,9 +59,7 @@ def preencher_dados_fixos(campos):
     campos['operacao'].set_text('1')
 
     campos['classe_gerencial'].set_focus()
-    sleep(1)
     campos['classe_gerencial'].type_keys('20001{TAB}')
-    sleep(1)
 
 
 def preencher_datas(campos, data_fatura, data_entrega):

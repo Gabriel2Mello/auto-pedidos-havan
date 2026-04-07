@@ -4,9 +4,8 @@ from pywinauto.application import Application
 
 
 def get_field_index(parent, class_name, campo):
-    try:
-        index = CAMPOS[campo]
-    except KeyError:
+    index = CAMPOS.get(campo)
+    if index is None:
         raise RuntimeError(f'Campo não mapeado: {campo}')
 
     return parent.child_window(
@@ -23,47 +22,24 @@ def get_field_title(parent, class_name, title):
 
 
 def mapear_campos(aba_pedido):
-    return {
-        'numero': get_field_index(
-            aba_pedido, 'TEdit', 'numero'
-        ),
-        'cliente': get_field_index(
-            aba_pedido, 'TEdit', 'cliente'
-        ),
-        'representante': get_field_index(
-            aba_pedido, 'TEdit', 'representante'
-        ),
-        'transporte': get_field_index(
-            aba_pedido, 'TEdit', 'transporte'
-        ),
-        'tabela_preco': get_field_index(
-            aba_pedido, 'TEdit', 'tabela_preco'
-        ),
-        'historico': get_field_index(
-            aba_pedido, 'TEdit', 'historico'
-        ),
-        'tipo_venda': get_field_index(
-            aba_pedido, 'TEdit', 'tipo_venda'
-        ),
-        'operacao': get_field_index(
-            aba_pedido, 'TEdit', 'operacao'
-        ),
-        'data_fatura': get_field_index(
-            aba_pedido, 'TDateEditSisp', 'fatura'
-        ),
-        'data_entrega': get_field_index(
-            aba_pedido, 'TDateEditSisp', 'entrega'
-        ),
-        'data_saida': get_field_index(
-            aba_pedido, 'TDateEditSisp', 'saida'
-        ),
-        'classe_gerencial': get_field_index(
-            aba_pedido, 'TEdGrid', 'classe_gerencial'
-        ),
-        'empresa': get_field_index(
-            aba_pedido, 'TComboBox', 'combo_empresa'
-        ),
+    definicoes = {
+        'numero': ('TEdit', 'numero'),
+        'cliente': ('TEdit', 'cliente'),
+        'representante': ('TEdit', 'representante'),
+        'transporte': ('TEdit', 'transporte'),
+        'tabela_preco': ('TEdit', 'tabela_preco'),
+        'historico': ('TEdit', 'historico'),
+        'tipo_venda': ('TEdit', 'tipo_venda'),
+        'operacao': ('TEdit', 'operacao'),
+        'data_fatura': ('TDateEditSisp', 'fatura'),
+        'data_entrega': ('TDateEditSisp', 'entrega'),
+        'data_saida': ('TDateEditSisp', 'saida'),
+        'classe_gerencial': ('TEdGrid', 'classe_gerencial'),
+        'empresa': ('TComboBox', 'combo_empresa'),
     }
+
+    return {nome: get_field_index(aba_pedido, classe, chave)
+            for nome, (classe, chave) in definicoes.items()}
 
 
 def inicia_app():
@@ -72,31 +48,30 @@ def inicia_app():
         class_name='TApplication'
     )
 
-    dlg = app.window(
+    main_window = app.window(
         title=CAMPOS['sisplan'],
         class_name='TApplication'
     )
+    main_window.restore().set_focus()
+    main_window.wait('ready', timeout=10)
 
-    dlg.restore()
-    dlg.wait('visible', timeout=10)
-    dlg.set_focus()
 
-    main = app.window(
+    janela_vendas = app.window(
         title_re='.*VenPedidoGrade.*',
         class_name='TfmPrincipal'
     )
-    main.set_focus()
+    janela_vendas.set_focus()
 
     pedido_grade = get_field_title(
-        main, 'TTabSheet', '1002 - Pedido Por Grade'
+        janela_vendas, 'TTabSheet', '1002 - Pedido Por Grade'
     )
 
     aba_pedido = get_field_title(
-        main, 'TTabSheet', 'Pedido'
+        janela_vendas, 'TTabSheet', 'Pedido'
     )
 
     itens_pedido = get_field_title(
-        main, 'TTabSheet', 'Itens Pedido'
+        janela_vendas, 'TTabSheet', 'Itens Pedido'
     )
 
     grid = get_field_index(
@@ -109,20 +84,24 @@ def inicia_app():
 
 
 def importa_arq_integracao(xml_path):
-    app_abrir = Application(
-        backend='win32'
-    ).connect(title='Abrir', class_name='#32770')
+    try:
+        app_dialog = Application(
+            backend='win32'
+        ).connect(title='Abrir', class_name='#32770')
 
-    janela = app_abrir.window(
-        title='Abrir', class_name='#32770'
-    )
-    janela.wait('visible', timeout=10)
+        janela = app_dialog.window(
+            title='Abrir', class_name='#32770'
+        )
+        janela.wait('ready', timeout=5)
 
-    nome_field = get_field_index(
-        janela, 'Edit', 'nome'
-    )
-    nome_field.set_focus()
+        nome_field = get_field_index(
+            janela, 'Edit', 'nome'
+        )
 
-    nome_field.set_edit_text(str(xml_path))
-    nome_field.type_keys('{ENTER}')
+        nome_field.set_focus()
+        nome_field.set_edit_text(str(xml_path))
+        nome_field.type_keys('{ENTER}')
+
+    except Exception as e:
+        raise RuntimeError(f'Erro ao interagir com janela de importação: {e}')
 
