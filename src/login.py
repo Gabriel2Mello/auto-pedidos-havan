@@ -1,4 +1,10 @@
-from src.config import USER_AGENT, ORIGIN, BASE_URL, CNPJ_MATRIZ, SENHA_PORTAL
+from src.config import (
+    USER_AGENT,
+    ORIGIN,
+    BASE_URL,
+    CNPJ_MATRIZ,
+    SENHA_PORTAL
+)
 
 
 def realizar_login(scraper):

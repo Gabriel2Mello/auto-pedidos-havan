@@ -1,19 +1,23 @@
-# Standart library
-from src.config import SUMATRA, IMPRESSORA, BASE_PATH_PEDIDOS
-from src.utils import caminho_pdf
 import io
 import subprocess
 from time import sleep
 from pypdf import PdfReader, PdfWriter
-# Third-party libraries
+
 from reportlab.pdfgen import canvas
+
+from src.config import (
+    SUMATRA,
+    IMPRESSORA,
+    BASE_PATH_PEDIDOS
+)
+from src.utils import caminho_pdf
 
 def criar_overlay(texto, largura, altura):
     packet = io.BytesIO()
     c = canvas.Canvas(packet, pagesize=(largura, altura))
 
     margem_altura = 60
-    margem_largura = 40
+    margem_largura = 50
 
     c.translate(largura, 0)
     c.rotate(90)
@@ -72,5 +76,4 @@ def imprimir_pedido(pedido, numero_interno):
     adicionar_numero(pdf_entrada, pdf_saida, numero_interno)
 
     #imprimir_pdf(caminho_pedidos / pdf_saida)
-
 

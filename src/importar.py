@@ -1,11 +1,20 @@
-# Standart library
-from src.config import PRODUTOS_GOVERNADOR, COORD_ABA_PEDIDO, ATALHO_INCLUIR, COORD_ITENS_PEDIDO, ATALHO_IMPORTAR, ATALHO_HAVAN, ATALHO_DESISTIR
-from src.handle_app import importa_arq_integracao
-from src.utils import caminho_xml, formata_data, normalizar
 import xml.etree.ElementTree as ET
 from time import sleep
-# Third-party libraries
+
 from pywinauto.keyboard import send_keys
+
+from src.config import (
+    PRODUTOS_GOVERNADOR,
+    COORD_ABA_PEDIDO,
+    COORD_ITENS_PEDIDO,
+    ATALHO_INCLUIR,
+    ATALHO_IMPORTAR,
+    ATALHO_HAVAN,
+    ATALHO_DESISTIR,
+    ATALHO_GRAVAR
+)
+from src.handle_app import importa_arq_integracao
+from src.utils import caminho_xml, formata_data, normalizar
 
 
 def carregar_xml(arquivo):
@@ -46,17 +55,11 @@ def definir_empresa(produto):
 
 def preencher_dados_fixos(campos):
     campos['cliente'].set_text('00022')
-    sleep(1)
     campos['representante'].set_text('00001')
-    sleep(1)
     campos['transporte'].set_text('00001')
-    sleep(1)
     campos['tabela_preco'].set_text('004')
-    sleep(1)
     campos['historico'].set_text('02')
-    sleep(1)
     campos['tipo_venda'].set_text('1')
-    sleep(1)
     campos['operacao'].set_text('1')
 
     campos['classe_gerencial'].set_focus()
@@ -71,6 +74,7 @@ def preencher_datas(campos, data_fatura, data_entrega):
     campos['data_entrega'].set_text(data_entrega)
     sleep(1)
     campos['data_saida'].set_text(data_entrega)
+    sleep(1)
 
 
 def selecionar_empresa_matriz(combo_empresa):
@@ -112,7 +116,7 @@ def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
     importa_arq_integracao(xml_path)
     pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
 
-    send_keys(ATALHO_DESISTIR)
+    #send_keys(ATALHO_DESISTIR)
 
     return numero_interno
 

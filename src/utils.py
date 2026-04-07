@@ -10,12 +10,12 @@ def formata_data(data_xml, dias=0):
 
 
 def caminho_xml(pedido):
-    caminho = BASE_PATH_PEDIDOS / pedido
+    caminho = BASE_PATH_PEDIDOS / str(pedido)
     return caminho / f'arq_de_integracao {pedido}.xml'
 
 
 def caminho_pdf(pedido):
-    caminho = BASE_PATH_PEDIDOS / pedido
+    caminho = BASE_PATH_PEDIDOS / str(pedido)
     return caminho / f'ordem_de_compra {pedido}.pdf'
 
 

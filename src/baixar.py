@@ -1,19 +1,21 @@
+import logging
+from io import BytesIO
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import rarfile
+from bs4 import BeautifulSoup
+from tqdm import tqdm
+
 from src.config import (
     USER_AGENT,
     BASE_URL,
     ORIGIN,
-    BASE_PATH_PEDIDOS,
     UNRAR_TOOL,
     CONTENT_TYPE
 )
 from src.utils import caminho_pdf, caminho_xml
 
-from io import BytesIO
-from concurrent.futures import ThreadPoolExecutor, as_completed
-# Third-party libraries
-import rarfile
-from bs4 import BeautifulSoup
-from tqdm import tqdm
+logger = logging.getLogger(__name__)
 
 rarfile.UNRAR_TOOL = UNRAR_TOOL
 
@@ -27,9 +29,10 @@ DEFAULT_HEADERS = {
     'Content-Type': CONTENT_TYPE
 }
 
-def grid_pedido(scraper, pedido):
-    data = {
-        'Pedido': f"{pedido}",
+
+def html_grid_pedido(scraper, pedido):
+    payload = {
+        'Pedido': str(pedido),
         'OpcaoSituacaoPedidoCompra': 'T',
         'OpcaoStatusNotaFiscal': '0'
     }
@@ -37,7 +40,7 @@ def grid_pedido(scraper, pedido):
     response = scraper.post(
         url=GRID_PEDIDO_URL,
         headers=DEFAULT_HEADERS,
-        data=data
+        data=payload
     )
     response.raise_for_status()
 
@@ -46,103 +49,104 @@ def grid_pedido(scraper, pedido):
 
 def extrair_xml(content):
     with rarfile.RarFile(BytesIO(content)) as rf:
-        nome_xml = rf.namelist()[0]
+        xml_files = [f for f in rf.namelist() if f.lower().endswith('.xml')]
+        if not xml_files:
+            raise FileNotFoundError('RAR sem arquivo XML.')
 
-        with rf.open(nome_xml) as f:
+        with rf.open(xml_files[0]) as f:
             return f.read()
 
 
-def baixar_arquivos(scraper, pedido):
-    html_grid = grid_pedido(scraper, pedido)
-
-    soup = BeautifulSoup(html_grid, 'html.parser')
+def links_pedido(html_content, pedido):
+    soup = BeautifulSoup(html_content, 'lxml')
 
     for grupo in soup.select('div.hvn-group'):
-        pedido_texto = grupo.select_one('dt + dd')
+        tag_pedido = grupo.select_one('dt + dd')
 
-        if not pedido_texto:
+        if not tag_pedido or not tag_pedido.contents:
             continue
 
-        numero = str(pedido_texto.contents[0]).strip()
+        numero = str(tag_pedido.contents[0]).strip()
 
-        if numero == pedido:
-            ordem = grupo.select_one('a[title*="Ordem de compra"]')
-            integracao = grupo.select_one('a[title*="Arq. de integra"]')
+        if numero != str(pedido):
+            continue
 
-            if not ordem or not integracao:
-                raise RuntimeError('Pedido não encontrado')
+        ordem_href = grupo.select_one('a[title*="Ordem de compra"]')
+        integracao_href = grupo.select_one('a[title*="Arq. de integra"]')
 
-            ordem_url = ORIGIN + str(ordem['href'])
-            integracao_url = ORIGIN + str(integracao['href'])
+        if not ordem_href or not integracao_href:
+            raise RuntimeError('Pedido encontrado, mas link ausente')
 
-            ordem_pdf = scraper.get(ordem_url)
-            integracao_rar = scraper.get(integracao_url)
+        ordem_url = f"{ORIGIN}{ordem_href['href']}"
+        integracao_url = f"{ORIGIN}{integracao_href['href']}"
 
-            ordem_pdf.raise_for_status()
-            integracao_rar.raise_for_status()
-
-            return ordem_pdf.content, extrair_xml(integracao_rar.content)
+        return ordem_url, integracao_url
 
     raise RuntimeError(f'Pedido {pedido} não encontrado')
 
 
-def salvar(caminho, arquivo):
-    with open(caminho, 'wb') as f:
-        f.write(arquivo)
+def baixar_arquivos(scraper, pedido):
+    html_grid = html_grid_pedido(scraper, pedido)
+    url_pdf, url_rar = links_pedido(html_grid, pedido)
+
+    response_pdf = scraper.get(url_pdf)
+    response_rar = scraper.get(url_rar)
+
+    response_pdf.raise_for_status()
+    response_rar.raise_for_status()
+
+    return response_pdf.content, extrair_xml(response_rar.content)
 
 
 def salvar_arquivos(pdf, xml, pedido):
-    pasta_pedido = BASE_PATH_PEDIDOS / str(pedido)
-    pasta_pedido.mkdir(parents=True, exist_ok=True)
+    arquivos = {
+        caminho_pdf(pedido): pdf,
+        caminho_xml(pedido): xml
+    }
 
-    salvar(caminho_pdf(pedido), pdf)
-    salvar(caminho_xml(pedido), xml)
+    for caminho, conteudo in arquivos.items():
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(caminho, 'wb') as f:
+            f.write(conteudo)
 
 
-def processar(scraper, pedido):
+def processar_unico(scraper, pedido):
     try:
         pdf, xml = baixar_arquivos(scraper, pedido)
         salvar_arquivos(pdf, xml, pedido)
 
-        return True
+        return pedido, True
 
     except Exception as e:
-        print(f'Erro no pedido {pedido}: {e}')
-        return False
+        logger.error(f'\nErro no pedido {pedido}: {e}')
+        return pedido, False
 
 
-def baixar_pedidos(scraper, numero_pedidos):
-    max_threads = 10
+def baixar_pedidos(scraper, numero_pedidos, max_threads=10):
     resultados = {}
 
     print('\nIniciando processo de download...')
 
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
         futures = {
-            executor.submit(processar, scraper, pedido): pedido
+            executor.submit(processar_unico, scraper, pedido): pedido
             for pedido in numero_pedidos
         }
 
-        format='{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+        tqdm_format='{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         for future in tqdm(
             as_completed(futures),
             total=len(futures),
             desc='Baixando',
-            bar_format=format
-        ):
+            bar_format=tqdm_format):
 
-            pedido = futures[future]
+            pedido, sucesso = future.result()
+            resultados[pedido] = sucesso
 
-            try:
-                sucesso = future.result()
-                resultados[pedido] = sucesso
-            except Exception as e:
-                print(f'Erro inesperado no pedido {pedido}: {e}')
-                resultados[pedido] = False
 
     print('\nRESUMO DOS PEDIDOS:')
     for pedido, sucesso in resultados.items():
         status = 'Baixado' if sucesso else 'Falhou'
         print(f'{pedido}: {status}')
-
 
