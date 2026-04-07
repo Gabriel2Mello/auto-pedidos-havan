@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from src.config import (
-    USER_AGENT,
     BASE_URL,
     ORIGIN,
     UNRAR_TOOL,
@@ -23,9 +22,7 @@ GRID_PEDIDO_URL = f'{BASE_URL}/PedidoCompra/GridIndexPedidoCompra'
 PEDIDO_INDEX_URL = f'{BASE_URL}/PedidoCompra/Index'
 
 DEFAULT_HEADERS = {
-    'User-Agent': USER_AGENT,
     'Referer': PEDIDO_INDEX_URL,
-    'Origin': ORIGIN,
     'Content-Type': CONTENT_TYPE
 }
 

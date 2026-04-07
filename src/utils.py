@@ -4,7 +4,6 @@ import unicodedata
 
 def formata_data(data_xml, dias=0):
     data = datetime.strptime(data_xml, '%d/%m/%y') + timedelta(days=dias)
-    data = data.replace(year=2000 + data.year % 100)
 
     return data.strftime('%d/%m/%Y')
 
