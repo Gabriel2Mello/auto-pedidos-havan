@@ -86,13 +86,13 @@ def imprimir_pdf(caminho):
         args = [
             str(SUMATRA),
             '-print-to', IMPRESSORA,
-            '-print-settings', 'simplex',
+            '-print-settings', 'fit,simplex',
             '-exit-on-print',
             str(caminho)
         ]
 
         subprocess.run(args, check=True, capture_output=True)
-        sleep(1.2)
+        sleep(0.5)
 
     except subprocess.CalledProcessError as e:
         logger.error(f'Erro no SumatraPDF para {caminho.name}: {e.stderr.decode()}')
@@ -107,7 +107,7 @@ def processar_impressao(pedido, numero_interno):
 
     try:
         adicionar_numero(pdf_original, pdf_final, numero_interno)
-        imprimir_pdf(pdf_final)
+        #imprimir_pdf(pdf_final)
     except Exception as e:
         logger.error(f'Erro no processamento de impressão do pedido: {pedido}: {e}')
 

@@ -103,7 +103,7 @@ def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
     importa_arq_integracao(xml_path)
     pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
 
-    send_keys(ATALHOS['desistir'])
+    send_keys(ATALHOS['gravar'])
 
     return numero_interno
 
