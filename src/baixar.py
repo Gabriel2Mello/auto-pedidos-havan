@@ -1,4 +1,5 @@
 import logging
+import re
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -15,7 +16,6 @@ from src.config import (
 from src.utils import caminho_pdf, caminho_xml
 
 logger = logging.getLogger(__name__)
-
 rarfile.UNRAR_TOOL = UNRAR_TOOL
 
 GRID_PEDIDO_URL = f'{BASE_URL}/PedidoCompra/GridIndexPedidoCompra'
@@ -46,48 +46,60 @@ def html_grid_pedido(scraper, pedido):
 
 def extrair_xml(content):
     with rarfile.RarFile(BytesIO(content)) as rf:
-        xml_files = [f for f in rf.namelist() if f.lower().endswith('.xml')]
-        if not xml_files:
+        xml_file = next((f for f in rf.namelist() if f.lower().endswith('.xml')), None)
+        if not xml_file:
             raise FileNotFoundError('RAR sem arquivo XML.')
 
-        with rf.open(xml_files[0]) as f:
-            return f.read()
+        return rf.read(xml_file)
 
 
 def links_pedido(html_content, pedido):
     soup = BeautifulSoup(html_content, 'lxml')
 
     for grupo in soup.select('div.hvn-group'):
-        tag_pedido = grupo.select_one('dt + dd')
+        dts = grupo.find_all('dt')
+        dd_pedido = None
 
-        if not tag_pedido or not tag_pedido.contents:
+        for dt in dts:
+            if 'pedido' in dt.get_text().lower():
+                dd_pedido = dt.find_next_sibling('dd')
+                break
+
+        if not dd_pedido:
             continue
 
-        numero = str(tag_pedido.contents[0]).strip()
-
-        if numero != str(pedido):
+        try:
+            numero_extraido = str(dd_pedido.contents[0]).strip()
+        except (IndexError, AttributeError):
             continue
 
-        ordem_href = grupo.select_one('a[title*="Ordem de compra"]')
-        integracao_href = grupo.select_one('a[title*="Arq. de integra"]')
+        if numero_extraido != pedido:
+            continue
 
-        if not ordem_href or not integracao_href:
+        ordem = grupo.select_one('a[title*="Ordem de compra"]')
+        integracao = grupo.select_one('a[title*="Arq. de integra"]')
+
+        if not ordem or not integracao:
             raise RuntimeError('Pedido encontrado, mas link ausente')
 
-        ordem_url = f"{ORIGIN}{ordem_href['href']}"
-        integracao_url = f"{ORIGIN}{integracao_href['href']}"
+        ordem_url = f"{ORIGIN}{ordem['href']}"
+        integracao_url = f"{ORIGIN}{integracao['href']}"
 
         return ordem_url, integracao_url
 
-    raise RuntimeError(f'Pedido {pedido} não encontrado')
+    raise RuntimeError(f'Pedido {pedido} não encontrado na grade')
 
 
 def baixar_arquivos(scraper, pedido):
     html_grid = html_grid_pedido(scraper, pedido)
     url_pdf, url_rar = links_pedido(html_grid, pedido)
 
-    response_pdf = scraper.get(url_pdf)
-    response_rar = scraper.get(url_rar)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_pdf = executor.submit(scraper.get, url_pdf)
+        f_rar = executor.submit(scraper.get, url_rar)
+
+        response_pdf = f_pdf.result()
+        response_rar = f_rar.result()
 
     response_pdf.raise_for_status()
     response_rar.raise_for_status()
@@ -101,11 +113,10 @@ def salvar_arquivos(pdf, xml, pedido):
         caminho_xml(pedido): xml
     }
 
-    for caminho, conteudo in arquivos.items():
-        caminho.parent.mkdir(parents=True, exist_ok=True)
+    for path, data in arquivos.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(caminho, 'wb') as f:
-            f.write(conteudo)
+        path.write_bytes(data)
 
 
 def processar_unico(scraper, pedido):
@@ -116,13 +127,12 @@ def processar_unico(scraper, pedido):
         return pedido, True
 
     except Exception as e:
-        logger.error(f'\nErro no pedido {pedido}: {e}')
+        logger.error(f'Erro no pedido {pedido}: {e}')
         return pedido, False
 
 
 def baixar_pedidos(scraper, numero_pedidos, max_threads=10):
     resultados = {}
-
     print('\nIniciando processo de download...')
 
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
@@ -131,17 +141,20 @@ def baixar_pedidos(scraper, numero_pedidos, max_threads=10):
             for pedido in numero_pedidos
         }
 
-        tqdm_format='{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
-        for future in tqdm(
-            as_completed(futures),
-            total=len(futures),
-            desc='Baixando',
-            bar_format=tqdm_format):
+        tqdm_args= {
+            'total': len(futures),
+            'desc': 'Baixando',
+            'bar_format': '{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+        }
 
+        for future in tqdm(as_completed(futures), **tqdm_args):
             pedido, sucesso = future.result()
             resultados[pedido] = sucesso
 
+    exibir_resumo(resultados)
 
+
+def exibir_resumo(resultados):
     print('\nRESUMO DOS PEDIDOS:')
     for pedido, sucesso in resultados.items():
         status = 'Baixado' if sucesso else 'Falhou'
