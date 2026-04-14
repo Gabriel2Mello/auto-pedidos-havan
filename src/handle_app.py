@@ -48,6 +48,8 @@ def mapear_campos(aba_pedido):
 
 
 def inicia_app():
+    from pywinauto.application import Application
+
     logger.debug('Iniciando aplicação')
     app = Application(backend='win32').connect(
         title=CAMPOS['sisplan'],
@@ -114,6 +116,7 @@ def importa_arq_integracao(xml_path):
 
 
 def handle_aviso_duplicado(pedido):
+
     app_dialog = Application(
         backend='win32'
     ).connect(title='Aviso', class_name='TfmAviso')

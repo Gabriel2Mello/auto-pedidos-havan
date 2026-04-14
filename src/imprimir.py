@@ -1,9 +1,9 @@
 import io
 import subprocess
 from time import sleep
-from pypdf import PdfReader, PdfWriter
 
 from reportlab.pdfgen import canvas
+from pypdf import PdfReader, PdfWriter
 
 from src.logs import get_logger
 from src.config import (
