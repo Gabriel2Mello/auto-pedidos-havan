@@ -1,3 +1,4 @@
+from src.logs import get_logger
 from src.config import (
     USER_AGENT,
     ORIGIN,
@@ -10,6 +11,7 @@ LOGIN_INDEX_URL   = f'{BASE_URL}/Login/Index'
 FAZER_LOGIN_URL   = f'{BASE_URL}/Login/FazerLogin?Length=5'
 PEDIDO_COMPRA_URL = f'{BASE_URL}/PedidoCompra/Index'
 
+logger = get_logger(__name__)
 
 def configurar_sessao(scraper):
     scraper.headers.update({
@@ -19,6 +21,7 @@ def configurar_sessao(scraper):
 
 
 def realizar_login(scraper):
+    logger.debug('Iniciando processo de login')
     configurar_sessao(scraper)
 
     payload = {

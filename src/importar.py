@@ -3,6 +3,7 @@ from time import sleep
 
 from pywinauto.keyboard import send_keys
 
+from src.logs import get_logger
 from src.config import (
     PRODUTOS_GOVERNADOR,
     COORD_ABA_PEDIDO,
@@ -19,12 +20,15 @@ from src.utils import (
         normalizar
 )
 
+logger = get_logger(__name__)
+
 
 def carregar_xml(arquivo):
     return ET.parse(arquivo).getroot()
 
 
 def extrair_dados_xml(root):
+    logger.debug('Extraindo dados do xml')
     data_fatura = root.findtext('.//PrazoPagamento/PrevisaoData')
     data_entrega = root.findtext('.//DataInicialSemanaEntrega')
 
@@ -80,6 +84,7 @@ def selecionar_empresa_matriz(combo_empresa):
 
 
 def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
+    logger.debug('Iniciando processo de importação no Sisplan')
     pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
     send_keys(ATALHOS['incluir'])
     sleep(0.5)

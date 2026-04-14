@@ -1,4 +1,3 @@
-import logging
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -6,6 +5,7 @@ import rarfile
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
+from src.logs import get_logger
 from src.config import (
     BASE_URL,
     ORIGIN,
@@ -17,7 +17,7 @@ from src.utils import (
     caminho_xml
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 rarfile.UNRAR_TOOL = UNRAR_TOOL
 
 GRID_PEDIDO_URL = f'{BASE_URL}/PedidoCompra/GridIndexPedidoCompra'
@@ -133,7 +133,7 @@ def processar_unico(scraper, pedido):
 
 def baixar_pedidos(scraper, numero_pedidos, max_threads=10):
     resultados = {}
-    print('\nIniciando processo de download...')
+    logger.info_split('Iniciando processo de download...')
 
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
         futures = {
@@ -160,8 +160,8 @@ def baixar_pedidos(scraper, numero_pedidos, max_threads=10):
 
 
 def exibir_resumo(resultados):
-    print('\nRESUMO DOS PEDIDOS:')
+    logger.info_split('RESUMO DOS PEDIDOS:')
     for pedido, sucesso in resultados.items():
         status = 'Baixado' if sucesso else 'Falhou'
-        print(f'{pedido}: {status}')
+        logger.info(f'{pedido}: {status}')
 

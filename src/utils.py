@@ -4,7 +4,6 @@ import unicodedata
 
 def formata_data(data_xml, dias=0):
     data = datetime.strptime(data_xml, '%d/%m/%y') + timedelta(days=dias)
-
     return data.strftime('%d/%m/%Y')
 
 
@@ -19,7 +18,7 @@ def caminho_pdf(pedido):
 
 
 def normalizar(texto):
-    if texto is None:
+    if not texto:
         raise RuntimeError('Texto não encontrado')
 
     return unicodedata.normalize('NFKD', texto)\

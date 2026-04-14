@@ -1,35 +1,26 @@
 from time import perf_counter
-import logging
 
 from cloudscraper import create_scraper
 
+from src.logs import setup_logging, get_logger
 from src.login import realizar_login
 from src.baixar import baixar_pedidos
 from src.handle_app import inicia_app
 from src.importar import importar_pedido
 from src.imprimir import processar_impressao
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def input_pedido():
     pedidos_input = input('Pedido: ').strip()
     return [p.strip() for p in pedidos_input.split(',') if p.strip()]
 
-
 def main():
     numero_pedidos = input_pedido()
 
     if not numero_pedidos:
-        logger.warning('Nenhum pedido informado. Encerrando...')
+        logger.info_split('Nenhum pedido informado. Encerrando...')
         return
 
     start_time = perf_counter()
@@ -46,7 +37,7 @@ def main():
             try:
                 if not resultados[pedido]: continue
 
-                print(f'\nImportando: {pedido}')
+                logger.info_split(f'Importando: {pedido}')
                 numero_interno, duplicado = importar_pedido(
                     pedido,
                     pedido_grade,
@@ -56,21 +47,22 @@ def main():
                 )
 
                 if duplicado: continue
+                logger.info(f'Número interno: {numero_interno}')
 
-                print(f'\nInterno: {numero_interno}')
                 processar_impressao(pedido, numero_interno)
 
             except Exception as e:
-                logger.error(f'Erro no pedido {pedido}: {e}')
+                logger.error_split(f'Erro no pedido {pedido}: {e}')
 
     except Exception as e:
-        logger.critical(f'Erro fatal: {e}')
+        logger.critical_split(f'Erro fatal: {e}')
 
     finally:
         elapsed_time = perf_counter() - start_time
-        print(f'\nTerminado em {elapsed_time:0.2f} segundos.')
+        logger.info_split(f'Terminado em {elapsed_time:0.2f} segundos.')
 
 
 if __name__ == '__main__':
+    setup_logging()
     main()
 

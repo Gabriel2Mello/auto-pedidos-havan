@@ -4,7 +4,9 @@ from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
 
 from src.config import CAMPOS, ATALHOS
+from src.logs import get_logger
 
+logger = get_logger(__name__)
 
 def get_field_index(parent, class_name, campo):
     index = CAMPOS.get(campo)
@@ -46,6 +48,7 @@ def mapear_campos(aba_pedido):
 
 
 def inicia_app():
+    logger.debug('Iniciando aplicação')
     app = Application(backend='win32').connect(
         title=CAMPOS['sisplan'],
         class_name='TApplication'
@@ -87,6 +90,7 @@ def inicia_app():
 
 
 def importa_arq_integracao(xml_path):
+    logger.debug('Importando pedido Havan no grid')
     try:
         app_dialog = Application(
             backend='win32'
@@ -119,7 +123,7 @@ def handle_aviso_duplicado(pedido):
     )
 
     if aviso.exists(timeout=1):
-        print(f'Pedido {pedido} já existe. Cancelando duplicidade...')
+        logger.info(f'Pedido {pedido} já existe. Cancelando duplicidade...')
         send_keys(ATALHOS['nao'])
         sleep(0.2)
         send_keys(ATALHOS['desistir'])

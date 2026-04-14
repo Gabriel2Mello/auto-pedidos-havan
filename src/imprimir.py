@@ -1,11 +1,11 @@
 import io
 import subprocess
-import logging
 from time import sleep
 from pypdf import PdfReader, PdfWriter
 
 from reportlab.pdfgen import canvas
 
+from src.logs import get_logger
 from src.config import (
     SUMATRA,
     IMPRESSORA,
@@ -13,7 +13,7 @@ from src.config import (
 )
 from src.utils import caminho_pdf
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def criar_overlay(texto, largura, altura):
@@ -45,6 +45,7 @@ def criar_overlay(texto, largura, altura):
 
 
 def adicionar_numero(pdf_entrada, pdf_saida, numero):
+    logger.debug('Adicionando numero no PDF')
     writer = PdfWriter()
 
     try:
@@ -72,17 +73,17 @@ def adicionar_numero(pdf_entrada, pdf_saida, numero):
                 writer.write(f_out)
 
     except Exception as e:
-        logger.error(f'Falha ao processar PDF {pdf_entrada}: {e}')
+        logger.error_split(f'Falha ao processar PDF {pdf_entrada}: {e}')
         raise
 
 
 def imprimir_pdf(caminho):
     if not caminho.exists():
-        logger.error(f'Arquivo não encontrado para impressão: {caminho}')
+        logger.error_split(f'Arquivo não encontrado para impressão: {caminho}')
         return
 
     try:
-        logger.info(f'Imprimindo {caminho.name} em: {IMPRESSORA}')
+        logger.info_split(f'Imprimindo {caminho.name} em: {IMPRESSORA}')
         args = [
             str(SUMATRA),
             '-print-to', IMPRESSORA,
@@ -95,7 +96,7 @@ def imprimir_pdf(caminho):
         sleep(0.5)
 
     except subprocess.CalledProcessError as e:
-        logger.error(f'Erro no SumatraPDF para {caminho.name}: {e.stderr.decode()}')
+        logger.error_split(f'Erro no SumatraPDF para {caminho.name}: {e.stderr.decode()}')
 
 
 def processar_impressao(pedido, numero_interno):
@@ -107,7 +108,7 @@ def processar_impressao(pedido, numero_interno):
 
     try:
         adicionar_numero(pdf_original, pdf_final, numero_interno)
-        #imprimir_pdf(pdf_final)
+        imprimir_pdf(pdf_final)
     except Exception as e:
-        logger.error(f'Erro no processamento de impressão do pedido: {pedido}: {e}')
+        logger.error_split(f'Erro no processamento de impressão do pedido: {pedido}: {e}')
 
