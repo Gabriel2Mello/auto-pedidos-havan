@@ -44,6 +44,8 @@ ATALHOS = {
     'havan': 'h',
     'incluir': '%i',
     'desistir': '%d',
-    'gravar': '%g'
+    'gravar': '%g',
+    'nao': '%n',
+    'sim': '%s'
 }
 

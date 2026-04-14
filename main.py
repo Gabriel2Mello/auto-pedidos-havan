@@ -35,22 +35,27 @@ def main():
     start_time = perf_counter()
 
     try:
+        resultados = {}
         with create_scraper() as scraper:
             realizar_login(scraper)
-            baixar_pedidos(scraper, numero_pedidos)
+            resultados = baixar_pedidos(scraper, numero_pedidos)
 
         pedido_grade, aba_pedido, grid, campos = inicia_app()
 
         for pedido in numero_pedidos:
             try:
+                if not resultados[pedido]: continue
+
                 print(f'\nImportando: {pedido}')
-                numero_interno = importar_pedido(
+                numero_interno, duplicado = importar_pedido(
                     pedido,
                     pedido_grade,
                     aba_pedido,
                     grid,
                     campos
                 )
+
+                if duplicado: continue
 
                 print(f'\nInterno: {numero_interno}')
                 processar_impressao(pedido, numero_interno)

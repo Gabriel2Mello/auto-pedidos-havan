@@ -1,6 +1,9 @@
-from src.config import CAMPOS
-# Third-party libraries
+from time import sleep
+
 from pywinauto.application import Application
+from pywinauto.keyboard import send_keys
+
+from src.config import CAMPOS, ATALHOS
 
 
 def get_field_index(parent, class_name, campo):
@@ -104,4 +107,26 @@ def importa_arq_integracao(xml_path):
 
     except Exception as e:
         raise RuntimeError(f'Erro ao interagir com janela de importação: {e}')
+
+
+def handle_aviso_duplicado(pedido):
+    app_dialog = Application(
+        backend='win32'
+    ).connect(title='Aviso', class_name='TfmAviso')
+
+    aviso = app_dialog.window(
+        title='Aviso', class_name='TfmAviso'
+    )
+
+    if aviso.exists(timeout=1):
+        print(f'Pedido {pedido} já existe. Cancelando duplicidade...')
+        send_keys(ATALHOS['nao'])
+        sleep(0.2)
+        send_keys(ATALHOS['desistir'])
+        sleep(0.2)
+        send_keys(ATALHOS['sim'])
+
+        return True
+
+    return False
 

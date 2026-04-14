@@ -9,8 +9,15 @@ from src.config import (
     COORD_ITENS_PEDIDO,
     ATALHOS
 )
-from src.handle_app import importa_arq_integracao
-from src.utils import caminho_xml, formata_data, normalizar
+from src.handle_app import (
+    importa_arq_integracao,
+    handle_aviso_duplicado
+)
+from src.utils import (
+        caminho_xml,
+        formata_data,
+        normalizar
+)
 
 
 def carregar_xml(arquivo):
@@ -105,5 +112,8 @@ def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
 
     send_keys(ATALHOS['gravar'])
 
-    return numero_interno
+    sleep(0.2)
+    duplicado = handle_aviso_duplicado(pedido)
+
+    return numero_interno, duplicado
 

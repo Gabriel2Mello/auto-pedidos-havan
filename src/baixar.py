@@ -1,5 +1,4 @@
 import logging
-import re
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -13,7 +12,10 @@ from src.config import (
     UNRAR_TOOL,
     CONTENT_TYPE
 )
-from src.utils import caminho_pdf, caminho_xml
+from src.utils import (
+    caminho_pdf,
+    caminho_xml
+)
 
 logger = logging.getLogger(__name__)
 rarfile.UNRAR_TOOL = UNRAR_TOOL
@@ -87,7 +89,7 @@ def links_pedido(html_content, pedido):
 
         return ordem_url, integracao_url
 
-    raise RuntimeError(f'Pedido {pedido} não encontrado na grade')
+    raise RuntimeError(f'Pedido não encontrado na grade')
 
 
 def baixar_arquivos(scraper, pedido):
@@ -123,12 +125,10 @@ def processar_unico(scraper, pedido):
     try:
         pdf, xml = baixar_arquivos(scraper, pedido)
         salvar_arquivos(pdf, xml, pedido)
-
-        return pedido, True
+        return pedido, True, None
 
     except Exception as e:
-        logger.error(f'Erro no pedido {pedido}: {e}')
-        return pedido, False
+        return pedido, False, str(e)
 
 
 def baixar_pedidos(scraper, numero_pedidos, max_threads=10):
@@ -144,14 +144,19 @@ def baixar_pedidos(scraper, numero_pedidos, max_threads=10):
         tqdm_args= {
             'total': len(futures),
             'desc': 'Baixando',
-            'bar_format': '{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+            'bar_format': '{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}]'
         }
 
-        for future in tqdm(as_completed(futures), **tqdm_args):
-            pedido, sucesso = future.result()
-            resultados[pedido] = sucesso
+        with tqdm(as_completed(futures), **tqdm_args) as pbar:
+            for future in pbar:
+                pedido, sucesso, erro = future.result()
+                resultados[pedido] = sucesso
+
+                if not sucesso:
+                    pbar.write(f'Erro no pedido {pedido}: {erro}')
 
     exibir_resumo(resultados)
+    return resultados
 
 
 def exibir_resumo(resultados):
