@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='pywinauto')
 from time import perf_counter
 
 from cloudscraper import create_scraper
