@@ -60,6 +60,7 @@ def main():
     finally:
         elapsed_time = perf_counter() - start_time
         logger.info_split(f'Terminado em {elapsed_time:0.2f} segundos.')
+        input('Pressione Enter para fechar...')
 
 
 if __name__ == '__main__':
