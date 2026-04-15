@@ -36,19 +36,29 @@ def html_grid_pedido(scraper, pedido):
         'OpcaoStatusNotaFiscal': '0'
     }
 
-    response = scraper.post(
-        url=GRID_PEDIDO_URL,
-        headers=DEFAULT_HEADERS,
-        data=payload
-    )
-    response.raise_for_status()
+    try:
+        response = scraper.post(
+            url=GRID_PEDIDO_URL,
+            headers=DEFAULT_HEADERS,
+            data=payload,
+            timeout=(5,10)
+        )
+        response.raise_for_status()
+        return response.text
 
-    return response.text
+    except Exception as e:
+        logger.debug(f'Pedido {pedido} erro no site da Havan: {e}')
+        raise RuntimeError('Site da Havan demorou para responder')
 
 
 def extrair_xml(content):
     with rarfile.RarFile(BytesIO(content)) as rf:
-        xml_file = next((f for f in rf.namelist() if f.lower().endswith('.xml')), None)
+        xml_file = next(
+            (f for f in rf.namelist()
+             if f.lower().endswith('.xml')),
+            None
+        )
+
         if not xml_file:
             raise FileNotFoundError('RAR sem arquivo XML.')
 

@@ -2,6 +2,12 @@ from src.config import BASE_PATH_PEDIDOS
 from datetime import datetime, timedelta
 import unicodedata
 
+
+def input_pedido():
+    pedidos_input = input('Pedido: ').strip()
+    return [p.strip() for p in pedidos_input.split(',') if p.strip()]
+
+
 def formata_data(data_xml, dias=0):
     data = datetime.strptime(data_xml, '%d/%m/%y') + timedelta(days=dias)
     return data.strftime('%d/%m/%Y')

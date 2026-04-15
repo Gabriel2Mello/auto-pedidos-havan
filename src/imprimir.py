@@ -44,20 +44,25 @@ def criar_overlay(texto, largura, altura):
     return PdfReader(packet).pages[0]
 
 
-def adicionar_numero(pdf_entrada, pdf_saida, numero):
-    logger.debug('Adicionando numero no PDF')
+def adicionar_numero(pdf, pdf_saida, numero):
+    logger.debug(f"Adicionando '{numero}' no PDF: {pdf}")
     writer = PdfWriter()
 
     try:
-        with open(pdf_entrada, 'rb') as f:
+        if not pdf.exists():
+            logger.error(f'Arquivo não encontrado: {pdf}')
+            return False
+
+        with pdf.open('rb') as f:
             reader = PdfReader(f)
+
             if not reader.pages:
-                return
+                logger.error(f'PDF {pdf.name} sem páginas.')
+                return False
 
             caixa = reader.pages[0].mediabox
             largura = float(caixa.width)
             altura = float(caixa.height)
-
             overlay = criar_overlay(str(numero), largura, altura)
 
             for page in reader.pages:
@@ -69,46 +74,64 @@ def adicionar_numero(pdf_entrada, pdf_saida, numero):
                 '/Producer': 'Python Autocofre High Quality'
             })
 
-            with open(pdf_saida, 'wb') as f_out:
+            with pdf_saida.open('wb') as f_out:
                 writer.write(f_out)
 
+        return True
+
     except Exception as e:
-        logger.error_split(f'Falha ao processar PDF {pdf_entrada}: {e}')
-        raise
+        logger.error(f'Falha ao processar {pdf.name}: {e}')
+        return False
 
 
 def imprimir_pdf(caminho):
-    if not caminho.exists():
-        logger.error_split(f'Arquivo não encontrado para impressão: {caminho}')
+    if caminho.stat().st_size == 0:
+        logger.error(f'Arquivo corrompido: {caminho}')
         return
 
     try:
-        logger.info_split(f'Imprimindo {caminho.name} em: {IMPRESSORA}')
+        logger.debug(f'Imprimindo {caminho} em: {IMPRESSORA}')
         args = [
-            str(SUMATRA),
+            str(SUMATRA.resolve()),
             '-print-to', IMPRESSORA,
             '-print-settings', 'fit,simplex',
             '-exit-on-print',
-            str(caminho)
+            str(caminho.resolve())
         ]
 
-        subprocess.run(args, check=True, capture_output=True)
+        subprocess.run(
+            args,
+            check=True,
+            capture_output=True,
+            timeout=15
+        )
         sleep(0.5)
+        logger.info('Sucesso')
 
+    except subprocess.TimeoutExpired:
+        logger.error(f'SumatraPDF demorou demais para responder.')
     except subprocess.CalledProcessError as e:
-        logger.error_split(f'Erro no SumatraPDF para {caminho.name}: {e.stderr.decode()}')
+        error_msg = e.stderr.decode('latin-1') if e.stderr else 'Erro desconhecido'
+        msg = 'Erro no SumatraPDF'
+        logger.debug(f'{msg} para {caminho.name}: {error_msg}')
+        logger.error(msg)
+    except Exception as e:
+        msg = 'Erro inesperado no Sumatra'
+        logger.debug(f'{msg}: {e}')
+        logger.error(msg)
 
 
-def processar_impressao(pedido, numero_interno):
+def processar_impressao(pedido, numero):
     caminho_diretorio = BASE_PATH_PEDIDOS / pedido
     caminho_diretorio.mkdir(parents=True, exist_ok=True)
 
-    pdf_original = caminho_pdf(pedido)
-    pdf_final = caminho_diretorio / f'{numero_interno} {pedido}.pdf'
+    pdf = caminho_pdf(pedido)
+    pdf_final = caminho_diretorio / f'{numero} {pedido}.pdf'
 
     try:
-        adicionar_numero(pdf_original, pdf_final, numero_interno)
-        imprimir_pdf(pdf_final)
+        if adicionar_numero(pdf, pdf_final, numero):
+            imprimir_pdf(pdf_final)
+
     except Exception as e:
-        logger.error_split(f'Erro no processamento de impressão do pedido: {pedido}: {e}')
+        logger.error(f'Erro no processamento de impressão: {e}')
 
