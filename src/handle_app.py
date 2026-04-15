@@ -115,7 +115,7 @@ def importa_arq_integracao(xml_path):
         raise RuntimeError(f'Erro ao interagir com janela de importação: {e}')
 
 
-def handle_aviso_duplicado(pedido):
+def handle_aviso_duplicado():
 
     app_dialog = Application(
         backend='win32'
@@ -126,7 +126,7 @@ def handle_aviso_duplicado(pedido):
     )
 
     if aviso.exists(timeout=1):
-        logger.info(f'Pedido {pedido} já existe. Cancelando duplicidade...')
+        logger.info('Pedido já existe. Cancelando duplicidade...')
         send_keys(ATALHOS['nao'])
         sleep(0.2)
         send_keys(ATALHOS['desistir'])

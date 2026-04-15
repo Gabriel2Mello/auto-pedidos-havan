@@ -70,17 +70,17 @@ def preencher_dados_fixos(campos):
 
 def preencher_datas(campos, data_fatura, data_entrega):
     campos['data_fatura'].set_text(data_fatura)
-    sleep(0.5)
+    sleep(0.2)
     campos['data_entrega'].set_text(data_entrega)
-    sleep(0.5)
+    sleep(0.2)
     campos['data_saida'].set_text(data_entrega)
-    sleep(0.5)
+    sleep(0.2)
 
 
 def selecionar_empresa_matriz(combo_empresa):
     combo_empresa.set_focus()
     combo_empresa.type_keys('{UP}')
-    sleep(0.5)
+    sleep(0.2)
 
 
 def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
@@ -118,7 +118,7 @@ def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
     send_keys(ATALHOS['gravar'])
 
     sleep(0.2)
-    duplicado = handle_aviso_duplicado(pedido)
+    duplicado = handle_aviso_duplicado()
 
     return numero_interno, duplicado
 
