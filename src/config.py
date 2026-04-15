@@ -21,9 +21,9 @@ _base_path_raw = environ.get('HAVAN_PEDIDOS', '').strip('"')
 UNRAR_TOOL        = Path(_unrar_raw)
 SUMATRA           = Path(_sumatra_raw)
 BASE_PATH_PEDIDOS = Path(_base_path_raw)
-CNPJ_MATRIZ  = environ.get('CNPJ_MATRIZ')
-SENHA_PORTAL = environ.get('SENHA_PORTAL')
-IMPRESSORA   = environ.get('IMPRESSORA_PEDIDO')
+CNPJ_MATRIZ  = environ.get('CNPJ_MATRIZ', '').strip('"')
+SENHA_PORTAL = environ.get('SENHA_PORTAL', '').strip('"')
+IMPRESSORA   = environ.get('IMPRESSORA_PEDIDO', '').strip('"')
 
 if not UNRAR_TOOL.exists():
     encerrar_por_erro('caminho do utilitário de .RAR não é válido.', UNRAR_TOOL)
