@@ -1,4 +1,4 @@
-from time import perf_counter
+from time import sleep, perf_counter
 from src.logs import setup_logging, get_logger
 
 setup_logging()
@@ -18,6 +18,7 @@ def main():
     numero_pedidos = input_pedido()
     if not numero_pedidos:
         logger.info_split('Nenhum pedido informado. Encerrando...')
+        sleep(1)
         return
 
     start_time = perf_counter()
@@ -28,12 +29,10 @@ def main():
             resultados = baixar_pedidos(scraper, numero_pedidos)
 
         pedido_grade, aba_pedido, grid, campos = inicia_app()
-
         for pedido in numero_pedidos:
             try:
                 if not resultados.get(pedido): continue
 
-                logger.info_split(f'Importando: {pedido}')
                 numero_interno, duplicado = importar_pedido(
                     pedido,
                     pedido_grade,
@@ -41,11 +40,9 @@ def main():
                     grid,
                     campos
                 )
-
                 if duplicado: continue
                 logger.info(f'Número interno: {numero_interno}')
 
-                logger.info_split(f'Imprimindo: {pedido}')
                 processar_impressao(pedido, numero_interno)
 
             except Exception as e:

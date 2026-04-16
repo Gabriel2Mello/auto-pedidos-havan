@@ -1,7 +1,12 @@
-from src.config import BASE_PATH_PEDIDOS
 from datetime import datetime, timedelta
+from io import BytesIO
 import unicodedata
+import xml.etree.ElementTree as ET
 
+import rarfile
+from src.config import BASE_PATH_PEDIDOS, UNRAR_TOOL
+
+rarfile.UNRAR_TOOL = UNRAR_TOOL
 
 def input_pedido():
     pedidos_input = input('Pedido: ').strip()
@@ -31,3 +36,22 @@ def normalizar(texto):
         .encode('ASCII', 'ignore')\
         .decode()\
         .upper()
+
+
+def carregar_xml(arquivo):
+    return ET.parse(arquivo).getroot()
+
+
+def extrair_xml(content):
+    with rarfile.RarFile(BytesIO(content)) as rf:
+        xml_file = next(
+            (f for f in rf.namelist()
+             if f.lower().endswith('.xml')),
+            None
+        )
+
+        if not xml_file:
+            raise FileNotFoundError('.RAR sem arquivo XML')
+
+        return rf.read(xml_file)
+

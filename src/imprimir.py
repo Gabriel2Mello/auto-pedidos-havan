@@ -57,7 +57,7 @@ def adicionar_numero(pdf, pdf_saida, numero):
             reader = PdfReader(f)
 
             if not reader.pages:
-                logger.error(f'PDF {pdf.name} sem páginas.')
+                logger.error(f'PDF {pdf.name} sem páginas')
                 return False
 
             caixa = reader.pages[0].mediabox
@@ -109,7 +109,7 @@ def imprimir_pdf(caminho):
         logger.info('Sucesso')
 
     except subprocess.TimeoutExpired:
-        logger.error(f'SumatraPDF demorou demais para responder.')
+        logger.error(f'SumatraPDF demorou demais para responder')
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode('latin-1') if e.stderr else 'Erro desconhecido'
         msg = 'Erro no SumatraPDF'
@@ -122,6 +122,8 @@ def imprimir_pdf(caminho):
 
 
 def processar_impressao(pedido, numero):
+    logger.info_split(f'Imprimindo: {pedido}')
+
     caminho_diretorio = BASE_PATH_PEDIDOS / pedido
     caminho_diretorio.mkdir(parents=True, exist_ok=True)
 

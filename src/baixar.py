@@ -1,7 +1,6 @@
-from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from requests.exceptions import Timeout, RequestException
 
-import rarfile
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
@@ -9,16 +8,16 @@ from src.logs import get_logger
 from src.config import (
     BASE_URL,
     ORIGIN,
-    UNRAR_TOOL,
     CONTENT_TYPE
 )
 from src.utils import (
     caminho_pdf,
-    caminho_xml
+    caminho_xml,
+    extrair_xml
 )
 
 logger = get_logger(__name__)
-rarfile.UNRAR_TOOL = UNRAR_TOOL
+
 
 GRID_PEDIDO_URL = f'{BASE_URL}/PedidoCompra/GridIndexPedidoCompra'
 PEDIDO_INDEX_URL = f'{BASE_URL}/PedidoCompra/Index'
@@ -41,28 +40,22 @@ def html_grid_pedido(scraper, pedido):
             url=GRID_PEDIDO_URL,
             headers=DEFAULT_HEADERS,
             data=payload,
-            timeout=(5,10)
+            timeout=(5,5)
         )
         response.raise_for_status()
         return response.text
 
-    except Exception as e:
+    except Timeout as e:
+        logger.debug(f'Timeout(Grid Havan) no pedido {pedido}: {e}')
+        raise RuntimeError('Site da Havan demorou muito para responder')
+
+    except RequestException as e:
         logger.debug(f'Pedido {pedido} erro no site da Havan: {e}')
-        raise RuntimeError('Site da Havan demorou para responder')
+        raise RuntimeError('Falha de comunicação com a Havan')
 
-
-def extrair_xml(content):
-    with rarfile.RarFile(BytesIO(content)) as rf:
-        xml_file = next(
-            (f for f in rf.namelist()
-             if f.lower().endswith('.xml')),
-            None
-        )
-
-        if not xml_file:
-            raise FileNotFoundError('RAR sem arquivo XML.')
-
-        return rf.read(xml_file)
+    except Exception as e:
+        logger.debug(f'ERRO DESCONHECIDO NO GRID: {e}', exc_info=True)
+        raise RuntimeError('Ocorreu um erro inesperado no Grid')
 
 
 def links_pedido(html_content, pedido):
@@ -132,6 +125,9 @@ def salvar_arquivos(pdf, xml, pedido):
 
 
 def processar_unico(scraper, pedido):
+    if len(str(pedido)) < 9:
+        return pedido, False, 'Número de pedido muito curto'
+
     try:
         pdf, xml = baixar_arquivos(scraper, pedido)
         salvar_arquivos(pdf, xml, pedido)

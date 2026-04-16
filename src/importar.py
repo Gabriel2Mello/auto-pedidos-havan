@@ -1,4 +1,3 @@
-import xml.etree.ElementTree as ET
 from time import sleep
 
 from pywinauto.keyboard import send_keys
@@ -17,14 +16,11 @@ from src.handle_app import (
 from src.utils import (
         caminho_xml,
         formata_data,
-        normalizar
+        normalizar,
+        carregar_xml
 )
 
 logger = get_logger(__name__)
-
-
-def carregar_xml(arquivo):
-    return ET.parse(arquivo).getroot()
 
 
 def extrair_dados_xml(root):
@@ -84,7 +80,8 @@ def selecionar_empresa_matriz(combo_empresa):
 
 
 def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
-    logger.debug('Iniciando processo de importação no Sisplan')
+    logger.info_split(f'Importando: {pedido}')
+
     pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
     send_keys(ATALHOS['incluir'])
     sleep(0.5)
