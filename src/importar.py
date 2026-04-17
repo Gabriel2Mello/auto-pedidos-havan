@@ -17,7 +17,8 @@ from src.utils import (
         caminho_xml,
         formata_data,
         normalizar,
-        carregar_xml
+        carregar_xml,
+        SisplanError
 )
 
 logger = get_logger(__name__)
@@ -62,60 +63,68 @@ def preencher_dados_fixos(campos):
 
     campos['classe_gerencial'].set_focus()
     campos['classe_gerencial'].type_keys('20001{TAB}')
+    sleep(0.1)
 
 
 def preencher_datas(campos, data_fatura, data_entrega):
     campos['data_fatura'].set_text(data_fatura)
-    sleep(0.2)
+    sleep(0.1)
     campos['data_entrega'].set_text(data_entrega)
-    sleep(0.2)
+    sleep(0.1)
     campos['data_saida'].set_text(data_entrega)
-    sleep(0.2)
+    sleep(0.1)
 
 
 def selecionar_empresa_matriz(combo_empresa):
     combo_empresa.set_focus()
     combo_empresa.type_keys('{UP}')
-    sleep(0.2)
+    sleep(0.1)
 
 
 def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
     logger.info_split(f'Importando: {pedido}')
 
-    pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
-    send_keys(ATALHOS['incluir'])
-    sleep(0.5)
+    try:
+        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+        send_keys(ATALHOS['incluir'])
+        sleep(0.3)
 
-    campos['numero'].type_keys('{TAB}')
-    numero_interno = campos['numero'].window_text()
+        campos['numero'].type_keys('{TAB}')
+        numero_interno = campos['numero'].window_text()
 
-    xml_path = caminho_xml(pedido)
-    xml_root = carregar_xml(xml_path)
-    dados_xml = extrair_dados_xml(xml_root)
+        xml_path = caminho_xml(pedido)
+        xml_root = carregar_xml(xml_path)
+        dados_xml = extrair_dados_xml(xml_root)
 
-    preencher_dados_fixos(campos)
+        preencher_dados_fixos(campos)
 
-    if definir_empresa(dados_xml['produto']) == 'MATRIZ':
-        selecionar_empresa_matriz(campos['empresa'])
+        if definir_empresa(dados_xml['produto']) == 'MATRIZ':
+            selecionar_empresa_matriz(campos['empresa'])
 
-    preencher_datas(
-        campos, dados_xml['data_fatura'], dados_xml['data_entrega']
-    )
+        preencher_datas(
+            campos,
+            dados_xml['data_fatura'],
+            dados_xml['data_entrega']
+        )
 
-    aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
+        aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
 
-    grid.click_input(button='right') # OPÇÕES DO GRID
-    send_keys(ATALHOS['importar'])
-    send_keys(ATALHOS['havan'])
+        grid.click_input(button='right') # OPÇÕES DO GRID
+        send_keys(ATALHOS['importar'])
+        send_keys(ATALHOS['havan'])
 
-    sleep(1)
-    importa_arq_integracao(xml_path)
-    pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+        sleep(1)
+        importa_arq_integracao(xml_path)
+        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
 
-    send_keys(ATALHOS['gravar'])
+        send_keys(ATALHOS['gravar'])
 
-    sleep(0.2)
-    duplicado = handle_aviso_duplicado()
+        sleep(0.2)
+        duplicado = handle_aviso_duplicado()
 
-    return numero_interno, duplicado
+        return numero_interno, duplicado
+
+    except Exception as e:
+        logger.debug(f'Erro no Sisplan: {e}', exc_info=True)
+        raise SisplanError() from e
 

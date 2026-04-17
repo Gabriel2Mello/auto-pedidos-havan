@@ -61,7 +61,7 @@ def inicia_app():
         class_name='TApplication'
     )
     main_window.restore().set_focus()
-    main_window.wait('ready', timeout=10)
+    main_window.wait('ready', timeout=5)
 
 
     janela_vendas = app.window(

@@ -1,6 +1,7 @@
 from requests.exceptions import Timeout, RequestException
 
 from src.logs import get_logger
+from src.utils import LoginInvalidoError
 from src.config import (
     USER_AGENT,
     ORIGIN,
@@ -14,13 +15,6 @@ FAZER_LOGIN_URL   = f'{BASE_URL}/Login/FazerLogin?Length=5'
 PEDIDO_COMPRA_URL = f'{BASE_URL}/PedidoCompra/Index'
 
 logger = get_logger(__name__)
-
-
-class LoginInvalidoError(Exception):
-    """Exceção para quando o site retorna 200, mas falhou o login"""
-    def __init__(self, message="CNPJ ou senha inválidos"):
-        self.message = message
-        super().__init__(self.message)
 
 
 def configurar_sessao(scraper):

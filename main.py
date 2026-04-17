@@ -11,7 +11,7 @@ from src.baixar import baixar_pedidos
 from src.handle_app import inicia_app
 from src.importar import importar_pedido
 from src.imprimir import processar_impressao
-from src.utils import input_pedido
+from src.utils import input_pedido, SisplanError
 
 
 def main():
@@ -45,8 +45,14 @@ def main():
 
                 processar_impressao(pedido, numero_interno)
 
+            except (KeyboardInterrupt, SystemExit, SisplanError):
+                raise
+
             except Exception as e:
-                logger.error_split(f'Erro no pedido {pedido}: {e}')
+                logger.error(f'Erro no pedido: {e}')
+
+    except SisplanError as e:
+        logger.critical_split(f'Erro fatal: {e}')
 
     except Exception as e:
         logger.critical_split(f'Erro fatal: {e}')

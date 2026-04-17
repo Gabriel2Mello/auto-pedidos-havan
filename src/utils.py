@@ -4,9 +4,13 @@ import unicodedata
 import xml.etree.ElementTree as ET
 
 import rarfile
+
+from src.logs import get_logger
 from src.config import BASE_PATH_PEDIDOS, UNRAR_TOOL
 
+logger = get_logger(__name__)
 rarfile.UNRAR_TOOL = UNRAR_TOOL
+
 
 def input_pedido():
     pedidos_input = input('Pedido: ').strip()
@@ -54,4 +58,17 @@ def extrair_xml(content):
             raise FileNotFoundError('.RAR sem arquivo XML')
 
         return rf.read(xml_file)
+
+
+class LoginInvalidoError(Exception):
+    """Exceção para quando o site retorna 200, mas falhou o login"""
+    def __init__(self, message="CNPJ ou senha inválidos"):
+        self.message = message
+        super().__init__(self.message)
+
+
+class SisplanError(Exception):
+    def __init__(self, message="Falha na tela do Sisplan"):
+        self.message = message
+        super().__init__(self.message)
 
