@@ -26,18 +26,18 @@ logger = get_logger(__name__)
 
 def extrair_dados_xml(root):
     logger.debug('Extraindo dados do xml')
-    data_fatura = root.findtext('.//PrazoPagamento/PrevisaoData')
-    data_entrega = root.findtext('.//DataInicialSemanaEntrega')
 
-    produto_raw = root.findtext('.//DescricaoProduto')
+    data_fatura =  root.findtext('.//PrazoPagamento/PrevisaoData')
+    data_entrega = root.findtext('.//DataInicialSemanaEntrega')
+    produto_raw =  root.findtext('.//DescricaoProduto')
 
     if not all([data_fatura, data_entrega, produto_raw]):
         raise RuntimeError('Dados não encontrados no XML')
 
     return {
-        'data_fatura': formata_data(data_fatura),
+        'data_fatura':  formata_data(data_fatura),
         'data_entrega': formata_data(data_entrega, 1),
-        'produto': normalizar(produto_raw)
+        'produto':      normalizar(produto_raw)
     }
 
 
@@ -49,13 +49,13 @@ def definir_empresa(produto):
 
 def preencher_dados_fixos(campos):
     dados = {
-        'cliente': '00022',
+        'cliente':       '00022',
         'representante': '00001',
-        'transporte': '00001',
-        'tabela_preco': '004',
-        'historico': '02',
-        'tipo_venda': '1',
-        'operacao': '1'
+        'transporte':    '00001',
+        'tabela_preco':  '004',
+        'historico':     '02',
+        'tipo_venda':    '1',
+        'operacao':      '1'
     }
 
     for nome, valor in dados.items():
@@ -92,8 +92,8 @@ def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
         campos['numero'].type_keys('{TAB}')
         numero_interno = campos['numero'].window_text()
 
-        xml_path = caminho_xml(pedido)
-        xml_root = carregar_xml(xml_path)
+        xml_path =  caminho_xml(pedido)
+        xml_root =  carregar_xml(xml_path)
         dados_xml = extrair_dados_xml(xml_root)
 
         preencher_dados_fixos(campos)

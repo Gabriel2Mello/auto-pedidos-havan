@@ -19,7 +19,7 @@ from src.utils import (
 logger = get_logger(__name__)
 
 
-GRID_PEDIDO_URL = f'{BASE_URL}/PedidoCompra/GridIndexPedidoCompra'
+GRID_PEDIDO_URL =  f'{BASE_URL}/PedidoCompra/GridIndexPedidoCompra'
 PEDIDO_INDEX_URL = f'{BASE_URL}/PedidoCompra/Index'
 
 DEFAULT_HEADERS = {
@@ -55,7 +55,7 @@ def html_grid_pedido(scraper, pedido):
 
     except Exception as e:
         logger.debug(f'ERRO DESCONHECIDO NO GRID: {e}', exc_info=True)
-        raise RuntimeError('Ocorreu um erro inesperado no Grid')
+        raise RuntimeError('Ocorreu um erro inesperado no Grid do site')
 
 
 def links_pedido(html_content, pedido):
@@ -70,16 +70,14 @@ def links_pedido(html_content, pedido):
                 dd_pedido = dt.find_next_sibling('dd')
                 break
 
-        if not dd_pedido:
-            continue
+        if not dd_pedido: continue
 
         try:
             numero_extraido = str(dd_pedido.contents[0]).strip()
         except (IndexError, AttributeError):
             continue
 
-        if numero_extraido != pedido:
-            continue
+        if numero_extraido != pedido: continue
 
         ordem = grupo.select_one('a[title*="Ordem de compra"]')
         integracao = grupo.select_one('a[title*="Arq. de integra"]')
@@ -87,7 +85,7 @@ def links_pedido(html_content, pedido):
         if not ordem or not integracao:
             raise RuntimeError('Pedido encontrado, mas link ausente')
 
-        ordem_url = f"{ORIGIN}{ordem['href']}"
+        ordem_url =      f"{ORIGIN}{ordem['href']}"
         integracao_url = f"{ORIGIN}{integracao['href']}"
 
         return ordem_url, integracao_url

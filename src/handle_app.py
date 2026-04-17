@@ -5,6 +5,7 @@ from pywinauto.keyboard import send_keys
 
 from src.config import CAMPOS, ATALHOS
 from src.logs import get_logger
+from src.utils import SisplanError
 
 logger = get_logger(__name__)
 
@@ -28,19 +29,19 @@ def get_field_title(parent, class_name, title):
 
 def mapear_campos(aba_pedido):
     definicoes = {
-        'numero': ('TEdit', 'numero'),
-        'cliente': ('TEdit', 'cliente'),
+        'numero':        ('TEdit', 'numero'),
+        'cliente':       ('TEdit', 'cliente'),
         'representante': ('TEdit', 'representante'),
-        'transporte': ('TEdit', 'transporte'),
-        'tabela_preco': ('TEdit', 'tabela_preco'),
-        'historico': ('TEdit', 'historico'),
-        'tipo_venda': ('TEdit', 'tipo_venda'),
-        'operacao': ('TEdit', 'operacao'),
-        'data_fatura': ('TDateEditSisp', 'fatura'),
-        'data_entrega': ('TDateEditSisp', 'entrega'),
-        'data_saida': ('TDateEditSisp', 'saida'),
+        'transporte':    ('TEdit', 'transporte'),
+        'tabela_preco':  ('TEdit', 'tabela_preco'),
+        'historico':     ('TEdit', 'historico'),
+        'tipo_venda':    ('TEdit', 'tipo_venda'),
+        'operacao':      ('TEdit', 'operacao'),
+        'data_fatura':   ('TDateEditSisp', 'fatura'),
+        'data_entrega':  ('TDateEditSisp', 'entrega'),
+        'data_saida':    ('TDateEditSisp', 'saida'),
         'classe_gerencial': ('TEdGrid', 'classe_gerencial'),
-        'empresa': ('TComboBox', 'combo_empresa'),
+        'empresa':       ('TComboBox', 'combo_empresa'),
     }
 
     return {nome: get_field_index(aba_pedido, classe, chave)
@@ -48,47 +49,50 @@ def mapear_campos(aba_pedido):
 
 
 def inicia_app():
-    from pywinauto.application import Application
-
     logger.debug('Iniciando aplicação')
-    app = Application(backend='win32').connect(
-        title=CAMPOS['sisplan'],
-        class_name='TApplication'
-    )
+    try:
+        app = Application(backend='win32').connect(
+            title=CAMPOS['sisplan'],
+            class_name='TApplication'
+        )
 
-    main_window = app.window(
-        title=CAMPOS['sisplan'],
-        class_name='TApplication'
-    )
-    main_window.restore().set_focus()
-    main_window.wait('ready', timeout=5)
+        main_window = app.window(
+            title=CAMPOS['sisplan'],
+            class_name='TApplication'
+        )
+        main_window.restore().set_focus()
+        main_window.wait('ready', timeout=5)
 
 
-    janela_vendas = app.window(
-        title_re='.*VenPedidoGrade.*',
-        class_name='TfmPrincipal'
-    )
-    janela_vendas.set_focus()
+        janela_vendas = app.window(
+            title_re='.*VenPedidoGrade.*',
+            class_name='TfmPrincipal'
+        )
+        janela_vendas.set_focus()
 
-    pedido_grade = get_field_title(
-        janela_vendas, 'TTabSheet', '1002 - Pedido Por Grade'
-    )
+        pedido_grade = get_field_title(
+            janela_vendas, 'TTabSheet', '1002 - Pedido Por Grade'
+        )
 
-    aba_pedido = get_field_title(
-        janela_vendas, 'TTabSheet', 'Pedido'
-    )
+        aba_pedido = get_field_title(
+            janela_vendas, 'TTabSheet', 'Pedido'
+        )
 
-    itens_pedido = get_field_title(
-        janela_vendas, 'TTabSheet', 'Itens Pedido'
-    )
+        itens_pedido = get_field_title(
+            janela_vendas, 'TTabSheet', 'Itens Pedido'
+        )
 
-    grid = get_field_index(
-        itens_pedido, 'TDBGrid', 'grid'
-    )
+        grid = get_field_index(
+            itens_pedido, 'TDBGrid', 'grid'
+        )
 
-    campos = mapear_campos(aba_pedido)
+        campos = mapear_campos(aba_pedido)
 
-    return pedido_grade, aba_pedido, grid, campos
+        return pedido_grade, aba_pedido, grid, campos
+
+    except Exception as e:
+        logger.debug(f'Erro na janela do Sisplan: {e}', exc_info=True)
+        raise SisplanError('Não foi possível encontrar a tela "1002 - Pedido por Grade" do Sisplan') from e
 
 
 def importa_arq_integracao(xml_path):
@@ -112,11 +116,11 @@ def importa_arq_integracao(xml_path):
         nome_field.type_keys('{ENTER}')
 
     except Exception as e:
-        raise RuntimeError(f'Erro ao interagir com janela de importação: {e}')
+        logger.debug(f'Erro na tela "Abrir" ao importar o Pedido Havan no Grid: {e}')
+        raise SisplanError(f'Erro ao interagir com janela de importação Pedido Havan') from e
 
 
 def handle_aviso_duplicado():
-
     app_dialog = Application(
         backend='win32'
     ).connect(title='Aviso', class_name='TfmAviso')

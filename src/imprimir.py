@@ -60,9 +60,9 @@ def adicionar_numero(pdf, pdf_saida, numero):
                 logger.error(f'PDF {pdf.name} sem páginas')
                 return False
 
-            caixa = reader.pages[0].mediabox
+            caixa =   reader.pages[0].mediabox
             largura = float(caixa.width)
-            altura = float(caixa.height)
+            altura =  float(caixa.height)
             overlay = criar_overlay(str(numero), largura, altura)
 
             for page in reader.pages:
@@ -110,11 +110,13 @@ def imprimir_pdf(caminho):
 
     except subprocess.TimeoutExpired:
         logger.error(f'SumatraPDF demorou demais para responder')
+
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode('latin-1') if e.stderr else 'Erro desconhecido'
         msg = 'Erro no SumatraPDF'
         logger.debug(f'{msg} para {caminho.name}: {error_msg}')
         logger.error(msg)
+
     except Exception as e:
         msg = 'Erro inesperado no Sumatra'
         logger.debug(f'{msg}: {e}')

@@ -111,11 +111,11 @@ COORD_ITENS_PEDIDO = (150,-13)
 
 ATALHOS = {
     'importar': 'm',
-    'havan': 'h',
-    'incluir': '%i',
+    'havan':    'h',
+    'incluir':  '%i',
     'desistir': '%d',
-    'gravar': '%g',
-    'nao': '%n',
-    'sim': '%s'
+    'gravar':   '%g',
+    'nao':      '%n',
+    'sim':      '%s'
 }
 

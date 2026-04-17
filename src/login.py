@@ -31,7 +31,7 @@ def realizar_login(scraper):
     payload = {
         'TipoLogin': '0',
         'Documento': CNPJ_MATRIZ,
-        'SenhaMd5': SENHA_PORTAL
+        'SenhaMd5':  SENHA_PORTAL
     }
 
     try:
