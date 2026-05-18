@@ -1,3 +1,5 @@
+import time
+import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from requests.exceptions import Timeout, RequestException
 
@@ -126,6 +128,9 @@ def processar_unico(scraper, pedido):
     if len(str(pedido)) < 9:
         return pedido, False, 'Número de pedido muito curto'
 
+    delay = random.uniform(1.5, 3.5)
+    time.sleep(delay)
+
     try:
         pdf, xml = baixar_arquivos(scraper, pedido)
         salvar_arquivos(pdf, xml, pedido)
@@ -135,7 +140,7 @@ def processar_unico(scraper, pedido):
         return pedido, False, str(e)
 
 
-def baixar_pedidos(scraper, numero_pedidos, max_threads=10):
+def baixar_pedidos(scraper, numero_pedidos, max_threads=3):
     resultados = {}
     logger.info_split('Iniciando processo de download...')
 

@@ -121,23 +121,24 @@ def importa_arq_integracao(xml_path):
 
 
 def handle_aviso_duplicado():
-    app_dialog = Application(
-        backend='win32'
-    ).connect(title='Aviso', class_name='TfmAviso')
+    try:
+        app_dialog = Application(
+            backend='win32'
+        ).connect(title='Aviso', class_name='TfmAviso')
 
-    aviso = app_dialog.window(
-        title='Aviso', class_name='TfmAviso'
-    )
+        aviso = app_dialog.window(
+            title='Aviso', class_name='TfmAviso'
+        )
 
-    if aviso.exists(timeout=1):
-        logger.info('Pedido já existe. Cancelando duplicidade...')
-        send_keys(ATALHOS['nao'])
-        sleep(0.2)
-        send_keys(ATALHOS['desistir'])
-        sleep(0.2)
-        send_keys(ATALHOS['sim'])
+        if aviso.exists(timeout=1):
+            logger.info('Pedido já existe. Cancelando duplicidade...')
+            send_keys(ATALHOS['nao'])
+            sleep(0.2)
+            send_keys(ATALHOS['desistir'])
+            sleep(0.2)
+            send_keys(ATALHOS['sim'])
 
-        return True
-
-    return False
+            return True
+    except Exception as e:
+      return False
 
