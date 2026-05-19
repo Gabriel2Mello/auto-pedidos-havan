@@ -81,7 +81,7 @@ def selecionar_empresa_matriz(combo_empresa):
     sleep(0.1)
 
 
-def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
+def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos) -> tuple[str, bool | None]:
     logger.info_split(f'Importando: {pedido}')
 
     try:

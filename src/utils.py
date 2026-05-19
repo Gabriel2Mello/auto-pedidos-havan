@@ -12,9 +12,15 @@ logger = get_logger(__name__)
 rarfile.UNRAR_TOOL = UNRAR_TOOL
 
 
-def input_pedido():
+def input_pedido(ano=None):
+    if not ano:
+        ano = str(datetime.now().year)
+
     pedidos_input = input('Pedido: ').strip()
-    return [p.strip() for p in pedidos_input.split(',') if p.strip()]
+    if not pedidos_input:
+        return None
+
+    return [f"{ano}-{p.strip()}" for p in pedidos_input.split(',') if p.strip()]
 
 
 def formata_data(data_xml, dias=0):

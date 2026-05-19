@@ -141,7 +141,7 @@ def processar_unico(scraper, pedido):
 
 
 def baixar_pedidos(scraper, numero_pedidos, max_threads=3):
-    resultados = {}
+    resultados: dict[str, str] = {}
     logger.info_split('Iniciando processo de download...')
 
     with ThreadPoolExecutor(max_workers=max_threads) as executor:

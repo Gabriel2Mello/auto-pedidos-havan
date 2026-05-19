@@ -14,11 +14,13 @@ from src.imprimir import processar_impressao
 from src.utils import input_pedido, SisplanError
 
 
-def main():
-    numero_pedidos = input_pedido()
+def main() -> None:
+    ano = input('Ano: ').strip()
+
+    numero_pedidos = input_pedido(ano)
     if not numero_pedidos:
         logger.info_split('Nenhum pedido informado. Encerrando...')
-        sleep(1)
+        sleep(2)
         return
 
     start_time = perf_counter()

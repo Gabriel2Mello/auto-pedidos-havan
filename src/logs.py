@@ -1,27 +1,28 @@
 import logging
 import sys
 import io
+from typing import cast
 
 
 class CustomLogger(logging.Logger):
-    def info_split(self, msg, *args, **kwargs):
+    def info_split(self, msg: object, *args: object, **kwargs: object) -> None:
         print()
-        self.info(msg, *args, **kwargs)
+        self.info(msg, *args, **kwargs) # pyright: ignore[reportArgumentType]
 
-    def error_split(self, msg, *args, **kwargs):
+    def error_split(self, msg: object, *args: object, **kwargs: object) -> None:
         print()
-        self.error(msg, *args, **kwargs)
+        self.error(msg, *args, **kwargs) # pyright: ignore[reportArgumentType]
 
-    def critical_split(self, msg, *args, **kwargs):
+    def critical_split(self, msg: object, *args: object, **kwargs: object) -> None:
         print()
-        self.critical(msg, *args, **kwargs)
+        self.critical(msg, *args, **kwargs) # pyright: ignore[reportArgumentType]
 
 
 logging.setLoggerClass(CustomLogger)
 
 
 def get_logger(name: str) -> CustomLogger:
-    return logging.getLogger(name) # type: ignore
+    return cast(CustomLogger, logging.getLogger(name))
 
 def setup_logging():
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')

@@ -27,8 +27,8 @@ def get_field_title(parent, class_name, title):
     )
 
 
-def mapear_campos(aba_pedido):
-    definicoes = {
+def mapear_campos(aba_pedido) -> dict[str, str]:
+    definicoes: dict[str, tuple[str, str]] = {
         'numero':        ('TEdit', 'numero'),
         'cliente':       ('TEdit', 'cliente'),
         'representante': ('TEdit', 'representante'),

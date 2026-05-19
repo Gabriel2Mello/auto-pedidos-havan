@@ -1,0 +1,3 @@
+from typing import Any
+
+def create_scraper(*args: Any, **kwargs: Any) -> Any: ...

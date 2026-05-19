@@ -24,7 +24,7 @@ def configurar_sessao(scraper):
     })
 
 
-def realizar_login(scraper):
+def realizar_login(scraper) :
     logger.info_split('Entrando no Portal Havan')
     configurar_sessao(scraper)
 
