@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from requests.exceptions import Timeout, RequestException
 
 from src.logs import get_logger
@@ -10,6 +11,9 @@ from src.config import (
     SENHA_PORTAL
 )
 
+if TYPE_CHECKING:
+    from cloudscraper import ScraperMock
+
 LOGIN_INDEX_URL   = f'{BASE_URL}/Login/Index'
 FAZER_LOGIN_URL   = f'{BASE_URL}/Login/FazerLogin?Length=5'
 PEDIDO_COMPRA_URL = f'{BASE_URL}/PedidoCompra/Index'
@@ -17,14 +21,14 @@ PEDIDO_COMPRA_URL = f'{BASE_URL}/PedidoCompra/Index'
 logger = get_logger(__name__)
 
 
-def configurar_sessao(scraper):
+def configurar_sessao(scraper: 'ScraperMock') -> None:
     scraper.headers.update({
         'User-Agent': USER_AGENT,
         'Origin': ORIGIN
     })
 
 
-def realizar_login(scraper) :
+def realizar_login(scraper: 'ScraperMock') -> None:
     logger.info_split('Entrando no Portal Havan')
     configurar_sessao(scraper)
 
@@ -65,7 +69,7 @@ def realizar_login(scraper) :
         raise RuntimeError('Ocorreu um erro inesperado no Login')
 
 
-def get_pedido_compra(scraper):
+def get_pedido_compra(scraper: 'ScraperMock') -> None:
     response = scraper.get(
         url=PEDIDO_COMPRA_URL,
         headers={'Referer': BASE_URL},

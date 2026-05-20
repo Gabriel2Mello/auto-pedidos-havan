@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 from io import BytesIO
+from typing import cast
 import unicodedata
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import rarfile
 
@@ -12,7 +14,7 @@ logger = get_logger(__name__)
 rarfile.UNRAR_TOOL = UNRAR_TOOL
 
 
-def input_pedido(ano=None):
+def input_pedido(ano: str | None=None) -> list[str] | None:
     if not ano:
         ano = str(datetime.now().year)
 
@@ -23,22 +25,22 @@ def input_pedido(ano=None):
     return [f"{ano}-{p.strip()}" for p in pedidos_input.split(',') if p.strip()]
 
 
-def formata_data(data_xml, dias=0):
+def formata_data(data_xml: str, dias: int=0) -> str:
     data = datetime.strptime(data_xml, '%d/%m/%y') + timedelta(days=dias)
     return data.strftime('%d/%m/%Y')
 
 
-def caminho_xml(pedido):
+def caminho_xml(pedido: str) -> Path:
     caminho = BASE_PATH_PEDIDOS / str(pedido)
     return caminho / f'arq_de_integracao {pedido}.xml'
 
 
-def caminho_pdf(pedido):
+def caminho_pdf(pedido: str) -> Path:
     caminho = BASE_PATH_PEDIDOS / str(pedido)
     return caminho / f'ordem_de_compra {pedido}.pdf'
 
 
-def normalizar(texto):
+def normalizar(texto: str) -> str:
     if not texto:
         raise RuntimeError('Texto não encontrado')
 
@@ -48,14 +50,16 @@ def normalizar(texto):
         .upper()
 
 
-def carregar_xml(arquivo):
+def carregar_xml(arquivo: str | Path) -> ET.Element:
     return ET.parse(arquivo).getroot()
 
 
-def extrair_xml(content):
+def extrair_xml(content: bytes) -> bytes:
     with rarfile.RarFile(BytesIO(content)) as rf:
-        xml_file = next(
-            (f for f in rf.namelist()
+        arquivos = cast(list[str], rf.namelist())
+
+        xml_file: str | None = next(
+            (f for f in arquivos
              if f.lower().endswith('.xml')),
             None
         )
@@ -63,18 +67,16 @@ def extrair_xml(content):
         if not xml_file:
             raise FileNotFoundError('.RAR sem arquivo XML')
 
-        return rf.read(xml_file)
+        return cast(bytes, rf.read(xml_file))
 
 
 class LoginInvalidoError(Exception):
     """Exceção para quando o site retorna 200, mas falhou o login"""
-    def __init__(self, message="CNPJ ou senha inválidos"):
-        self.message = message
-        super().__init__(self.message)
+    def __init__(self, message: str="CNPJ ou senha inválidos") -> None:
+        super().__init__(message)
 
 
 class SisplanError(Exception):
-    def __init__(self, message="Falha na tela do Sisplan"):
-        self.message = message
-        super().__init__(self.message)
+    def __init__(self, message: str="Falha na tela do Sisplan") -> None:
+        super().__init__(message)
 

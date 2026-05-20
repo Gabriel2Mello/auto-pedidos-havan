@@ -1,4 +1,5 @@
 from src.logs import get_logger
+from typing import Never
 
 import sys
 from pathlib import Path
@@ -7,7 +8,7 @@ from os import environ
 logger = get_logger(__name__)
 
 
-def encerrar_por_erro(msg, error_msg):
+def encerrar_por_erro(msg: str, error_msg: str) -> Never:
     logger.debug(error_msg)
     logger.critical(f'AVISO: {msg}')
     input('\nPressione Enter para fechar...')
@@ -28,13 +29,13 @@ IMPRESSORA   = environ.get('IMPRESSORA_PEDIDO', '').strip('"')
 if not UNRAR_TOOL.exists():
     encerrar_por_erro(
         'Caminho do utilitário de .RAR não é válido.',
-        UNRAR_TOOL
+        str(UNRAR_TOOL)
     )
 
 if not SUMATRA.exists():
     encerrar_por_erro(
         'Caminho do utilitário SumatraPDF não é válido.',
-        SUMATRA
+        str(SUMATRA)
     )
 
 if not BASE_PATH_PEDIDOS:
