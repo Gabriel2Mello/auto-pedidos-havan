@@ -77,6 +77,6 @@ def get_pedido_compra(scraper: 'ScraperMock') -> None:
     )
     response.raise_for_status()
 
-    if "window.location='/Fornecedor/Login/Index'" in response.text:
+    if 'Login/Index' in response.url:
         raise LoginInvalidoError()
 
