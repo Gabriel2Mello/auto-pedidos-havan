@@ -2,6 +2,7 @@ from typing import Any, Type, Optional
 from types import TracebackType
 
 class ResponseMock:
+    url: str
     text: str
     content: bytes
     status_code: int
@@ -13,6 +14,7 @@ class ScraperMock:
 
     def get(self, url: str, **kwargs: Any) -> ResponseMock: ...
     def post(self, url: str, **kwargs: Any) -> ResponseMock: ...
+
     def __enter__(self) -> 'ScraperMock': ...
     def __exit__(
         self,
