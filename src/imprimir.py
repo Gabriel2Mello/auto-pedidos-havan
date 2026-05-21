@@ -106,7 +106,7 @@ def imprimir_pdf(caminho: Path) -> None:
             capture_output=True,
             timeout=15
         )
-        sleep(0.3)
+        sleep(1)
         logger.info('Sucesso')
 
     except subprocess.TimeoutExpired:
