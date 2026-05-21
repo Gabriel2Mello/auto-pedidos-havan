@@ -16,7 +16,8 @@ from src.config import (
 from src.utils import (
     caminho_pdf,
     caminho_xml,
-    extrair_xml
+    extrair_xml,
+    salvar_erros_txt
 )
 
 if TYPE_CHECKING:
@@ -143,6 +144,7 @@ def processar_unico(scraper: 'ScraperMock', pedido: str) -> tuple[str, bool, str
 
 def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_threads: int=3) -> dict[str, bool]:
     resultados: dict[str, bool] = {}
+    pedidos_falhos: list[str] = []
     logger.info_split('Iniciando processo de download...')
 
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
@@ -168,16 +170,20 @@ def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_thread
 
                 if not sucesso:
                     pbar.write(f'Erro no pedido {pedido}: {erro}')
+                    pedidos_falhos.append(pedido)
 
                 _ = pbar.update(1)
 
-    exibir_resumo(resultados)
+    exibir_resumo(resultados, pedidos_falhos)
     return resultados
 
 
-def exibir_resumo(resultados: dict[str, bool]) -> None:
+def exibir_resumo(resultados: dict[str, bool], pedidos_falhos: list[str]) -> None:
     logger.info_split('RESUMO DOS PEDIDOS:')
     for pedido, sucesso in resultados.items():
         status = 'Baixado' if sucesso else 'Falhou'
         logger.info(f'{pedido}: {status}')
+
+    if pedidos_falhos:
+        salvar_erros_txt(pedidos_falhos)
 
