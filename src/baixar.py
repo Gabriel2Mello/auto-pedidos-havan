@@ -1,7 +1,7 @@
 import time
 import random
 from typing import TYPE_CHECKING
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 from requests.exceptions import Timeout, RequestException
 
 from bs4 import BeautifulSoup
@@ -46,7 +46,7 @@ def html_grid_pedido(scraper: 'ScraperMock', pedido: str) -> str:
             url=GRID_PEDIDO_URL,
             headers=DEFAULT_HEADERS,
             data=payload,
-            timeout=(5,5)
+            timeout=(5,10)
         )
         response.raise_for_status()
         return response.text
@@ -132,9 +132,6 @@ def processar_unico(scraper: 'ScraperMock', pedido: str) -> tuple[str, bool, str
     if len(str(pedido)) < 9:
         return pedido, False, 'Número de pedido muito curto'
 
-    delay = random.uniform(1.5, 3.5)
-    time.sleep(delay)
-
     try:
         pdf, xml = baixar_arquivos(scraper, pedido)
         salvar_arquivos(pdf, xml, pedido)
@@ -149,10 +146,15 @@ def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_thread
     logger.info_split('Iniciando processo de download...')
 
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        futures = {
-            executor.submit(processar_unico, scraper, pedido): pedido
-            for pedido in numero_pedidos
-        }
+        futures: dict[Future[tuple[str, bool, str | None]], str] = {}
+
+        for idx, pedido in enumerate(numero_pedidos):
+            if idx > 0:
+                delay = random.uniform(1.5, 3.0)
+                time.sleep(delay)
+
+            future = executor.submit(processar_unico, scraper, pedido)
+            futures[future] = pedido
 
         with tqdm(
             total=len(futures),
