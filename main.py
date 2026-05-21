@@ -15,9 +15,7 @@ from src.utils import input_pedido, SisplanError
 
 
 def main() -> None:
-    ano = input('Ano: ').strip()
-
-    numero_pedidos = input_pedido(ano)
+    numero_pedidos = input_pedido()
     if not numero_pedidos:
         logger.info_split('Nenhum pedido informado. Encerrando...')
         sleep(2)
@@ -53,10 +51,7 @@ def main() -> None:
             except Exception as e:
                 logger.error(f'Erro no pedido: {e}')
 
-    except SisplanError as e:
-        logger.critical_split(f'Erro fatal: {e}')
-
-    except Exception as e:
+    except (SisplanError, Exception) as e:
         logger.critical_split(f'Erro fatal: {e}')
 
     finally:
