@@ -122,7 +122,7 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
 
         send_keys(ATALHOS['gravar'])
 
-        sleep(0.2)
+        sleep(0.5)
         duplicado = handle_aviso_duplicado()
 
         return numero_interno, duplicado
