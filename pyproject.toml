@@ -1,0 +1,11 @@
+[tool.basedpyright]
+venvPath= "."
+extraPaths = ["./src"]
+stubPath = "./typings"
+typeCheckingMode = "strict"
+useLibraryCodeForTypes = true
+
+reportMissingModuleSource = "none"
+reportMissingTypeStubs = "none"
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"

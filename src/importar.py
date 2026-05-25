@@ -1,5 +1,8 @@
 from time import sleep
+from typing import Literal
+import xml.etree.ElementTree as ET
 
+from pywinauto import WindowSpecification
 from pywinauto.keyboard import send_keys
 
 from src.logs import get_logger
@@ -24,14 +27,14 @@ from src.utils import (
 logger = get_logger(__name__)
 
 
-def extrair_dados_xml(root):
+def extrair_dados_xml(root: ET.Element) -> dict[str, str]:
     logger.debug('Extraindo dados do xml')
 
-    data_fatura =  root.findtext('.//PrazoPagamento/PrevisaoData')
-    data_entrega = root.findtext('.//DataInicialSemanaEntrega')
-    produto_raw =  root.findtext('.//DescricaoProduto')
+    data_fatura: str =  root.findtext('.//PrazoPagamento/PrevisaoData', '')
+    data_entrega: str = root.findtext('.//DataInicialSemanaEntrega', '')
+    produto_raw: str =  root.findtext('.//DescricaoProduto', '')
 
-    if not all([data_fatura, data_entrega, produto_raw]):
+    if not data_fatura or not data_entrega or not produto_raw:
         raise RuntimeError('Dados não encontrados no XML')
 
     return {
@@ -41,13 +44,13 @@ def extrair_dados_xml(root):
     }
 
 
-def definir_empresa(produto):
+def definir_empresa(produto: str) -> Literal['MATRIZ', 'FILIAL']:
     return 'MATRIZ' if any(
         normalizar(p) in produto for p in PRODUTOS_GOVERNADOR
     ) else 'FILIAL'
 
 
-def preencher_dados_fixos(campos):
+def preencher_dados_fixos(campos: dict[str, WindowSpecification]) -> None:
     dados = {
         'cliente':       '00022',
         'representante': '00001',
@@ -66,7 +69,7 @@ def preencher_dados_fixos(campos):
     sleep(0.1)
 
 
-def preencher_datas(campos, data_fatura, data_entrega):
+def preencher_datas(campos: dict[str, WindowSpecification], data_fatura: str, data_entrega: str) -> None:
     campos['data_fatura'].set_text(data_fatura)
     sleep(0.1)
     campos['data_entrega'].set_text(data_entrega)
@@ -75,13 +78,13 @@ def preencher_datas(campos, data_fatura, data_entrega):
     sleep(0.1)
 
 
-def selecionar_empresa_matriz(combo_empresa):
+def selecionar_empresa_matriz(combo_empresa: WindowSpecification) -> None:
     combo_empresa.set_focus()
     combo_empresa.type_keys('{UP}')
     sleep(0.1)
 
 
-def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
+def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: WindowSpecification, grid: WindowSpecification, campos: dict[str, WindowSpecification]) -> tuple[str, bool | None]:
     logger.info_split(f'Importando: {pedido}')
 
     try:
@@ -119,7 +122,7 @@ def importar_pedido(pedido, pedido_grade, aba_pedido, grid, campos):
 
         send_keys(ATALHOS['gravar'])
 
-        sleep(0.2)
+        sleep(0.5)
         duplicado = handle_aviso_duplicado()
 
         return numero_interno, duplicado

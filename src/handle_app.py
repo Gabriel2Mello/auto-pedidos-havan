@@ -1,5 +1,7 @@
 from time import sleep
+from pathlib import Path
 
+from pywinauto import WindowSpecification
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
 
@@ -9,26 +11,27 @@ from src.utils import SisplanError
 
 logger = get_logger(__name__)
 
-def get_field_index(parent, class_name, campo):
+
+def get_field_index(parent: WindowSpecification, class_name: str, campo: str) -> WindowSpecification:
     index = CAMPOS.get(campo)
     if index is None:
         raise RuntimeError(f'Campo não mapeado: {campo}')
 
     return parent.child_window(
         class_name=class_name,
-        found_index=index
+        found_index=int(index)
     )
 
 
-def get_field_title(parent, class_name, title):
+def get_field_title(parent: WindowSpecification, class_name: str, title: str) -> WindowSpecification:
     return parent.child_window(
         class_name=class_name,
         title=title
     )
 
 
-def mapear_campos(aba_pedido):
-    definicoes = {
+def mapear_campos(aba_pedido: WindowSpecification) -> dict[str, WindowSpecification]:
+    definicoes: dict[str, tuple[str, str]] = {
         'numero':        ('TEdit', 'numero'),
         'cliente':       ('TEdit', 'cliente'),
         'representante': ('TEdit', 'representante'),
@@ -48,41 +51,41 @@ def mapear_campos(aba_pedido):
             for nome, (classe, chave) in definicoes.items()}
 
 
-def inicia_app():
+def inicia_app() -> tuple[WindowSpecification, WindowSpecification, WindowSpecification, dict[str, WindowSpecification]]:
     logger.debug('Iniciando aplicação')
     try:
-        app = Application(backend='win32').connect(
+        app: Application = Application(backend='win32').connect(
             title=CAMPOS['sisplan'],
             class_name='TApplication'
         )
 
-        main_window = app.window(
+        main_window: WindowSpecification = app.window(
             title=CAMPOS['sisplan'],
             class_name='TApplication'
         )
-        main_window.restore().set_focus()
+        _ = main_window.restore().set_focus()
         main_window.wait('ready', timeout=5)
 
 
-        janela_vendas = app.window(
+        janela_vendas: WindowSpecification = app.window(
             title_re='.*VenPedidoGrade.*',
             class_name='TfmPrincipal'
         )
-        janela_vendas.set_focus()
+        _ = janela_vendas.set_focus()
 
-        pedido_grade = get_field_title(
+        pedido_grade: WindowSpecification = get_field_title(
             janela_vendas, 'TTabSheet', '1002 - Pedido Por Grade'
         )
 
-        aba_pedido = get_field_title(
+        aba_pedido: WindowSpecification = get_field_title(
             janela_vendas, 'TTabSheet', 'Pedido'
         )
 
-        itens_pedido = get_field_title(
+        itens_pedido: WindowSpecification = get_field_title(
             janela_vendas, 'TTabSheet', 'Itens Pedido'
         )
 
-        grid = get_field_index(
+        grid: WindowSpecification = get_field_index(
             itens_pedido, 'TDBGrid', 'grid'
         )
 
@@ -95,38 +98,38 @@ def inicia_app():
         raise SisplanError('Não foi possível encontrar a tela "1002 - Pedido por Grade" do Sisplan') from e
 
 
-def importa_arq_integracao(xml_path):
+def importa_arq_integracao(xml_path: str | Path) -> None:
     logger.debug('Importando pedido Havan no grid')
     try:
-        app_dialog = Application(
+        app_dialog: Application = Application(
             backend='win32'
         ).connect(title='Abrir', class_name='#32770')
 
-        janela = app_dialog.window(
+        janela: WindowSpecification = app_dialog.window(
             title='Abrir', class_name='#32770'
         )
         janela.wait('ready', timeout=5)
 
-        nome_field = get_field_index(
+        nome_field: WindowSpecification = get_field_index(
             janela, 'Edit', 'nome'
         )
 
-        nome_field.set_focus()
-        nome_field.set_edit_text(str(xml_path))
-        nome_field.type_keys('{ENTER}')
+        _ = nome_field.set_focus()
+        _ = nome_field.set_edit_text(str(xml_path))
+        _ = nome_field.type_keys('{ENTER}')
 
     except Exception as e:
         logger.debug(f'Erro na tela "Abrir" ao importar o Pedido Havan no Grid: {e}')
         raise SisplanError(f'Erro ao interagir com janela de importação Pedido Havan') from e
 
 
-def handle_aviso_duplicado():
+def handle_aviso_duplicado() -> bool:
     try:
-        app_dialog = Application(
+        app_dialog: Application = Application(
             backend='win32'
         ).connect(title='Aviso', class_name='TfmAviso')
 
-        aviso = app_dialog.window(
+        aviso: WindowSpecification = app_dialog.window(
             title='Aviso', class_name='TfmAviso'
         )
 
@@ -139,6 +142,8 @@ def handle_aviso_duplicado():
             send_keys(ATALHOS['sim'])
 
             return True
-    except Exception as e:
+
+        return False
+    except:
       return False
 

@@ -14,11 +14,11 @@ from src.imprimir import processar_impressao
 from src.utils import input_pedido, SisplanError
 
 
-def main():
+def main() -> None:
     numero_pedidos = input_pedido()
     if not numero_pedidos:
         logger.info_split('Nenhum pedido informado. Encerrando...')
-        sleep(1)
+        sleep(2)
         return
 
     start_time = perf_counter()
@@ -51,16 +51,13 @@ def main():
             except Exception as e:
                 logger.error(f'Erro no pedido: {e}')
 
-    except SisplanError as e:
-        logger.critical_split(f'Erro fatal: {e}')
-
-    except Exception as e:
+    except (SisplanError, Exception) as e:
         logger.critical_split(f'Erro fatal: {e}')
 
     finally:
         elapsed_time = perf_counter() - start_time
         logger.info_split(f'Terminado em {elapsed_time:0.2f} segundos.')
-        input('Pressione Enter para fechar...')
+        _ = input('Pressione Enter para fechar...')
 
 
 if __name__ == '__main__':

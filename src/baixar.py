@@ -1,6 +1,7 @@
 import time
 import random
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import TYPE_CHECKING
+from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 from requests.exceptions import Timeout, RequestException
 
 from bs4 import BeautifulSoup
@@ -15,8 +16,12 @@ from src.config import (
 from src.utils import (
     caminho_pdf,
     caminho_xml,
-    extrair_xml
+    extrair_xml,
+    salvar_erros_txt
 )
+
+if TYPE_CHECKING:
+    from cloudscraper import ScraperMock
 
 logger = get_logger(__name__)
 
@@ -30,7 +35,7 @@ DEFAULT_HEADERS = {
 }
 
 
-def html_grid_pedido(scraper, pedido):
+def html_grid_pedido(scraper: 'ScraperMock', pedido: str) -> str:
     payload = {
         'Pedido': str(pedido),
         'OpcaoSituacaoPedidoCompra': 'T',
@@ -42,7 +47,7 @@ def html_grid_pedido(scraper, pedido):
             url=GRID_PEDIDO_URL,
             headers=DEFAULT_HEADERS,
             data=payload,
-            timeout=(5,5)
+            timeout=(5,10)
         )
         response.raise_for_status()
         return response.text
@@ -60,7 +65,7 @@ def html_grid_pedido(scraper, pedido):
         raise RuntimeError('Ocorreu um erro inesperado no Grid do site')
 
 
-def links_pedido(html_content, pedido):
+def links_pedido(html_content: str, pedido: str) -> tuple[str, str]:
     soup = BeautifulSoup(html_content, 'lxml')
 
     for grupo in soup.select('div.hvn-group'):
@@ -95,7 +100,7 @@ def links_pedido(html_content, pedido):
     raise RuntimeError(f'Pedido não encontrado na grade')
 
 
-def baixar_arquivos(scraper, pedido):
+def baixar_arquivos(scraper: 'ScraperMock', pedido: str) -> tuple[bytes, bytes]:
     html_grid = html_grid_pedido(scraper, pedido)
     url_pdf, url_rar = links_pedido(html_grid, pedido)
 
@@ -112,7 +117,7 @@ def baixar_arquivos(scraper, pedido):
     return response_pdf.content, extrair_xml(response_rar.content)
 
 
-def salvar_arquivos(pdf, xml, pedido):
+def salvar_arquivos(pdf: bytes, xml: bytes, pedido: str) -> None:
     arquivos = {
         caminho_pdf(pedido): pdf,
         caminho_xml(pedido): xml
@@ -121,15 +126,12 @@ def salvar_arquivos(pdf, xml, pedido):
     for path, data in arquivos.items():
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        path.write_bytes(data)
+        _ = path.write_bytes(data)
 
 
-def processar_unico(scraper, pedido):
+def processar_unico(scraper: 'ScraperMock', pedido: str) -> tuple[str, bool, str | None]:
     if len(str(pedido)) < 9:
         return pedido, False, 'Número de pedido muito curto'
-
-    delay = random.uniform(1.5, 3.5)
-    time.sleep(delay)
 
     try:
         pdf, xml = baixar_arquivos(scraper, pedido)
@@ -140,37 +142,48 @@ def processar_unico(scraper, pedido):
         return pedido, False, str(e)
 
 
-def baixar_pedidos(scraper, numero_pedidos, max_threads=3):
-    resultados = {}
+def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_threads: int=3) -> dict[str, bool]:
+    resultados: dict[str, bool] = {}
+    pedidos_falhos: list[str] = []
     logger.info_split('Iniciando processo de download...')
 
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        futures = {
-            executor.submit(processar_unico, scraper, pedido): pedido
-            for pedido in numero_pedidos
-        }
+        futures: dict[Future[tuple[str, bool, str | None]], str] = {}
 
-        tqdm_args= {
-            'total': len(futures),
-            'desc': 'Baixando',
-            'bar_format': '{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}]'
-        }
+        for idx, pedido in enumerate(numero_pedidos):
+            if idx > 0:
+                delay = random.uniform(1.5, 3.0)
+                time.sleep(delay)
 
-        with tqdm(as_completed(futures), **tqdm_args) as pbar:
-            for future in pbar:
+            future = executor.submit(processar_unico, scraper, pedido)
+            futures[future] = pedido
+
+        with tqdm(
+            total=len(futures),
+            desc='Baixando',
+            bar_format='{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}]'
+        ) as pbar:
+            for future in as_completed(futures):
                 pedido, sucesso, erro = future.result()
+
                 resultados[pedido] = sucesso
 
                 if not sucesso:
                     pbar.write(f'Erro no pedido {pedido}: {erro}')
+                    pedidos_falhos.append(pedido)
 
-    exibir_resumo(resultados)
+                _ = pbar.update(1)
+
+    exibir_resumo(resultados, pedidos_falhos)
     return resultados
 
 
-def exibir_resumo(resultados):
+def exibir_resumo(resultados: dict[str, bool], pedidos_falhos: list[str]) -> None:
     logger.info_split('RESUMO DOS PEDIDOS:')
     for pedido, sucesso in resultados.items():
         status = 'Baixado' if sucesso else 'Falhou'
         logger.info(f'{pedido}: {status}')
+
+    if pedidos_falhos:
+        salvar_erros_txt(pedidos_falhos)
 

@@ -1,7 +1,10 @@
+import sys
 from datetime import datetime, timedelta
 from io import BytesIO
+from typing import cast
 import unicodedata
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import rarfile
 
@@ -12,27 +15,44 @@ logger = get_logger(__name__)
 rarfile.UNRAR_TOOL = UNRAR_TOOL
 
 
-def input_pedido():
+def input_pedido() -> list[str] | None:
     pedidos_input = input('Pedido: ').strip()
-    return [p.strip() for p in pedidos_input.split(',') if p.strip()]
+    if not pedidos_input:
+        return None
+
+    ano_atual = str(datetime.now().year)
+    pedidos_finais = []
+
+    for p in pedidos_input.split(','):
+        pedido_limpo = p.strip()
+        if not pedido_limpo:
+            continue
+
+        if len(pedido_limpo) < 9:
+            pedido_limpo = f"{ano_atual}-{pedido_limpo}"
+
+        if len(pedido_limpo) >= 9:
+            pedidos_finais.append(pedido_limpo)
+
+    return pedidos_finais if pedidos_finais else None
 
 
-def formata_data(data_xml, dias=0):
+def formata_data(data_xml: str, dias: int=0) -> str:
     data = datetime.strptime(data_xml, '%d/%m/%y') + timedelta(days=dias)
     return data.strftime('%d/%m/%Y')
 
 
-def caminho_xml(pedido):
+def caminho_xml(pedido: str) -> Path:
     caminho = BASE_PATH_PEDIDOS / str(pedido)
     return caminho / f'arq_de_integracao {pedido}.xml'
 
 
-def caminho_pdf(pedido):
+def caminho_pdf(pedido: str) -> Path:
     caminho = BASE_PATH_PEDIDOS / str(pedido)
     return caminho / f'ordem_de_compra {pedido}.pdf'
 
 
-def normalizar(texto):
+def normalizar(texto: str) -> str:
     if not texto:
         raise RuntimeError('Texto não encontrado')
 
@@ -42,14 +62,16 @@ def normalizar(texto):
         .upper()
 
 
-def carregar_xml(arquivo):
+def carregar_xml(arquivo: str | Path) -> ET.Element:
     return ET.parse(arquivo).getroot()
 
 
-def extrair_xml(content):
+def extrair_xml(content: bytes) -> bytes:
     with rarfile.RarFile(BytesIO(content)) as rf:
-        xml_file = next(
-            (f for f in rf.namelist()
+        arquivos = cast(list[str], rf.namelist())
+
+        xml_file: str | None = next(
+            (f for f in arquivos
              if f.lower().endswith('.xml')),
             None
         )
@@ -57,18 +79,46 @@ def extrair_xml(content):
         if not xml_file:
             raise FileNotFoundError('.RAR sem arquivo XML')
 
-        return rf.read(xml_file)
+        return cast(bytes, rf.read(xml_file))
+
+
+def obter_diretorio_executavel() -> Path:
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    else:
+        return Path(sys.argv[0]).parent.absolute()
+
+
+def salvar_erros_txt(pedidos_falhos: list[str]) -> None:
+    if not pedidos_falhos:
+        return
+
+    pasta_destino = obter_diretorio_executavel()
+    arquivo_erros = pasta_destino / 'pedidos_com_erro.txt'
+
+    try:
+        conteudo_novo = ','.join(pedidos_falhos)
+
+        if arquivo_erros.exists() and arquivo_erros.stat().st_size > 0:
+            conteudo_final = f",{conteudo_novo}"
+        else:
+            conteudo_final = conteudo_novo
+
+        with open(arquivo_erros, 'a', encoding='utf-8') as f:
+            f.write(conteudo_final)
+
+        logger.info_split('Erros adicionados ao arquivo: pedidos_com_erro.txt')
+    except Exception as e:
+        logger.debug(f"Não foi possível atualizar o arquivo de erros: {e}")
 
 
 class LoginInvalidoError(Exception):
     """Exceção para quando o site retorna 200, mas falhou o login"""
-    def __init__(self, message="CNPJ ou senha inválidos"):
-        self.message = message
-        super().__init__(self.message)
+    def __init__(self, message: str="CNPJ ou senha inválidos") -> None:
+        super().__init__(message)
 
 
 class SisplanError(Exception):
-    def __init__(self, message="Falha na tela do Sisplan"):
-        self.message = message
-        super().__init__(self.message)
+    def __init__(self, message: str="Falha na tela do Sisplan") -> None:
+        super().__init__(message)
 

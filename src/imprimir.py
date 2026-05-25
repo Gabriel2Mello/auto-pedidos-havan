@@ -1,9 +1,10 @@
 import io
 import subprocess
+from pathlib import Path
 from time import sleep
 
 from reportlab.pdfgen import canvas
-from pypdf import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter, PageObject
 
 from src.logs import get_logger
 from src.config import (
@@ -16,7 +17,7 @@ from src.utils import caminho_pdf
 logger = get_logger(__name__)
 
 
-def criar_overlay(texto, largura, altura):
+def criar_overlay(texto: str, largura: float, altura: float) -> PageObject:
     packet = io.BytesIO()
     c = canvas.Canvas(
         packet,
@@ -44,7 +45,7 @@ def criar_overlay(texto, largura, altura):
     return PdfReader(packet).pages[0]
 
 
-def adicionar_numero(pdf, pdf_saida, numero):
+def adicionar_numero(pdf: Path, pdf_saida: Path, numero: str) -> bool:
     logger.debug(f"Adicionando '{numero}' no PDF: {pdf}")
     writer = PdfWriter()
 
@@ -84,7 +85,7 @@ def adicionar_numero(pdf, pdf_saida, numero):
         return False
 
 
-def imprimir_pdf(caminho):
+def imprimir_pdf(caminho: Path) -> None:
     if caminho.stat().st_size == 0:
         logger.error(f'Arquivo corrompido: {caminho}')
         return
@@ -105,7 +106,7 @@ def imprimir_pdf(caminho):
             capture_output=True,
             timeout=15
         )
-        sleep(0.3)
+        sleep(1)
         logger.info('Sucesso')
 
     except subprocess.TimeoutExpired:
@@ -123,7 +124,7 @@ def imprimir_pdf(caminho):
         logger.error(msg)
 
 
-def processar_impressao(pedido, numero):
+def processar_impressao(pedido: str, numero: str) -> None:
     logger.info_split(f'Imprimindo: {pedido}')
 
     caminho_diretorio = BASE_PATH_PEDIDOS / pedido
