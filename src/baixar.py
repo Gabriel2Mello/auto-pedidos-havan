@@ -142,7 +142,7 @@ def processar_unico(scraper: 'ScraperMock', pedido: str) -> tuple[str, bool, str
         return pedido, False, str(e)
 
 
-def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_threads: int=3) -> dict[str, bool]:
+def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_threads: int=1) -> dict[str, bool]:
     resultados: dict[str, bool] = {}
     pedidos_falhos: list[str] = []
     logger.info_split('Iniciando processo de download...')
@@ -151,10 +151,6 @@ def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_thread
         futures: dict[Future[tuple[str, bool, str | None]], str] = {}
 
         for idx, pedido in enumerate(numero_pedidos):
-            if idx > 0:
-                delay = random.uniform(1.5, 3.0)
-                time.sleep(delay)
-
             future = executor.submit(processar_unico, scraper, pedido)
             futures[future] = pedido
 
