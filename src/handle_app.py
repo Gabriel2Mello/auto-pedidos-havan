@@ -45,6 +45,7 @@ def mapear_campos(aba_pedido: WindowSpecification) -> dict[str, WindowSpecificat
         'data_saida':    ('TDateEditSisp', 'saida'),
         'classe_gerencial': ('TEdGrid', 'classe_gerencial'),
         'empresa':       ('TComboBox', 'combo_empresa'),
+        'observacao_2':  ('TMemo', 'observacao_2'),
     }
 
     return {nome: get_field_index(aba_pedido, classe, chave)

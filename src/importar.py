@@ -30,17 +30,21 @@ logger = get_logger(__name__)
 def extrair_dados_xml(root: ET.Element) -> dict[str, str]:
     logger.debug('Extraindo dados do xml')
 
-    data_fatura: str =  root.findtext('.//PrazoPagamento/PrevisaoData', '')
-    data_entrega: str = root.findtext('.//DataInicialSemanaEntrega', '')
-    produto_raw: str =  root.findtext('.//DescricaoProduto', '')
+    campos_xml = {
+        'data_fatura':  root.findtext('.//PrazoPagamento/PrevisaoData', ''),
+        'data_entrega': root.findtext('.//DataInicialSemanaEntrega', ''),
+        'produto':      root.findtext('.//DescricaoProduto', ''),
+        'operacao':     root.findtext('.//Operacao', ''),
+    }
 
-    if not data_fatura or not data_entrega or not produto_raw:
+    if not all(campos_xml.values()):
         raise RuntimeError('Dados não encontrados no XML')
 
     return {
-        'data_fatura':  formata_data(data_fatura),
-        'data_entrega': formata_data(data_entrega, 1),
-        'produto':      normalizar(produto_raw)
+        'data_fatura':  formata_data(campos_xml['data_fatura']),
+        'data_entrega': formata_data(campos_xml['data_entrega'], 1),
+        'produto':  normalizar(campos_xml['produto']),
+        'operacao': campos_xml['operacao'],
     }
 
 
@@ -101,6 +105,11 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
 
         preencher_dados_fixos(campos)
 
+        if dados_xml['operacao'] == 'ITENS PROMOCIONAIS PARA COMERCIALIZACAO':
+            campos['observacao_2'].set_text('PROMOCIONAL')
+            print('PEDIDO PROMOCIONAL')
+            sleep(0.1)
+
         if definir_empresa(dados_xml['produto']) == 'MATRIZ':
             selecionar_empresa_matriz(campos['empresa'])
 
@@ -123,7 +132,8 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
         send_keys(ATALHOS['gravar'])
 
         sleep(0.5)
-        duplicado = handle_aviso_duplicado()
+        #duplicado = handle_aviso_duplicado()
+        duplicado = True
 
         return numero_interno, duplicado
 

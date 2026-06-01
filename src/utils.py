@@ -112,6 +112,15 @@ def salvar_erros_txt(pedidos_falhos: list[str]) -> None:
         logger.debug(f"Não foi possível atualizar o arquivo de erros: {e}")
 
 
+def salvar_promocional_txt(pedido: str) -> None:
+    if not pedido:
+        return
+
+    pasta_destino = obter_diretorio_executavel()
+    arquivo_promocional = pasta_destino / 'promocional.txt'
+
+
+
 class LoginInvalidoError(Exception):
     """Exceção para quando o site retorna 200, mas falhou o login"""
     def __init__(self, message: str="CNPJ ou senha inválidos") -> None:
