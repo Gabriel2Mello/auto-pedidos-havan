@@ -18,7 +18,7 @@ CAMPOS = {
     'transporte': 48, 'prazo_entrega': 28, 'prazo_producao': 26, 
     'historico': 18, 'tipo_venda': 16, 'numero': 13, 'ped_cliente': 12, 
     'saida': 6, 'entrega': 7, 'fatura': 8, 'classe_gerencial': 1, 'grid': 2,
-    'nome': 0, 'combo_empresa': 0
+    'nome': 0, 'combo_empresa': 0, 'observacao_2': 1
 }
 
 PRODUTOS_GOVERNADOR = [
@@ -195,6 +195,9 @@ def mapear_campos(aba_pedido):
         'classe_gerencial': get_field_index(
             aba_pedido, 'TEdGrid', 'classe_gerencial'
         ),
+        'observacao_2': get_field_index(
+            aba_pedido, 'TMemo', 'observacao_2'
+        ),
     }
 
 
@@ -206,6 +209,8 @@ def preencher_dados_fixos(campos):
     campos['historico'].set_text('02')
     campos['tipo_venda'].set_text('1')
     campos['operacao'].set_text('1')
+
+    campos['observacao_2'].set_text('PROMOCIONAL')
 
     campos['classe_gerencial'].set_focus()
     campos['classe_gerencial'].type_keys('20001{TAB}') # VENDA DE PRODUTOS
@@ -283,7 +288,7 @@ def main():
     importa_arq_integracao(xml_path)
     pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
 
-    send_keys(ATALHO_DESISTIR)
+    #send_keys(ATALHO_DESISTIR)
 
 
     elapsed_time = perf_counter() - start_time

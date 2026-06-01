@@ -1,0 +1,33 @@
+<link href="/Fornecedor/Content/Css/paginacao.css?1.0.9502.26597-20260106" rel="stylesheet" />
+
+
+    <div class="hvn-group">
+        <dl class="block">
+            <dt>Pedido: </dt>
+            <dd>
+                2025-113507 <div class='tags-pedido-status tag-nota-concluida'>Fechado</div>
+            </dd>
+            <dt>Versão: </dt>
+            <dd>07/11/2025 14:31:17</dd>
+            <dt>Semana de entrega:</dt>
+                <dd>2025 - 45 - 02/11/2025 à 08/11/2025</dd>
+            <dt>Nota fiscal: </dt>
+            <dd>
+                5151 <div class='tags-pedido-status tag-nota-concluida'>Concluída</div>
+            </dd>
+                <dt>Agendamento: </dt>
+                <dd>
+                    07/11/2025 16:00:00
+                </dd>
+            <dt>Comprador:</dt>
+            <dd>19470 - CLAUDIA DE PINHO</dd>
+            <dt></dt>
+            <dd class="doc">
+                        <a title="Baixar Ordem de compra. Tipo PDF" href="/Fornecedor/PedidoCompra/SetaPedidoVisualizadoBaixado?idPedido=1924054&amp;arquivo=Ordem%20de%20compra&amp;extensaoArquivo=PDF&amp;idArquivo=4011454&amp;idRelacao=4020924" target="_self"> <i class="hicon-download"></i>Ordem de compra</a>
+                        <a title="Baixar Arq. de integra&#231;&#227;o. Tipo RAR" href="/Fornecedor/PedidoCompra/SetaPedidoVisualizadoBaixado?idPedido=1924054&amp;arquivo=Arq.%20de%20integra%C3%A7%C3%A3o&amp;extensaoArquivo=RAR&amp;idArquivo=4011457&amp;idRelacao=4020927" target="_self"> <i class="hicon-download"></i>Arq. de integra&#231;&#227;o</a>
+                        <a title="Baixar Tag de precifica&#231;&#227;o. Tipo TXT" href="/Fornecedor/PedidoCompra/SetaPedidoVisualizadoBaixado?idPedido=1924054&amp;arquivo=Tag%20de%20precifica%C3%A7%C3%A3o&amp;extensaoArquivo=TXT&amp;idArquivo=4011456&amp;idRelacao=4020926" target="_self"> <i class="hicon-download"></i>Tag de precifica&#231;&#227;o</a>
+                        <a title="Baixar Rel. de precifica&#231;&#227;o. Tipo PDF" href="/Fornecedor/PedidoCompra/SetaPedidoVisualizadoBaixado?idPedido=1924054&amp;arquivo=Rel.%20de%20precifica%C3%A7%C3%A3o&amp;extensaoArquivo=PDF&amp;idArquivo=4011455&amp;idRelacao=4020925" target="_self"> <i class="hicon-download"></i>Rel. de precifica&#231;&#227;o</a>
+            </dd>
+        </dl>
+    </div>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9dd3e2f30a7502d8',t:'MTc3MzY2NTQ1Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"9dd3e2f30a7502d8","serverTiming":{"name":{"cfExtPri":true,"cfEdge":true,"cfOrigin":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}},"version":"2025.9.1","token":"ccf78f148aa74aafb4dccafa9646c27d"}' crossorigin="anonymous"></script>

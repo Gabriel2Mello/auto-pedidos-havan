@@ -1,0 +1,1 @@
+py -3.13-32 -m PyInstaller --clean --onefile --icon=icone.ico .\main.py

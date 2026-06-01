@@ -1,0 +1,76 @@
+# 'TEdit' found_index = 60 > Campo Status
+# 'TEdit' found_index = 56 > Campo Operação
+# 'TEdit' found_index = 55 > Campo Orçamento
+# 'TEdit' found_index = 53 > Campo Cliente
+# 'TEdit' found_index = 51 > Campo Representante
+# 'TEdit' found_index = 49 > Campo Tabela Preço
+# 'TEdit' found_index = 48 > Campo Transporte
+# 'TEdit' found_index = 46 > Campo Condição/Pgto 1
+# 'TEdit' found_index = 45 > Campo Condição/Pgto 2
+# 'TEdit' found_index = 44 > Campo Condição/Pgto 3
+# 'TEdit' found_index = 43 > Campo Condição/Pgto 4
+# 'TEdit' found_index = 42 > Campo Condição/Pgto 5
+# 'TEdit' found_index = 41 > Campo Condição/Pgto 6
+# 'TEdit' found_index = 40 > Campo Condição/Pgto 7
+# 'TEdit' found_index = 39 > Campo Condição/Pgto 8
+# 'TEdit' found_index = 38 > Campo Condição/Pgto 9
+# 'TEdit' found_index = 37 > Campo Redesp
+# 'TEdit' found_index = 36 > Campo Condição/Pgto 10
+# 'TEdit' found_index = 35 > Campo Condição/Pgto 11
+# 'TEdit' found_index = 34 > Campo Condição/Pgto 12
+# 'TEdit' found_index = 33 > Campo Moeda
+# 'TEdit' found_index = 32 > Campo Coleção
+# 'TEdit' found_index = 30 > Campo Sit. Dupl
+# 'TEdit' found_index = 28 > Campo Prazo Entrega
+# 'TEdit' found_index = 26 > Campo Prazo Produção
+# 'TEdit' found_index = 24 > Campo CFOP
+# 'TEdit' found_index = 23 > Campo Respon
+# 'TEdit' found_index = 20 > Campo Deposito
+# 'TEdit' found_index = 19 > Campo Emp. Cad.
+# 'TEdit' found_index = 18 > Campo Histórico
+# 'TEdit' found_index = 16 > Campo Tipo Venda
+# 'TEdit' found_index = 14 > Campo Prog.
+# 'TEdit' found_index = 13 > Campo Número
+# 'TEdit' found_index = 12 > Campo Ped. Cliente
+
+
+# 'TEdit' found_index = 11 > Campo Endereço
+# 'TEdit' found_index = 10 > Campo Cidade
+# 'TEdit' found_index =  9 > Campo municipio
+# 'TEdit' found_index =  8 > Campo Cep
+# 'TEdit' found_index =  7 > Campo Telefone
+# 'TEdit' found_index =  6 > Campo E-mail
+# 'TEdit' found_index =  5 > Campo CNPJ
+# 'TEdit' found_index =  4 > Campo Ins.Est
+# 'TEdit' found_index =  3 > Campo Fantasia
+# 'TEdit' found_index =  2 > Campo Bairro
+# 'TEdit' found_index =  1 > Campo Ramo Ativ.
+# 'TEdit' found_index =  0 > Campo Class.
+
+
+'TDateEditSisp' found_index = 0 > Campo Fundação
+'TDateEditSisp' found_index = 1 > Campo Cadastro
+'TDateEditSisp' found_index = 3 > Campo Entrega Orig
+'TDateEditSisp' found_index = 6 > Campo Saída
+'TDateEditSisp' found_index = 7 > Campo Entrega
+'TDateEditSisp' found_index = 8 > Campo Fatura
+
+'TEdGrid' found_index = 0 > Campo Conf. XML
+
+'TMemo' found_index = 0 > Observação
+'TMemo' found_index = 1 > Observação 2
+
+
+DIVERTIDA
+FORMATO
+ASSENTO
+GUARDANAPO
+AVENTAL
+TROCADOR
+ALMOFADA DECOR 38X38 HAVAN BABY
+AMAMENTAÇÃO
+DESCANSO
+MINI
+GUIRLANDA
+ABRAÇO
+
