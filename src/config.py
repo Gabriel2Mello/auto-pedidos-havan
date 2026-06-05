@@ -88,7 +88,8 @@ CAMPOS = {
     'classe_gerencial': 1,
     'grid': 2,
     'nome': 0,
-    'combo_empresa': 0
+    'combo_empresa': 0,
+    'observacao_2': 1,
 }
 
 PRODUTOS_GOVERNADOR = {
