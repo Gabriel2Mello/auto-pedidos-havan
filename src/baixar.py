@@ -1,5 +1,3 @@
-import time
-import random
 from typing import TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 from requests.exceptions import Timeout, RequestException
@@ -150,7 +148,7 @@ def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_thread
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
         futures: dict[Future[tuple[str, bool, str | None]], str] = {}
 
-        for idx, pedido in enumerate(numero_pedidos):
+        for pedido in numero_pedidos:
             future = executor.submit(processar_unico, scraper, pedido)
             futures[future] = pedido
 

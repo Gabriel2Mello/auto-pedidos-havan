@@ -97,15 +97,9 @@ def salvar_erros_txt(pedidos_falhos: list[str]) -> None:
     arquivo_erros = pasta_destino / 'pedidos_com_erro.txt'
 
     try:
-        conteudo_novo = ','.join(pedidos_falhos)
-
-        if arquivo_erros.exists() and arquivo_erros.stat().st_size > 0:
-            conteudo_final = f",{conteudo_novo}"
-        else:
-            conteudo_final = conteudo_novo
-
         with open(arquivo_erros, 'a', encoding='utf-8') as f:
-            f.write(conteudo_final)
+            for pedido in pedidos_falhos:
+                f.write(f"{pedido}\n")
 
         logger.info_split('Erros adicionados ao arquivo: pedidos_com_erro.txt')
     except Exception as e:
@@ -117,8 +111,15 @@ def salvar_promocional_txt(pedido: str) -> None:
         return
 
     pasta_destino = obter_diretorio_executavel()
-    arquivo_promocional = pasta_destino / 'promocional.txt'
+    arquivo_promocional = pasta_destino / 'PROMOCIONAL.txt'
 
+    try:
+        with open(arquivo_promocional, 'a', encoding='utf-8') as f:
+            f.write(f"{pedido}\n")
+
+        logger.info('Adicionado ao arquivo: PROMOCIONAL.txt')
+    except Exception as e:
+        logger.debug(f"Não foi possível atualizar o arquivo de promoção: {e}")
 
 
 class LoginInvalidoError(Exception):

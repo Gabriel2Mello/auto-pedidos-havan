@@ -21,7 +21,8 @@ from src.utils import (
         formata_data,
         normalizar,
         carregar_xml,
-        SisplanError
+        SisplanError,
+        salvar_promocional_txt
 )
 
 logger = get_logger(__name__)
@@ -109,6 +110,7 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
             campos['observacao_2'].set_text('PROMOCIONAL')
             print('PEDIDO PROMOCIONAL')
             sleep(0.1)
+            salvar_promocional_txt(pedido)
 
         if definir_empresa(dados_xml['produto']) == 'MATRIZ':
             selecionar_empresa_matriz(campos['empresa'])
@@ -132,7 +134,7 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
         send_keys(ATALHOS['gravar'])
 
         sleep(0.5)
-        #duplicado = handle_aviso_duplicado()
+        duplicado = handle_aviso_duplicado()
         duplicado = True
 
         return numero_interno, duplicado
