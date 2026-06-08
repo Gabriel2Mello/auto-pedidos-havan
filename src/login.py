@@ -4,8 +4,7 @@ from requests.exceptions import Timeout, RequestException
 from src.logs import get_logger
 from src.utils import LoginInvalidoError
 from src.config import (
-    USER_AGENT,
-    ORIGIN,
+    DEFAULT_HEADERS,
     BASE_URL,
     CNPJ_MATRIZ,
     SENHA_PORTAL
@@ -22,10 +21,7 @@ logger = get_logger(__name__)
 
 
 def configurar_sessao(scraper: 'ScraperMock') -> None:
-    scraper.headers.update({
-        'User-Agent': USER_AGENT,
-        'Origin': ORIGIN
-    })
+    scraper.headers.update(DEFAULT_HEADERS)
 
 
 def realizar_login(scraper: 'ScraperMock') -> None:
@@ -39,7 +35,10 @@ def realizar_login(scraper: 'ScraperMock') -> None:
     }
 
     try:
-        scraper.get(url=LOGIN_INDEX_URL).raise_for_status()
+        scraper.get(
+            url=LOGIN_INDEX_URL,
+            timeout=(5,10)
+        ).raise_for_status()
 
         scraper.post(
             url=FAZER_LOGIN_URL,

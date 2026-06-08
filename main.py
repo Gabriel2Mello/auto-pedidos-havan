@@ -37,7 +37,13 @@ def main() -> None:
     start_time = perf_counter()
 
     try:
-        with create_scraper() as scraper:
+        with create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'windows',
+                'desktop': True
+            }
+        ) as scraper:
             realizar_login(scraper)
             resultados = baixar_pedidos(scraper, numero_pedidos)
 

@@ -57,17 +57,17 @@ if not IMPRESSORA:
     )
 
 
-USER_AGENT = (
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-    'AppleWebKit/537.36 (KHTML, like Gecko) '
-    'Chrome/145.0.0.0 Safari/537.36'
-)
-
 ORIGIN       = 'https://cliente.havan.com.br'
 BASE_URL     = f'{ORIGIN}/Fornecedor'
 CONTENT_TYPE = (
     'application/x-www-form-urlencoded; charset=UTF-8'
 )
+
+DEFAULT_HEADERS = {
+    'Origin': ORIGIN,
+    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept': '*/*',
+}
 
 CAMPOS = {
     'sisplan': 'Sisplan - 002 - NUNES ENXOVAIS IND, COM, IMP E EXP LTDA',
@@ -118,6 +118,6 @@ ATALHOS = {
     'desistir': '%d',
     'gravar':   '%g',
     'nao':      '%n',
-    'sim':      '%s'
+    'sim':      '%s',
 }
 
