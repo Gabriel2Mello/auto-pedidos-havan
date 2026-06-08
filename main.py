@@ -1,4 +1,6 @@
 from time import sleep, perf_counter
+import ctypes
+import sys
 from src.logs import setup_logging, get_logger
 
 setup_logging()
@@ -14,7 +16,18 @@ from src.imprimir import processar_impressao
 from src.utils import input_pedido, SisplanError
 
 
+def set_app_id() -> None:
+    try:
+        my_app_id = 'g2mello.autopedidoshavan.v1'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(my_app_id)
+    except Exception:
+        pass
+
+
 def main() -> None:
+    if sys.platform == 'win32':
+        set_app_id()
+
     numero_pedidos = input_pedido()
     if not numero_pedidos:
         logger.info_split('Nenhum pedido informado. Encerrando...')
