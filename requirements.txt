@@ -1,0 +1,8 @@
+cloudscraper>=1.2.71
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+tqdm>=4.66.0
+pywinauto>=0.6.8
+pypdf>=4.0.0
+reportlab>=4.1.0
+rarfile>=4.1
