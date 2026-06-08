@@ -17,15 +17,69 @@ from src.handle_app import (
     handle_aviso_duplicado
 )
 from src.utils import (
-        caminho_xml,
-        formata_data,
-        normalizar,
-        carregar_xml,
-        SisplanError,
-        salvar_promocional_txt
+    caminho_xml,
+    formata_data,
+    normalizar,
+    carregar_xml,
+    SisplanError,
+    salvar_promocional_txt
 )
 
 logger = get_logger(__name__)
+
+
+def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: WindowSpecification, grid: WindowSpecification, campos: dict[str, WindowSpecification]) -> tuple[str, bool | None]:
+    logger.info_split(f'Importando: {pedido}')
+
+    try:
+        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+        send_keys(ATALHOS['incluir'])
+        sleep(0.3)
+
+        campos['numero'].type_keys('{TAB}')
+        numero_interno = campos['numero'].window_text()
+
+        xml_path =  caminho_xml(pedido)
+        xml_root =  carregar_xml(xml_path)
+        dados_xml = extrair_dados_xml(xml_root)
+
+        preencher_dados_fixos(campos)
+
+        if dados_xml['operacao'] == 'ITENS PROMOCIONAIS PARA COMERCIALIZACAO':
+            campos['observacao_2'].set_text('PROMOCIONAL')
+            print('PEDIDO PROMOCIONAL')
+            sleep(0.1)
+            salvar_promocional_txt(pedido)
+
+        if definir_empresa(dados_xml['produto']) == 'MATRIZ':
+            selecionar_empresa_matriz(campos['empresa'])
+
+        preencher_datas(
+            campos,
+            dados_xml['data_fatura'],
+            dados_xml['data_entrega']
+        )
+
+        aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
+
+        grid.click_input(button='right') # OPÇÕES DO GRID
+        send_keys(ATALHOS['importar'])
+        send_keys(ATALHOS['havan'])
+
+        sleep(1)
+        importa_arq_integracao(xml_path)
+        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+
+        send_keys(ATALHOS['gravar'])
+
+        sleep(0.5)
+        duplicado = handle_aviso_duplicado()
+
+        return numero_interno, duplicado
+
+    except Exception as e:
+        logger.debug(f'Erro no Sisplan: {e}', exc_info=True)
+        raise SisplanError() from e
 
 
 def extrair_dados_xml(root: ET.Element) -> dict[str, str]:
@@ -87,59 +141,4 @@ def selecionar_empresa_matriz(combo_empresa: WindowSpecification) -> None:
     combo_empresa.set_focus()
     combo_empresa.type_keys('{UP}')
     sleep(0.1)
-
-
-def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: WindowSpecification, grid: WindowSpecification, campos: dict[str, WindowSpecification]) -> tuple[str, bool | None]:
-    logger.info_split(f'Importando: {pedido}')
-
-    try:
-        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
-        send_keys(ATALHOS['incluir'])
-        sleep(0.3)
-
-        campos['numero'].type_keys('{TAB}')
-        numero_interno = campos['numero'].window_text()
-
-        xml_path =  caminho_xml(pedido)
-        xml_root =  carregar_xml(xml_path)
-        dados_xml = extrair_dados_xml(xml_root)
-
-        preencher_dados_fixos(campos)
-
-        if dados_xml['operacao'] == 'ITENS PROMOCIONAIS PARA COMERCIALIZACAO':
-            campos['observacao_2'].set_text('PROMOCIONAL')
-            print('PEDIDO PROMOCIONAL')
-            sleep(0.1)
-            salvar_promocional_txt(pedido)
-
-        if definir_empresa(dados_xml['produto']) == 'MATRIZ':
-            selecionar_empresa_matriz(campos['empresa'])
-
-        preencher_datas(
-            campos,
-            dados_xml['data_fatura'],
-            dados_xml['data_entrega']
-        )
-
-        aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
-
-        grid.click_input(button='right') # OPÇÕES DO GRID
-        send_keys(ATALHOS['importar'])
-        send_keys(ATALHOS['havan'])
-
-        sleep(1)
-        importa_arq_integracao(xml_path)
-        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
-
-        send_keys(ATALHOS['gravar'])
-
-        sleep(0.5)
-        duplicado = handle_aviso_duplicado()
-        duplicado = True
-
-        return numero_interno, duplicado
-
-    except Exception as e:
-        logger.debug(f'Erro no Sisplan: {e}', exc_info=True)
-        raise SisplanError() from e
 
