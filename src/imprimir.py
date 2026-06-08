@@ -17,32 +17,21 @@ from src.utils import caminho_pdf
 logger = get_logger(__name__)
 
 
-def criar_overlay(texto: str, largura: float, altura: float) -> PageObject:
-    packet = io.BytesIO()
-    c = canvas.Canvas(
-        packet,
-        pagesize=(largura, altura),
-        pageCompression=0
-    )
+def processar_impressao(pedido: str, numero: str) -> None:
+    logger.info_split(f'Imprimindo: {pedido}')
 
-    c.setFont('Helvetica-Bold', 12)
-    largura_texto = c.stringWidth(texto, 'Helvetica-Bold', 12)
+    caminho_diretorio = BASE_PATH_PEDIDOS / pedido
+    caminho_diretorio.mkdir(parents=True, exist_ok=True)
 
-    c.saveState()
-    c.translate(largura, 0)
-    c.rotate(90)
+    pdf = caminho_pdf(pedido)
+    pdf_final = caminho_diretorio / f'{numero} {pedido}.pdf'
 
-    x_pos = altura - 60 - largura_texto
-    y_pos = largura - 50
+    try:
+        if adicionar_numero(pdf, pdf_final, numero):
+            imprimir_pdf(pdf_final)
 
-    c.setFillColorRGB(0, 0, 0)
-    c.drawString(x_pos, y_pos, texto)
-
-    c.restoreState()
-    c.save()
-
-    packet.seek(0)
-    return PdfReader(packet).pages[0]
+    except Exception as e:
+        logger.error(f'Erro no processamento de impressão: {e}')
 
 
 def adicionar_numero(pdf: Path, pdf_saida: Path, numero: str) -> bool:
@@ -72,7 +61,7 @@ def adicionar_numero(pdf: Path, pdf_saida: Path, numero: str) -> bool:
 
             writer.add_metadata({
                 '/Title': f'Pedido {numero}',
-                '/Producer': 'Python Autocofre High Quality'
+                '/Producer': 'Python Auto Pedidos Havan'
             })
 
             with pdf_saida.open('wb') as f_out:
@@ -124,19 +113,30 @@ def imprimir_pdf(caminho: Path) -> None:
         logger.error(msg)
 
 
-def processar_impressao(pedido: str, numero: str) -> None:
-    logger.info_split(f'Imprimindo: {pedido}')
+def criar_overlay(texto: str, largura: float, altura: float) -> PageObject:
+    packet = io.BytesIO()
+    c = canvas.Canvas(
+        packet,
+        pagesize=(largura, altura),
+        pageCompression=0
+    )
 
-    caminho_diretorio = BASE_PATH_PEDIDOS / pedido
-    caminho_diretorio.mkdir(parents=True, exist_ok=True)
+    c.setFont('Helvetica-Bold', 12)
+    largura_texto = c.stringWidth(texto, 'Helvetica-Bold', 12)
 
-    pdf = caminho_pdf(pedido)
-    pdf_final = caminho_diretorio / f'{numero} {pedido}.pdf'
+    c.saveState()
+    c.translate(largura, 0)
+    c.rotate(90)
 
-    try:
-        if adicionar_numero(pdf, pdf_final, numero):
-            imprimir_pdf(pdf_final)
+    x_pos = altura - 60 - largura_texto
+    y_pos = largura - 50
 
-    except Exception as e:
-        logger.error(f'Erro no processamento de impressão: {e}')
+    c.setFillColorRGB(0, 0, 0)
+    c.drawString(x_pos, y_pos, texto)
+
+    c.restoreState()
+    c.save()
+
+    packet.seek(0)
+    return PdfReader(packet).pages[0]
 
