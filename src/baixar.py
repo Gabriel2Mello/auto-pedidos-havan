@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-
 GRID_PEDIDO_URL =  f'{BASE_URL}/PedidoCompra/GridIndexPedidoCompra'
 PEDIDO_INDEX_URL = f'{BASE_URL}/PedidoCompra/Index'
 
@@ -31,6 +30,68 @@ DEFAULT_HEADERS = {
     'Referer': PEDIDO_INDEX_URL,
     'Content-Type': CONTENT_TYPE
 }
+
+
+def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_threads: int=1) -> dict[str, bool]:
+    resultados: dict[str, bool] = {}
+    pedidos_falhos: list[str] = []
+    logger.info_split('Iniciando processo de download...')
+
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:
+        futures: dict[Future[tuple[str, bool, str | None]], str] = {}
+
+        for pedido in numero_pedidos:
+            future = executor.submit(processar_unico, scraper, pedido)
+            futures[future] = pedido
+
+        with tqdm(
+            total=len(futures),
+            desc='Baixando',
+            bar_format='{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}]'
+        ) as pbar:
+            for future in as_completed(futures):
+                pedido, sucesso, erro = future.result()
+
+                resultados[pedido] = sucesso
+
+                if not sucesso:
+                    pbar.write(f'Erro no pedido {pedido}: {erro}')
+                    pedidos_falhos.append(pedido)
+
+                _ = pbar.update(1)
+
+    exibir_resumo(resultados, pedidos_falhos)
+    return resultados
+
+
+def processar_unico(scraper: 'ScraperMock', pedido: str) -> tuple[str, bool, str | None]:
+    if len(str(pedido)) < 9:
+        return pedido, False, 'Número de pedido muito curto'
+
+    try:
+        pdf, xml = baixar_arquivos(scraper, pedido)
+        salvar_arquivos(pdf, xml, pedido)
+        return pedido, True, None
+
+    except Exception as e:
+        return pedido, False, str(e)
+
+
+def baixar_arquivos(scraper: 'ScraperMock', pedido: str) -> tuple[bytes, bytes]:
+    html_grid = html_grid_pedido(scraper, pedido)
+    url_pdf, url_rar = links_pedido(html_grid, pedido)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_pdf = executor.submit(scraper.get, url_pdf)
+        f_rar = executor.submit(scraper.get, url_rar)
+
+        response_pdf = f_pdf.result()
+        response_rar = f_rar.result()
+
+    response_pdf.raise_for_status()
+    response_rar.raise_for_status()
+
+    return response_pdf.content, extrair_xml(response_rar.content)
 
 
 def html_grid_pedido(scraper: 'ScraperMock', pedido: str) -> str:
@@ -98,23 +159,6 @@ def links_pedido(html_content: str, pedido: str) -> tuple[str, str]:
     raise RuntimeError(f'Pedido não encontrado na grade')
 
 
-def baixar_arquivos(scraper: 'ScraperMock', pedido: str) -> tuple[bytes, bytes]:
-    html_grid = html_grid_pedido(scraper, pedido)
-    url_pdf, url_rar = links_pedido(html_grid, pedido)
-
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        f_pdf = executor.submit(scraper.get, url_pdf)
-        f_rar = executor.submit(scraper.get, url_rar)
-
-        response_pdf = f_pdf.result()
-        response_rar = f_rar.result()
-
-    response_pdf.raise_for_status()
-    response_rar.raise_for_status()
-
-    return response_pdf.content, extrair_xml(response_rar.content)
-
-
 def salvar_arquivos(pdf: bytes, xml: bytes, pedido: str) -> None:
     arquivos = {
         caminho_pdf(pedido): pdf,
@@ -125,51 +169,6 @@ def salvar_arquivos(pdf: bytes, xml: bytes, pedido: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         _ = path.write_bytes(data)
-
-
-def processar_unico(scraper: 'ScraperMock', pedido: str) -> tuple[str, bool, str | None]:
-    if len(str(pedido)) < 9:
-        return pedido, False, 'Número de pedido muito curto'
-
-    try:
-        pdf, xml = baixar_arquivos(scraper, pedido)
-        salvar_arquivos(pdf, xml, pedido)
-        return pedido, True, None
-
-    except Exception as e:
-        return pedido, False, str(e)
-
-
-def baixar_pedidos(scraper: 'ScraperMock', numero_pedidos: list[str], max_threads: int=1) -> dict[str, bool]:
-    resultados: dict[str, bool] = {}
-    pedidos_falhos: list[str] = []
-    logger.info_split('Iniciando processo de download...')
-
-    with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        futures: dict[Future[tuple[str, bool, str | None]], str] = {}
-
-        for pedido in numero_pedidos:
-            future = executor.submit(processar_unico, scraper, pedido)
-            futures[future] = pedido
-
-        with tqdm(
-            total=len(futures),
-            desc='Baixando',
-            bar_format='{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}]'
-        ) as pbar:
-            for future in as_completed(futures):
-                pedido, sucesso, erro = future.result()
-
-                resultados[pedido] = sucesso
-
-                if not sucesso:
-                    pbar.write(f'Erro no pedido {pedido}: {erro}')
-                    pedidos_falhos.append(pedido)
-
-                _ = pbar.update(1)
-
-    exibir_resumo(resultados, pedidos_falhos)
-    return resultados
 
 
 def exibir_resumo(resultados: dict[str, bool], pedidos_falhos: list[str]) -> None:
