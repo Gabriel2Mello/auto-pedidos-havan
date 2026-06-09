@@ -14,7 +14,8 @@ from src.config import (
 )
 from src.handle_app import (
     importa_arq_integracao,
-    handle_aviso_duplicado
+    handle_aviso_duplicado,
+    handle_produto_sem_cadastro,
 )
 from src.utils import (
     caminho_xml,
@@ -22,7 +23,7 @@ from src.utils import (
     normalizar,
     carregar_xml,
     SisplanError,
-    salvar_promocional_txt
+    salvar_promocional_txt,
 )
 
 logger = get_logger(__name__)
@@ -68,14 +69,22 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
 
         sleep(1)
         importa_arq_integracao(xml_path)
+        sleep(0.5)
+        invalido = handle_produto_sem_cadastro(pedido)
+
         pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
 
-        send_keys(ATALHOS['gravar'])
+        if invalido:
+            send_keys(ATALHOS['desistir'])
+            sleep(0.2)
+            send_keys(ATALHOS['sim'])
+        else:
+            send_keys(ATALHOS['gravar'])
 
-        sleep(0.5)
-        duplicado = handle_aviso_duplicado()
+            sleep(0.5)
+            invalido = handle_aviso_duplicado()
 
-        return numero_interno, duplicado
+        return numero_interno, invalido
 
     except Exception as e:
         logger.debug(f'Erro no Sisplan: {e}', exc_info=True)

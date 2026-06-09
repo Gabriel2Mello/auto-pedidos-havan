@@ -101,7 +101,7 @@ def salvar_erros_txt(pedidos_falhos: list[str]) -> None:
             for pedido in pedidos_falhos:
                 f.write(f"{pedido}\n")
 
-        logger.info_split('Erros adicionados ao arquivo: pedidos_com_erro.txt')
+        logger.info_split('Adicionado ao arquivo: pedidos_com_erro.txt')
     except Exception as e:
         logger.debug(f"Não foi possível atualizar o arquivo de erros: {e}")
 

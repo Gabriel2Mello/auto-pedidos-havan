@@ -119,5 +119,6 @@ ATALHOS = {
     'gravar':   '%g',
     'nao':      '%n',
     'sim':      '%s',
+    'fechar':   '%f',
 }
 

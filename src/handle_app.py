@@ -7,7 +7,7 @@ from pywinauto.keyboard import send_keys
 
 from src.config import CAMPOS, ATALHOS
 from src.logs import get_logger
-from src.utils import SisplanError
+from src.utils import SisplanError, salvar_erros_txt
 
 logger = get_logger(__name__)
 
@@ -122,6 +122,31 @@ def importa_arq_integracao(xml_path: str | Path) -> None:
     except Exception as e:
         logger.debug(f'Erro na tela "Abrir" ao importar o Pedido Havan no Grid: {e}')
         raise SisplanError(f'Erro ao interagir com janela de importação Pedido Havan') from e
+
+
+def handle_produto_sem_cadastro(pedido: str) -> bool:
+    try:
+        app_dialog: Application = Application(
+            backend='win32'
+        ).connect(title='Bloqueio', class_name='#32770')
+
+        bloqueio: WindowSpecification = app_dialog.window(
+            title='Bloqueio', class_name='#32770'
+        )
+
+        if bloqueio.exists(timeout=1):
+            logger.info('Produto sem cadastro. Ignorando...')
+            bloqueio.OK.click()
+            sleep(0.2)
+            send_keys(ATALHOS['fechar'])
+            sleep(0.2)
+            salvar_erros_txt([pedido])
+
+            return True
+
+        return False
+    except:
+        return False
 
 
 def handle_aviso_duplicado() -> bool:
