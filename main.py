@@ -52,14 +52,14 @@ def main() -> None:
             try:
                 if not resultados.get(pedido): continue
 
-                numero_interno, duplicado = importar_pedido(
+                numero_interno, invalido = importar_pedido(
                     pedido,
                     pedido_grade,
                     aba_pedido,
                     grid,
                     campos
                 )
-                if duplicado: continue
+                if invalido: continue
                 logger.info(f'Número interno: {numero_interno}')
 
                 processar_impressao(pedido, numero_interno)
