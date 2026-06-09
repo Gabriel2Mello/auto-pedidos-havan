@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 def processar_impressao(pedido: str, numero: str) -> None:
-    logger.info_split(f'Imprimindo: {pedido}')
+    logger.info('Imprimindo')
 
     caminho_diretorio = BASE_PATH_PEDIDOS / pedido
     caminho_diretorio.mkdir(parents=True, exist_ok=True)
