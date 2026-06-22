@@ -106,7 +106,7 @@ def extrair_dados_xml(root: ET.Element) -> dict[str, str]:
 
     return {
         'data_fatura':  formata_data(campos_xml['data_fatura']),
-        'data_entrega': formata_data(campos_xml['data_entrega'], 1),
+        'data_entrega': formata_data(campos_xml['data_entrega']),
         'produto':  normalizar(campos_xml['produto']),
         'operacao': campos_xml['operacao'],
     }
