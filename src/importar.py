@@ -23,7 +23,7 @@ from src.utils import (
     normalizar,
     carregar_xml,
     SisplanError,
-    salvar_promocional_txt,
+    salvar_pedido_txt,
 )
 
 logger = get_logger(__name__)
@@ -50,7 +50,7 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
             campos['observacao_2'].set_text('PROMOCIONAL')
             print('PEDIDO PROMOCIONAL')
             sleep(0.1)
-            salvar_promocional_txt(pedido)
+            salvar_pedido_txt(pedido, True)
 
         if definir_empresa(dados_xml['produto']) == 'MATRIZ':
             selecionar_empresa_matriz(campos['empresa'])

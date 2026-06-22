@@ -98,37 +98,27 @@ def obter_diretorio_executavel() -> Path:
         return Path(sys.argv[0]).parent.absolute()
 
 
-def salvar_erros_txt(pedidos_falhos: list[str]) -> None:
-    if not pedidos_falhos:
-        return
-
-    pasta_destino = obter_diretorio_executavel()
-    arquivo_erros = pasta_destino / 'pedidos_com_erro.txt'
-
-    try:
-        with open(arquivo_erros, 'a', encoding='utf-8') as f:
-            for pedido in pedidos_falhos:
-                f.write(f"{pedido}\n")
-
-        logger.info_split('Adicionado ao arquivo: pedidos_com_erro.txt')
-    except Exception as e:
-        logger.debug(f"Não foi possível atualizar o arquivo de erros: {e}")
-
-
-def salvar_promocional_txt(pedido: str) -> None:
+def salvar_pedido_txt(pedido: str, promocional: bool = False) -> None:
     if not pedido:
         return
 
+    nome_arquivo = 'PROMOCIONAL.txt' if promocional else 'pedidos_com_erro.txt'
     pasta_destino = obter_diretorio_executavel()
-    arquivo_promocional = pasta_destino / 'PROMOCIONAL.txt'
+    arquivo_destino = pasta_destino / nome_arquivo
+
+    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
 
     try:
-        with open(arquivo_promocional, 'a', encoding='utf-8') as f:
-            f.write(f"{pedido}\n")
+        with open(arquivo_destino, 'a', encoding='utf-8') as f:
+            f.write(f"[{agora}] {pedido}\n")
 
-        logger.info('Adicionado ao arquivo: PROMOCIONAL.txt')
+        if promocional:
+            logger.info(f"Adicionado ao arquivo: {nome_arquivo}")
+        else:
+            logger.info_split(f"Adicionado ao arquivo: {nome_arquivo}")
+
     except Exception as e:
-        logger.debug(f"Não foi possível atualizar o arquivo de promoção: {e}")
+        logger.debug(f"Não foi possível atualizar o arquivo {nome_arquivo}: {e}")
 
 
 class LoginInvalidoError(Exception):

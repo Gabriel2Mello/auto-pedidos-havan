@@ -7,7 +7,7 @@ from pywinauto.keyboard import send_keys
 
 from src.config import CAMPOS, ATALHOS
 from src.logs import get_logger
-from src.utils import SisplanError, salvar_erros_txt
+from src.utils import SisplanError, salvar_pedido_txt
 
 logger = get_logger(__name__)
 
@@ -140,7 +140,7 @@ def handle_produto_sem_cadastro(pedido: str) -> bool:
             sleep(0.2)
             send_keys(ATALHOS['fechar'])
             sleep(0.2)
-            salvar_erros_txt([pedido])
+            salvar_pedido_txt(pedido)
 
             return True
 

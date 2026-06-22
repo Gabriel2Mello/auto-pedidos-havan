@@ -15,7 +15,7 @@ from src.utils import (
     caminho_pdf,
     caminho_xml,
     extrair_xml,
-    salvar_erros_txt
+    salvar_pedido_txt
 )
 
 if TYPE_CHECKING:
@@ -178,5 +178,6 @@ def exibir_resumo(resultados: dict[str, bool], pedidos_falhos: list[str]) -> Non
         logger.info(f'{pedido}: {status}')
 
     if pedidos_falhos:
-        salvar_erros_txt(pedidos_falhos)
+        for pedido_falho in pedidos_falhos:
+            salvar_pedido_txt(pedido_falho)
 
