@@ -1,3 +1,4 @@
+import ctypes
 import sys
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -13,6 +14,14 @@ from src.config import BASE_PATH_PEDIDOS, UNRAR_TOOL
 
 logger = get_logger(__name__)
 rarfile.UNRAR_TOOL = UNRAR_TOOL
+
+
+def set_app_id() -> None:
+    try:
+        my_app_id = 'g2mello.autopedidoshavan.v1'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(my_app_id)
+    except Exception:
+        pass
 
 
 def input_pedido() -> list[str] | None:

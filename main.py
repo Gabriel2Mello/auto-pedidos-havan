@@ -1,5 +1,4 @@
 from time import sleep, perf_counter
-import ctypes
 import sys
 from src.logs import setup_logging, get_logger
 
@@ -13,15 +12,11 @@ from src.baixar import baixar_pedidos
 from src.handle_app import inicia_app
 from src.importar import importar_pedido
 from src.imprimir import processar_impressao
-from src.utils import input_pedido, SisplanError
-
-
-def set_app_id() -> None:
-    try:
-        my_app_id = 'g2mello.autopedidoshavan.v1'
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(my_app_id)
-    except Exception:
-        pass
+from src.utils import (
+    set_app_id,
+    input_pedido,
+    SisplanError,
+)
 
 
 def main() -> None:
