@@ -6,7 +6,7 @@ Este é um robô de automação de processos (RPA) desenvolvido em Python para o
 
 ## ⚙️ Tecnologias e Bibliotecas Utilizadas
 
-* **Orquestração e Core:** Python 3.13-32
+* **Orquestração e Core:** Python 3.12-32
 * **Web Scraping & Bypass:** `cloudscraper` (com emulação dinâmica de Client Hints do Chrome no Windows) e `BeautifulSoup4` (LXML parsing).
 * **Automação de Interface (GUI Automation):** `pywinauto` (Win32 backend para interação com componentes Delphi/VCL do Sisplan).
 * **Manipulação de Arquivos:** `pypdf` (leitura, escrita e merge de PDFs), `reportlab` (geração de overlays em tempo real) e `rarfile` (extração de buffers XML comprimidos).
@@ -49,26 +49,6 @@ O projeto adota o padrão de doze fatores para configurações, isolando credenc
 | `SUMATRA` | `Path` | Caminho para o executável do SumatraPDF. | `C:\LocalApps\SumatraPDF.exe` |
 | `HAVAN_PEDIDOS` | `Path` | Diretório raiz para armazenamento dos arquivos baixados. | `D:\Automacao\ArquivoPedidos` |
 | `IMPRESSORA_PEDIDO` | `String` | Nome exato do dispositivo de impressão no Windows. | `HP LaserJet M402 - Almoxarifado` |
-
----
-
-## 📦 Instalação e Execução
-
-1. Clone o repositório para a máquina de operação:
-   ```bash
-   git clone https://github.com/Gabriel2Mello/auto-pedidos-havan.git
-   cd auto-pedidos-havan
-   ```
-
-2. Instale as dependências do projeto:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Execute o robô com o comando:
-   ```bash
-   python main.py
-   ```
 
 ---
 
