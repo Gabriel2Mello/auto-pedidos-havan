@@ -7,10 +7,10 @@ Este é um robô de automação de processos (RPA) desenvolvido em Python para o
 ## ⚙️ Tecnologias e Bibliotecas Utilizadas
 
 * **Orquestração e Core:** Python 3.13-32
-* **Web Scraping & Bypass:** `cloudscraper` (com emulação dinâmica de Client Hints do Chrome no Windows) e `BeautifulSoup4` (LXML parsing).
+* **Web Scraping & Bypass:** `cloudscraper` e `BeautifulSoup4` (LXML parsing).
 * **Automação de Interface (GUI Automation):** `pywinauto` (Win32 backend para interação com componentes Delphi/VCL do Sisplan).
 * **Manipulação de Arquivos:** `pypdf` (leitura, escrita e merge de PDFs), `reportlab` (geração de overlays em tempo real) e `rarfile` (extração de buffers XML comprimidos).
-* **Interface de Console:** `tqdm` (barras de progresso concorrentes) e `logging` customizado com suporte a encoding UTF-8 nativo no Windows.
+* **Interface de Console:** `tqdm` (barras de progresso concorrentes) e `logging` customizado com suporte nativo no Windows.
 
 ---
 
@@ -33,31 +33,31 @@ Este é um robô de automação de processos (RPA) desenvolvido em Python para o
 O ambiente de execução precisa das seguintes ferramentas instaladas no Windows:
 
 1.  **ERP Sisplan** aberto e posicionado na tela `1002 - Pedido Por Grade`.
-2.  **UnRAR Tool executable:** Utilitário de linha de comando para descompactar arquivos `.rar`. (Incluso nativamente em instalações do WinRAR).
+2.  **UnRAR Tool executable:** Utilitário de linha de comando para descompactar arquivos `.rar`. (Incluso em instalações do WinRAR).
 3.  **SumatraPDF:** Leitor leve de PDF utilizado para o gerenciamento de impressões em lote via CLI de forma oculta.
 
 ---
 
 ## 🔧 Configuração do Ambiente (Variáveis de Ambiente)
 
-O projeto adota o padrão de doze fatores para configurações, isolando credenciais e caminhos locais através de variáveis de ambiente do sistema operacional. Certifique-se de definir as variáveis abaixo:
+O projeto adota o isolamento de credenciais e caminhos locais através de variáveis de ambiente do sistema operacional:
 
 | Variável | Tipo | Descrição | Exemplo de Valor |
 | :--- | :--- | :--- | :--- |
-| `CNPJ_MATRIZ` | `String` | CNPJ de autenticação no portal Havan. | `00000000000100` |
-| `SENHA_PORTAL` | `String` | Senha de acesso em texto plano. | `MinhaSenhaHavan123` |
-| `UNRAR_TOOL` | `Path` | Caminho completo para o executável do UnRAR. | `C:\Program Files\WinRAR\UnRAR.exe` |
+| `CNPJ_MATRIZ` | `String` | CNPJ de autenticação. | `00000000000100` |
+| `SENHA_PORTAL` | `String` | Senha de acesso. | `MinhaSenhaHavan123` |
+| `UNRAR_TOOL` | `Path` | Caminho para o executável do UnRAR. | `C:\Program Files\WinRAR\UnRAR.exe` |
 | `SUMATRA` | `Path` | Caminho para o executável do SumatraPDF. | `C:\LocalApps\SumatraPDF.exe` |
-| `HAVAN_PEDIDOS` | `Path` | Diretório raiz para armazenamento dos arquivos baixados. | `D:\Automacao\ArquivoPedidos` |
-| `IMPRESSORA_PEDIDO` | `String` | Nome exato do dispositivo de impressão no Windows. | `HP LaserJet M402 - Almoxarifado` |
+| `HAVAN_PEDIDOS` | `Path` | Diretório para dos arquivos baixados. | `D:\Automacao\ArquivoPedidos` |
+| `IMPRESSORA_PEDIDO` | `String` | Nome do dispositivo de impressão. | `HP LaserJet M402 - Almoxarifado` |
 
 ---
 
 ## 🪵 Gerenciamento de Logs e Arquivos de Saída
 
-O robô gera saídas persistentes em tempo de execução localizados na pasta raiz do script:
+O robô gera saídas em tempo de execução localizados na pasta raiz do script:
 
-* **`auto-pedidos.log`:** Arquivo contendo o rastreamento completo em nível `DEBUG` para auditorias técnicas, estruturado em codificação UTF-8. O console exibe simultaneamente mensagens simplificadas em nível `INFO`.
-* **`pedidos_com_erro.txt`:** Gerado de forma automatizada ao final da execução listando os pedidos que falharam na fase de download/extração para reprocessamento posterior.
+* **`auto-pedidos.log`:** Arquivo contendo o rastreamento completo em nível `DEBUG` para auditorias técnicas. O console exibe simultaneamente mensagens simplificadas em nível `INFO`.
+* **`pedidos_com_erro.txt`:** Gerado de forma automatizada ao final da execução listando os pedidos que falharam na fase de download/extração.
 * **`PROMOCIONAL.txt`:** Identifica e cataloga pedidos classificados no XML como `ITENS PROMOCIONAIS PARA COMERCIALIZACAO`, para apuração sobre tratativas fiscais especiais.
 
