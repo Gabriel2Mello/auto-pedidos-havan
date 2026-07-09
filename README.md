@@ -47,9 +47,9 @@ O projeto adota o isolamento de credenciais e caminhos locais através de variá
 | `CNPJ_MATRIZ` | `String` | CNPJ de autenticação. | `00000000000100` |
 | `SENHA_PORTAL` | `String` | Senha de acesso. | `MinhaSenhaHavan123` |
 | `UNRAR_TOOL` | `Path` | Caminho executável do UnRAR. | `C:\Program Files\WinRAR\UnRAR.exe` |
-| `SUMATRA` | `Path` | Caminho executável do SumatraPDF. | `C:\LocalApps\SumatraPDF.exe` |
+| `SUMATRA` | `Path` | Caminho executável SumatraPDF. | `C:\LocalApps\SumatraPDF.exe` |
 | `HAVAN_PEDIDOS` | `Path` | Diretório para arquivos baixados. | `D:\Automacao\ArquivoPedidos` |
-| `IMPRESSORA_PEDIDO` | `String` | Nome do dispositivo de impressão. | `HP LaserJet M402 - Almoxarifado` |
+| `IMPRESSORA_PEDIDO` | `String` | Nome dispositivo de impressão. | `HP LaserJet M402 - Almoxarifado` |
 
 ---
 
