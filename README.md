@@ -6,7 +6,7 @@ Este é um robô de automação de processos (RPA) desenvolvido em Python para o
 
 ## ⚙️ Tecnologias e Bibliotecas Utilizadas
 
-* **Orquestração e Core:** Python 3.12-32
+* **Orquestração e Core:** Python 3.13-32
 * **Web Scraping & Bypass:** `cloudscraper` (com emulação dinâmica de Client Hints do Chrome no Windows) e `BeautifulSoup4` (LXML parsing).
 * **Automação de Interface (GUI Automation):** `pywinauto` (Win32 backend para interação com componentes Delphi/VCL do Sisplan).
 * **Manipulação de Arquivos:** `pypdf` (leitura, escrita e merge de PDFs), `reportlab` (geração de overlays em tempo real) e `rarfile` (extração de buffers XML comprimidos).
