@@ -15,10 +15,11 @@ Este é um robô de automação de processos (RPA) desenvolvido em Python para o
 ---
 
 ## 🚀 Fluxo Operacional do Robô
+```
 [Usuário insere os IDs] ➔ [Login & Scraping Havan] ➔ [Extração XML/PDF]
 │
 [Impressão Silenciosa] 🖨️ [Marca D'água PDF] 🔑 [Captura ID Interno] ◀─ [GUI Sisplan]
-
+```
 1.  **Entrada de Dados:** O robô solicita as chaves dos pedidos. Entradas parciais são automaticamente expandidas usando o ano vigente (ex: `12345` vira `2026-12345`).
 2.  **Fase Web (Concorrente):** Realiza o bypass de segurança e autenticação no Portal Havan. Localiza os cards dos pedidos via seletores CSS, captura os links e efetua o download simultâneo do PDF (Ordem de Compra) e do RAR (Arquivo de Integração).
 3.  **Processamento de Dados:** Descompacta o XML diretamente em memória, extrai metadados logísticos (Datas, Itens, Operação) e verifica se o pedido contém itens de campanhas promocionais ou regras de faturamento por Filial/Matriz (`PRODUTOS_GOVERNADOR`).
