@@ -57,7 +57,8 @@ def inicia_app() -> tuple[WindowSpecification, WindowSpecification, WindowSpecif
     try:
         app: Application = Application(backend='win32').connect(
             title=CAMPOS['sisplan'],
-            class_name='TApplication'
+            class_name='TApplication',
+            timeout=2
         )
 
         main_window: WindowSpecification = app.window(
@@ -102,14 +103,16 @@ def inicia_app() -> tuple[WindowSpecification, WindowSpecification, WindowSpecif
 def importa_arq_integracao(xml_path: str | Path) -> None:
     logger.debug('Importando pedido Havan no grid')
     try:
-        app_dialog: Application = Application(
-            backend='win32'
-        ).connect(title='Abrir', class_name='#32770')
+        app_dialog: Application = Application(backend='win32').connect(
+            title='Abrir',
+            class_name='#32770',
+            timeout=2
+        )
 
         janela: WindowSpecification = app_dialog.window(
             title='Abrir', class_name='#32770'
         )
-        janela.wait('ready', timeout=5)
+        janela.wait('ready', timeout=2)
 
         nome_field: WindowSpecification = get_field_index(
             janela, 'Edit', 'nome'
@@ -126,9 +129,11 @@ def importa_arq_integracao(xml_path: str | Path) -> None:
 
 def handle_produto_sem_cadastro(pedido: str) -> bool:
     try:
-        app_dialog: Application = Application(
-            backend='win32'
-        ).connect(title='Bloqueio', class_name='#32770')
+        app_dialog: Application = Application(backend='win32').connect(
+            title='Bloqueio',
+            class_name='#32770',
+            timeout=2
+        )
 
         bloqueio: WindowSpecification = app_dialog.window(
             title='Bloqueio', class_name='#32770'
@@ -151,9 +156,11 @@ def handle_produto_sem_cadastro(pedido: str) -> bool:
 
 def handle_aviso_duplicado() -> bool:
     try:
-        app_dialog: Application = Application(
-            backend='win32'
-        ).connect(title='Aviso', class_name='TfmAviso')
+        app_dialog: Application = Application(backend='win32').connect(
+            title='Aviso',
+            class_name='TfmAviso',
+            timeout=2
+        )
 
         aviso: WindowSpecification = app_dialog.window(
             title='Aviso', class_name='TfmAviso'

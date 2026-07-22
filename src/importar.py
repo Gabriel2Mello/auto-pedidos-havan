@@ -67,9 +67,7 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
         send_keys(ATALHOS['importar'])
         send_keys(ATALHOS['havan'])
 
-        sleep(1)
         importa_arq_integracao(xml_path)
-        sleep(0.5)
         invalido = handle_produto_sem_cadastro(pedido)
 
         pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
@@ -80,8 +78,6 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
             send_keys(ATALHOS['sim'])
         else:
             send_keys(ATALHOS['gravar'])
-
-            sleep(0.5)
             invalido = handle_aviso_duplicado()
 
         return numero_interno, invalido
