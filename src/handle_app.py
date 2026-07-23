@@ -159,12 +159,13 @@ def handle_aviso_duplicado() -> bool:
         app_dialog: Application = Application(backend='win32').connect(
             title='Aviso',
             class_name='TfmAviso',
-            timeout=2
+            timeout=3
         )
 
         aviso: WindowSpecification = app_dialog.window(
             title='Aviso', class_name='TfmAviso'
         )
+        aviso.wait('ready', timeout=3)
 
         if aviso.exists(timeout=1):
             logger.info('Pedido já existe. Cancelando duplicidade...')

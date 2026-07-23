@@ -130,7 +130,7 @@ def preencher_dados_fixos(campos: dict[str, WindowSpecification]) -> None:
 
     campos['classe_gerencial'].set_focus()
     campos['classe_gerencial'].type_keys('20001{TAB}')
-    sleep(0.1)
+    sleep(0.3)
 
 
 def preencher_datas(campos: dict[str, WindowSpecification], data_fatura: str, data_entrega: str) -> None:
