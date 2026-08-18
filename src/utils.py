@@ -121,6 +121,7 @@ def salvar_pedido_txt(pedido: str, promocional: bool = False) -> None:
         logger.debug(f"Não foi possível atualizar o arquivo {nome_arquivo}: {e}")
 
 
+        "body": [
 class LoginInvalidoError(Exception):
     """Exceção para quando o site retorna 200, mas falhou o login"""
     def __init__(self, message: str="CNPJ ou senha inválidos") -> None:
