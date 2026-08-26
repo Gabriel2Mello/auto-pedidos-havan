@@ -1,6 +1,7 @@
 from time import sleep
 from typing import Literal
 import xml.etree.ElementTree as ET
+from typing import cast
 
 from pywinauto import WindowSpecification
 from pywinauto.keyboard import send_keys
@@ -24,6 +25,8 @@ from src.utils import (
     carregar_xml,
     SisplanError,
     salvar_pedido_txt,
+    enviar_alerta_teams,
+    send_keys_sleep,
 )
 
 logger = get_logger(__name__)
@@ -34,23 +37,22 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
 
     try:
         pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
-        send_keys(ATALHOS['incluir'])
-        sleep(0.3)
+        send_keys_sleep(ATALHOS['incluir'], 0.3)
 
         campos['numero'].type_keys('{TAB}')
-        numero_interno = campos['numero'].window_text()
+        numero_interno: str = cast(str, campos['numero'].window_text())
 
         xml_path =  caminho_xml(pedido)
         xml_root =  carregar_xml(xml_path)
         dados_xml = extrair_dados_xml(xml_root)
 
         preencher_dados_fixos(campos)
-
-        if dados_xml['operacao'] == 'ITENS PROMOCIONAIS PARA COMERCIALIZACAO':
-            campos['observacao_2'].set_text('PROMOCIONAL')
-            print('PEDIDO PROMOCIONAL')
-            sleep(0.1)
-            salvar_pedido_txt(pedido, True)
+        processar_operacao_comercial(
+            dados_xml['operacao'],
+            pedido,
+            numero_interno,
+            campos
+        )
 
         if definir_empresa(dados_xml['produto']) == 'MATRIZ':
             selecionar_empresa_matriz(campos['empresa'])
@@ -73,8 +75,7 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
         pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
 
         if invalido:
-            send_keys(ATALHOS['desistir'])
-            sleep(0.2)
+            send_keys_sleep(ATALHOS['desistir'], 0.2)
             send_keys(ATALHOS['sim'])
         else:
             send_keys(ATALHOS['gravar'])
@@ -85,6 +86,34 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
     except Exception as e:
         logger.debug(f'Erro no Sisplan: {e}', exc_info=True)
         raise SisplanError() from e
+
+
+def processar_operacao_comercial(
+    operacao_alvo: str,
+    pedido: str,
+    numero_interno: str,
+    campos: dict[str, WindowSpecification],
+) -> None:
+    mapeamento_operacoes = {
+        'ITENS PROMOCIONAIS PARA COMERCIALIZACAO': {
+            'obs': 'PROMOCIONAL',
+            'mensagem': 'PEDIDO PROMOCIONAL',
+        },
+        'BONIFICACAO COMERCIAL': {
+            'obs': 'BONIFICADO',
+            'mensagem': 'PEDIDO BONIFICADO',
+        },
+    }
+
+    if operacao_alvo in mapeamento_operacoes:
+        operacao = mapeamento_operacoes[operacao_alvo]
+
+        campos['observacao_2'].set_text(operacao['obs'])
+        print(operacao['mensagem'])
+
+        sleep(0.1)
+        salvar_pedido_txt(pedido, True)
+        enviar_alerta_teams(pedido, numero_interno, operacao['mensagem'])
 
 
 def extrair_dados_xml(root: ET.Element) -> dict[str, str]:
@@ -104,7 +133,7 @@ def extrair_dados_xml(root: ET.Element) -> dict[str, str]:
         'data_fatura':  formata_data(campos_xml['data_fatura']),
         'data_entrega': formata_data(campos_xml['data_entrega']),
         'produto':  normalizar(campos_xml['produto']),
-        'operacao': campos_xml['operacao'],
+        'operacao': normalizar(campos_xml['operacao']),
     }
 
 

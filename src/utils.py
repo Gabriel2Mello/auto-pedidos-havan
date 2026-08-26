@@ -6,11 +6,18 @@ from typing import cast
 import unicodedata
 import xml.etree.ElementTree as ET
 from pathlib import Path
+import requests
+from time import sleep
 
 import rarfile
+from pywinauto.keyboard import send_keys
 
 from src.logs import get_logger
-from src.config import BASE_PATH_PEDIDOS, UNRAR_TOOL
+from src.config import (
+    BASE_PATH_PEDIDOS,
+    UNRAR_TOOL,
+    TEAMS_WEBHOOK_URL,
+)
 
 logger = get_logger(__name__)
 rarfile.UNRAR_TOOL = UNRAR_TOOL
@@ -121,13 +128,61 @@ def salvar_pedido_txt(pedido: str, promocional: bool = False) -> None:
         logger.debug(f"Não foi possível atualizar o arquivo {nome_arquivo}: {e}")
 
 
+def enviar_alerta_teams(pedido: str, numero_interno: str = "", mensagem: str = "") -> None:
+    if not TEAMS_WEBHOOK_URL:
+        logger.debug('URL do Teams não configurada.')
+        return
+
+    payload = {
+        'type': 'message',
+        'attachments': [
+            {
+                'contentType': 'application/vnd.microsoft.card.adaptive',
+                'content': {
+                    '$schema': 'http://adaptivecards.io/schemas/adaptive-card.json',
+                    'type': 'AdaptiveCard',
+                    'version': '1.0',
+                    'body': [
+                        {
+                            'type': 'TextBlock',
+                            'text': f'{mensagem}: {pedido}',
+                            'weight': 'Bolder',
+                            'size': 'large',
+                            'color': 'Accent'
+                        },
+                        {
+                            'type': 'TextBlock',
+                            'text': f'Número interno: {numero_interno}',
+                            'wrap': True
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    try:
+        response = requests.post(TEAMS_WEBHOOK_URL, json=payload, timeout=10)
+        if response.status_code == 200 or response.status_code == 202:
+            logger.info(f'Alerta enviado para o Teams.')
+        else:
+            logger.debug(f'Falha ao enviar alerta para o Teams. {response.status_code}: {response.text}')
+    except Exception as e:
+        logger.debug(f'Falha ao enviar alerta para Teams: {e}')
+
+
+def send_keys_sleep(keys: str, sleep_time: float = 0.1) -> None:
+    send_keys(keys)
+    sleep(sleep_time)
+
+
 class LoginInvalidoError(Exception):
     """Exceção para quando o site retorna 200, mas falhou o login"""
-    def __init__(self, message: str="CNPJ ou senha inválidos") -> None:
+    def __init__(self, message: str='CNPJ ou senha inválidos') -> None:
         super().__init__(message)
 
 
 class SisplanError(Exception):
-    def __init__(self, message: str="Falha na tela do Sisplan") -> None:
+    def __init__(self, message: str='Falha na tela do Sisplan') -> None:
         super().__init__(message)
 
