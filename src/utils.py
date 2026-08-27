@@ -1,18 +1,18 @@
 import ctypes
 import sys
-from datetime import datetime, timedelta
-from io import BytesIO
-from typing import cast
-import unicodedata
 import xml.etree.ElementTree as ET
+from datetime import datetime
+from io import BytesIO
 from pathlib import Path
-import requests
 from time import sleep
+from typing import cast
 
 import rarfile
+import requests
 from pywinauto.keyboard import send_keys
 
 from src.logs import get_logger
+from src.pedidos import normalizar_pedidos
 from src.config import (
     BASE_PATH_PEDIDOS,
     UNRAR_TOOL,
@@ -20,7 +20,6 @@ from src.config import (
 )
 
 logger = get_logger(__name__)
-rarfile.UNRAR_TOOL = UNRAR_TOOL
 
 
 def set_app_id() -> None:
@@ -32,30 +31,10 @@ def set_app_id() -> None:
 
 
 def input_pedido() -> list[str] | None:
-    pedidos_input = input('Pedido: ').strip()
-    if not pedidos_input:
+    pedidos = normalizar_pedidos(input('Pedido: '))
+    if not pedidos:
         return None
-
-    ano_atual = str(datetime.now().year)
-    pedidos_finais = []
-
-    for p in pedidos_input.split(','):
-        pedido_limpo = p.strip()
-        if not pedido_limpo:
-            continue
-
-        if len(pedido_limpo) < 9:
-            pedido_limpo = f"{ano_atual}-{pedido_limpo}"
-
-        if len(pedido_limpo) >= 9:
-            pedidos_finais.append(pedido_limpo)
-
-    return pedidos_finais if pedidos_finais else None
-
-
-def formata_data(data_xml: str, dias: int=0) -> str:
-    data = datetime.strptime(data_xml, '%d/%m/%y') + timedelta(days=dias)
-    return data.strftime('%d/%m/%Y')
+    return pedidos
 
 
 def caminho_xml(pedido: str) -> Path:
@@ -68,21 +47,12 @@ def caminho_pdf(pedido: str) -> Path:
     return caminho / f'ordem_de_compra {pedido}.pdf'
 
 
-def normalizar(texto: str) -> str:
-    if not texto:
-        raise RuntimeError('Texto não encontrado')
-
-    return unicodedata.normalize('NFKD', texto)\
-        .encode('ASCII', 'ignore')\
-        .decode()\
-        .upper()
-
-
 def carregar_xml(arquivo: str | Path) -> ET.Element:
     return ET.parse(arquivo).getroot()
 
 
 def extrair_xml(content: bytes) -> bytes:
+    rarfile.UNRAR_TOOL = str(UNRAR_TOOL)
     with rarfile.RarFile(BytesIO(content)) as rf:
         arquivos = cast(list[str], rf.namelist())
 
@@ -101,8 +71,7 @@ def extrair_xml(content: bytes) -> bytes:
 def obter_diretorio_executavel() -> Path:
     if getattr(sys, 'frozen', False):
         return Path(sys.executable).parent
-    else:
-        return Path(sys.argv[0]).parent.absolute()
+    return Path(sys.argv[0]).parent.absolute()
 
 
 def salvar_pedido_txt(pedido: str, promocional: bool = False) -> None:
@@ -116,19 +85,27 @@ def salvar_pedido_txt(pedido: str, promocional: bool = False) -> None:
     agora = datetime.now().strftime('%d/%m/%Y %H:%M')
 
     try:
-        with open(arquivo_destino, 'a', encoding='utf-8') as f:
-            f.write(f"[{agora}] {pedido}\n")
+        with arquivo_destino.open('a', encoding='utf-8') as arquivo:
+            arquivo.write(f'[{agora}] {pedido}\n')
 
         if promocional:
-            logger.info(f"Adicionado ao arquivo: {nome_arquivo}")
+            logger.info(f'Adicionado ao arquivo: {nome_arquivo}')
         else:
-            logger.info_split(f"Adicionado ao arquivo: {nome_arquivo}")
+            logger.info_split(f'Adicionado ao arquivo: {nome_arquivo}')
 
-    except Exception as e:
-        logger.debug(f"Não foi possível atualizar o arquivo {nome_arquivo}: {e}")
+    except OSError as error:
+        logger.debug(
+            'Não foi possível atualizar o arquivo %s: %s',
+            nome_arquivo,
+            error,
+        )
 
 
-def enviar_alerta_teams(pedido: str, numero_interno: str = "", mensagem: str = "") -> None:
+def enviar_alerta_teams(
+    pedido: str,
+    numero_interno: str = '',
+    mensagem: str = '',
+) -> None:
     if not TEAMS_WEBHOOK_URL:
         logger.debug('URL do Teams não configurada.')
         return
@@ -163,12 +140,17 @@ def enviar_alerta_teams(pedido: str, numero_interno: str = "", mensagem: str = "
 
     try:
         response = requests.post(TEAMS_WEBHOOK_URL, json=payload, timeout=10)
-        if response.status_code == 200 or response.status_code == 202:
-            logger.info(f'Alerta enviado para o Teams.')
+        if response.status_code in {200, 202}:
+            logger.info('Alerta enviado para o Teams.')
         else:
-            logger.debug(f'Falha ao enviar alerta para o Teams. {response.status_code}: {response.text}')
-    except Exception as e:
-        logger.debug(f'Falha ao enviar alerta para Teams: {e}')
+            logger.debug(
+                'Falha ao enviar alerta para o Teams. %s: %s',
+                response.status_code,
+                response.text,
+            )
+    # O alerta é complementar e nunca deve interromper a inclusão do pedido.
+    except Exception as error:
+        logger.debug('Falha ao enviar alerta para Teams: %s', error)
 
 
 def send_keys_sleep(keys: str, sleep_time: float = 0.1) -> None:
@@ -178,11 +160,12 @@ def send_keys_sleep(keys: str, sleep_time: float = 0.1) -> None:
 
 class LoginInvalidoError(Exception):
     """Exceção para quando o site retorna 200, mas falhou o login"""
-    def __init__(self, message: str='CNPJ ou senha inválidos') -> None:
+
+    def __init__(self, message: str = 'CNPJ ou senha inválidos') -> None:
         super().__init__(message)
 
 
 class SisplanError(Exception):
-    def __init__(self, message: str='Falha na tela do Sisplan') -> None:
+    def __init__(self, message: str = 'Falha na tela do Sisplan') -> None:
         super().__init__(message)
 

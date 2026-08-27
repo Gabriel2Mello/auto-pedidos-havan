@@ -1,6 +1,4 @@
 from time import sleep
-from typing import Literal
-import xml.etree.ElementTree as ET
 from typing import cast
 
 from pywinauto import WindowSpecification
@@ -8,20 +6,18 @@ from pywinauto.keyboard import send_keys
 
 from src.logs import get_logger
 from src.config import (
-    PRODUTOS_GOVERNADOR,
     COORD_ABA_PEDIDO,
     COORD_ITENS_PEDIDO,
-    ATALHOS
+    ATALHOS,
 )
 from src.handle_app import (
     importa_arq_integracao,
     handle_aviso_duplicado,
     handle_produto_sem_cadastro,
 )
+from src.pedidos import definir_empresa, extrair_dados_xml
 from src.utils import (
     caminho_xml,
-    formata_data,
-    normalizar,
     carregar_xml,
     SisplanError,
     salvar_pedido_txt,
@@ -31,8 +27,25 @@ from src.utils import (
 
 logger = get_logger(__name__)
 
+CamposSisplan = dict[str, WindowSpecification]
 
-def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: WindowSpecification, grid: WindowSpecification, campos: dict[str, WindowSpecification]) -> tuple[str, bool | None]:
+
+OPERACOES_ESPECIAIS = {
+    'ITENS PROMOCIONAIS PARA COMERCIALIZACAO': (
+        'PROMOCIONAL',
+        'PEDIDO PROMOCIONAL',
+    ),
+    'BONIFICACAO COMERCIAL': ('BONIFICADO', 'PEDIDO BONIFICADO'),
+}
+
+
+def importar_pedido(
+    pedido: str,
+    pedido_grade: WindowSpecification,
+    aba_pedido: WindowSpecification,
+    grid: WindowSpecification,
+    campos: CamposSisplan,
+) -> tuple[str, bool]:
     logger.info_split(f'Importando: {pedido}')
 
     try:
@@ -42,8 +55,8 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
         campos['numero'].type_keys('{TAB}')
         numero_interno: str = cast(str, campos['numero'].window_text())
 
-        xml_path =  caminho_xml(pedido)
-        xml_root =  carregar_xml(xml_path)
+        xml_path = caminho_xml(pedido)
+        xml_root = carregar_xml(xml_path)
         dados_xml = extrair_dados_xml(xml_root)
 
         preencher_dados_fixos(campos)
@@ -65,7 +78,7 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
 
         aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
 
-        grid.click_input(button='right') # OPÇÕES DO GRID
+        grid.click_input(button='right')  # Abre as opções do grid.
         send_keys(ATALHOS['importar'])
         send_keys(ATALHOS['havan'])
 
@@ -83,67 +96,31 @@ def importar_pedido(pedido: str, pedido_grade: WindowSpecification, aba_pedido: 
 
         return numero_interno, invalido
 
-    except Exception as e:
-        logger.debug(f'Erro no Sisplan: {e}', exc_info=True)
-        raise SisplanError() from e
+    except Exception as error:
+        logger.debug('Erro no Sisplan: %s', error, exc_info=True)
+        raise SisplanError() from error
 
 
 def processar_operacao_comercial(
     operacao_alvo: str,
     pedido: str,
     numero_interno: str,
-    campos: dict[str, WindowSpecification],
+    campos: CamposSisplan,
 ) -> None:
-    mapeamento_operacoes = {
-        'ITENS PROMOCIONAIS PARA COMERCIALIZACAO': {
-            'obs': 'PROMOCIONAL',
-            'mensagem': 'PEDIDO PROMOCIONAL',
-        },
-        'BONIFICACAO COMERCIAL': {
-            'obs': 'BONIFICADO',
-            'mensagem': 'PEDIDO BONIFICADO',
-        },
-    }
+    operacao = OPERACOES_ESPECIAIS.get(operacao_alvo)
+    if operacao is None:
+        return
 
-    if operacao_alvo in mapeamento_operacoes:
-        operacao = mapeamento_operacoes[operacao_alvo]
+    observacao, mensagem = operacao
+    campos['observacao_2'].set_text(observacao)
+    logger.info(mensagem)
 
-        campos['observacao_2'].set_text(operacao['obs'])
-        print(operacao['mensagem'])
-
-        sleep(0.1)
-        salvar_pedido_txt(pedido, True)
-        enviar_alerta_teams(pedido, numero_interno, operacao['mensagem'])
+    sleep(0.1)
+    salvar_pedido_txt(pedido, True)
+    enviar_alerta_teams(pedido, numero_interno, mensagem)
 
 
-def extrair_dados_xml(root: ET.Element) -> dict[str, str]:
-    logger.debug('Extraindo dados do xml')
-
-    campos_xml = {
-        'data_fatura':  root.findtext('.//PrazoPagamento/PrevisaoData', ''),
-        'data_entrega': root.findtext('.//DataInicialSemanaEntrega', ''),
-        'produto':      root.findtext('.//DescricaoProduto', ''),
-        'operacao':     root.findtext('.//Operacao', ''),
-    }
-
-    if not all(campos_xml.values()):
-        raise RuntimeError('Dados não encontrados no XML')
-
-    return {
-        'data_fatura':  formata_data(campos_xml['data_fatura']),
-        'data_entrega': formata_data(campos_xml['data_entrega']),
-        'produto':  normalizar(campos_xml['produto']),
-        'operacao': normalizar(campos_xml['operacao']),
-    }
-
-
-def definir_empresa(produto: str) -> Literal['MATRIZ', 'FILIAL']:
-    return 'MATRIZ' if any(
-        normalizar(p) in produto for p in PRODUTOS_GOVERNADOR
-    ) else 'FILIAL'
-
-
-def preencher_dados_fixos(campos: dict[str, WindowSpecification]) -> None:
+def preencher_dados_fixos(campos: CamposSisplan) -> None:
     dados = {
         'cliente':       '00022',
         'representante': '00001',
@@ -151,7 +128,7 @@ def preencher_dados_fixos(campos: dict[str, WindowSpecification]) -> None:
         'tabela_preco':  '004',
         'historico':     '02',
         'tipo_venda':    '1',
-        'operacao':      '1'
+        'operacao':      '1',
     }
 
     for nome, valor in dados.items():
@@ -162,7 +139,11 @@ def preencher_dados_fixos(campos: dict[str, WindowSpecification]) -> None:
     sleep(0.3)
 
 
-def preencher_datas(campos: dict[str, WindowSpecification], data_fatura: str, data_entrega: str) -> None:
+def preencher_datas(
+    campos: CamposSisplan,
+    data_fatura: str,
+    data_entrega: str,
+) -> None:
     campos['data_fatura'].set_text(data_fatura)
     sleep(0.1)
     campos['data_entrega'].set_text(data_entrega)

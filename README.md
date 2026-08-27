@@ -61,3 +61,21 @@ O robô gera saídas em tempo de execução localizados na pasta raiz do script:
 * **`pedidos_com_erro.txt`:** Gerado de forma automatizada ao final da execução listando os pedidos que falharam na fase de download/extração.
 * **`PROMOCIONAL.txt`:** Identifica e cataloga pedidos classificados no XML como `ITENS PROMOCIONAIS PARA COMERCIALIZACAO`, para apuração sobre tratativas fiscais especiais.
 
+---
+
+## 🧪 Desenvolvimento e testes
+
+As regras puras de entrada, datas, XML e seleção da empresa ficam em
+`src/pedidos.py`. Esse módulo não depende do portal nem da interface do Sisplan,
+o que permite testar as regras sem executar a automação.
+
+Execute a suíte com o próprio `unittest` da biblioteca padrão:
+
+```powershell
+python -m unittest discover -v
+```
+
+Antes de alterar uma regra de negócio, adicione ou ajuste um teste em `tests/`.
+Assim, mudanças estruturais podem ser feitas com segurança sem alterar o
+resultado esperado pelo processo operacional.
+

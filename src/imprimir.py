@@ -10,7 +10,7 @@ from src.logs import get_logger
 from src.config import (
     SUMATRA,
     IMPRESSORA,
-    BASE_PATH_PEDIDOS
+    BASE_PATH_PEDIDOS,
 )
 from src.utils import caminho_pdf
 
@@ -30,14 +30,12 @@ def processar_impressao(pedido: str, numero: str) -> None:
         if adicionar_numero(pdf, pdf_final, numero):
             imprimir_pdf(pdf_final)
 
-    except Exception as e:
-        logger.error(f'Erro no processamento de impressão: {e}')
+    except Exception as error:
+        logger.error('Erro no processamento de impressão: %s', error)
 
 
 def adicionar_numero(pdf: Path, pdf_saida: Path, numero: str) -> bool:
     logger.debug(f"Adicionando '{numero}' no PDF: {pdf}")
-    writer = PdfWriter()
-
     try:
         if not pdf.exists():
             logger.error(f'Arquivo não encontrado: {pdf}')
@@ -45,15 +43,16 @@ def adicionar_numero(pdf: Path, pdf_saida: Path, numero: str) -> bool:
 
         with pdf.open('rb') as f:
             reader = PdfReader(f)
+            writer = PdfWriter()
 
             if not reader.pages:
                 logger.error(f'PDF {pdf.name} sem páginas')
                 return False
 
-            caixa =   reader.pages[0].mediabox
+            caixa = reader.pages[0].mediabox
             largura = float(caixa.width)
-            altura =  float(caixa.height)
-            overlay = criar_overlay(str(numero), largura, altura)
+            altura = float(caixa.height)
+            overlay = criar_overlay(numero, largura, altura)
 
             for page in reader.pages:
                 page.merge_page(overlay)
@@ -69,17 +68,17 @@ def adicionar_numero(pdf: Path, pdf_saida: Path, numero: str) -> bool:
 
         return True
 
-    except Exception as e:
-        logger.error(f'Falha ao processar {pdf.name}: {e}')
+    except Exception as error:
+        logger.error('Falha ao processar %s: %s', pdf.name, error)
         return False
 
 
 def imprimir_pdf(caminho: Path) -> None:
-    if caminho.stat().st_size == 0:
-        logger.error(f'Arquivo corrompido: {caminho}')
-        return
-
     try:
+        if caminho.stat().st_size == 0:
+            logger.error(f'Arquivo corrompido: {caminho}')
+            return
+
         logger.debug(f'Imprimindo {caminho} em: {IMPRESSORA}')
         args = [
             str(SUMATRA.resolve()),
@@ -99,17 +98,21 @@ def imprimir_pdf(caminho: Path) -> None:
         logger.info('Sucesso')
 
     except subprocess.TimeoutExpired:
-        logger.error(f'SumatraPDF demorou demais para responder')
+        logger.error('SumatraPDF demorou demais para responder')
 
-    except subprocess.CalledProcessError as e:
-        error_msg = e.stderr.decode('latin-1') if e.stderr else 'Erro desconhecido'
+    except subprocess.CalledProcessError as error:
+        error_msg = (
+            error.stderr.decode('latin-1')
+            if error.stderr
+            else 'Erro desconhecido'
+        )
         msg = 'Erro no SumatraPDF'
         logger.debug(f'{msg} para {caminho.name}: {error_msg}')
         logger.error(msg)
 
-    except Exception as e:
+    except Exception as error:
         msg = 'Erro inesperado no Sumatra'
-        logger.debug(f'{msg}: {e}')
+        logger.debug(f'{msg}: {error}')
         logger.error(msg)
 
 

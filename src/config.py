@@ -1,65 +1,50 @@
-from src.logs import get_logger
-from typing import Never
-
-import sys
-from pathlib import Path
 from os import environ
-
-logger = get_logger(__name__)
-
-
-def encerrar_por_erro(msg: str, error_msg: str) -> Never:
-    logger.debug(error_msg)
-    logger.critical(f'AVISO: {msg}')
-    input('\nPressione Enter para fechar...')
-    sys.exit(1)
+from pathlib import Path
 
 
-_unrar_raw     = environ.get('UNRAR_TOOL', '').strip('"')
-_sumatra_raw   = environ.get('SUMATRA', '').strip('"')
-_base_path_raw = environ.get('HAVAN_PEDIDOS', '').strip('"')
+class ConfiguracaoError(ValueError):
+    """Indica que uma configuração obrigatória está ausente ou inválida."""
 
-UNRAR_TOOL        = Path(_unrar_raw)
-SUMATRA           = Path(_sumatra_raw)
+
+def _ler_variavel(nome: str) -> str:
+    return environ.get(nome, '').strip().strip('"')
+
+
+_unrar_raw = _ler_variavel('UNRAR_TOOL')
+_sumatra_raw = _ler_variavel('SUMATRA')
+_base_path_raw = _ler_variavel('HAVAN_PEDIDOS')
+
+UNRAR_TOOL = Path(_unrar_raw)
+SUMATRA = Path(_sumatra_raw)
 BASE_PATH_PEDIDOS = Path(_base_path_raw)
-TEAMS_WEBHOOK_URL = environ.get('TEAMS_WEBHOOK_URL', '').strip('"')
-CNPJ_MATRIZ  = environ.get('CNPJ_MATRIZ', '').strip('"')
-SENHA_PORTAL = environ.get('SENHA_PORTAL', '').strip('"')
-IMPRESSORA   = environ.get('IMPRESSORA_PEDIDO', '').strip('"')
-
-if not UNRAR_TOOL.exists():
-    encerrar_por_erro(
-        'Caminho do utilitário de .RAR não é válido.',
-        str(UNRAR_TOOL)
-    )
-
-if not SUMATRA.exists():
-    encerrar_por_erro(
-        'Caminho do utilitário SumatraPDF não é válido.',
-        str(SUMATRA)
-    )
-
-if not BASE_PATH_PEDIDOS:
-    encerrar_por_erro(
-        'Caminho dos arquivos de importação não configurado.',
-        'Variável de ambiente HAVAN_PEDIDOS'
-    )
-
-if not CNPJ_MATRIZ or not SENHA_PORTAL:
-    encerrar_por_erro(
-        'Credenciais para o site da Havan não configuradas.',
-        'Variáveis de ambiente CNPJ_MATRIZ, SENHA_PORTAL'
-    )
-
-if not IMPRESSORA:
-    encerrar_por_erro(
-        'Impressora dos pedidos não configurada.',
-        'Variável de ambiente IMPRESSORA_PEDIDO'
-    )
+TEAMS_WEBHOOK_URL = _ler_variavel('TEAMS_WEBHOOK_URL')
+CNPJ_MATRIZ = _ler_variavel('CNPJ_MATRIZ')
+SENHA_PORTAL = _ler_variavel('SENHA_PORTAL')
+IMPRESSORA = _ler_variavel('IMPRESSORA_PEDIDO')
 
 
-ORIGIN       = 'https://cliente.havan.com.br'
-BASE_URL     = f'{ORIGIN}/Fornecedor'
+def validar_configuracao() -> None:
+    """Valida as dependências externas antes de iniciar a automação."""
+    erros: list[str] = []
+
+    if not _unrar_raw or not UNRAR_TOOL.is_file():
+        erros.append('UNRAR_TOOL deve apontar para um arquivo válido')
+    if not _sumatra_raw or not SUMATRA.is_file():
+        erros.append('SUMATRA deve apontar para um arquivo válido')
+    if not _base_path_raw:
+        erros.append('HAVAN_PEDIDOS não foi configurada')
+    if not CNPJ_MATRIZ or not SENHA_PORTAL:
+        erros.append('CNPJ_MATRIZ e SENHA_PORTAL devem ser configuradas')
+    if not IMPRESSORA:
+        erros.append('IMPRESSORA_PEDIDO não foi configurada')
+
+    if erros:
+        detalhes = '; '.join(erros)
+        raise ConfiguracaoError(f'Configuração inválida: {detalhes}.')
+
+
+ORIGIN = 'https://cliente.havan.com.br'
+BASE_URL = f'{ORIGIN}/Fornecedor'
 CONTENT_TYPE = (
     'application/x-www-form-urlencoded; charset=UTF-8'
 )
@@ -112,7 +97,7 @@ PRODUTOS_GOVERNADOR = {
 }
 
 COORD_ABA_PEDIDO = (87, 10)
-COORD_ITENS_PEDIDO = (150,-13)
+COORD_ITENS_PEDIDO = (150, -13)
 
 ATALHOS = {
     'importar': 'm',
