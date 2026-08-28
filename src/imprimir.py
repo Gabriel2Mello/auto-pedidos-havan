@@ -34,7 +34,11 @@ def processar_impressao(pedido: str, numero: str) -> None:
         logger.error('Erro no processamento de impressão: %s', error)
 
 
-def adicionar_numero(pdf: Path, pdf_saida: Path, numero: str) -> bool:
+def adicionar_numero(
+    pdf: Path,
+    pdf_saida: Path,
+    numero: str,
+) -> bool:
     logger.debug(f"Adicionando '{numero}' no PDF: {pdf}")
     try:
         if not pdf.exists():
@@ -116,7 +120,11 @@ def imprimir_pdf(caminho: Path) -> None:
         logger.error(msg)
 
 
-def criar_overlay(texto: str, largura: float, altura: float) -> PageObject:
+def criar_overlay(
+    texto: str,
+    largura: float,
+    altura: float,
+) -> PageObject:
     packet = io.BytesIO()
     c = canvas.Canvas(
         packet,

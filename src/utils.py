@@ -10,6 +10,7 @@ from typing import cast
 import rarfile
 import requests
 from pywinauto.keyboard import send_keys
+from pywinauto import WindowSpecification
 
 from src.logs import get_logger
 from src.pedidos import normalizar_pedidos
@@ -88,10 +89,7 @@ def salvar_pedido_txt(pedido: str, promocional: bool = False) -> None:
         with arquivo_destino.open('a', encoding='utf-8') as arquivo:
             arquivo.write(f'[{agora}] {pedido}\n')
 
-        if promocional:
-            logger.info(f'Adicionado ao arquivo: {nome_arquivo}')
-        else:
-            logger.info_split(f'Adicionado ao arquivo: {nome_arquivo}')
+        logger.info(f'Adicionado ao arquivo: {nome_arquivo}')
 
     except OSError as error:
         logger.debug(
@@ -122,10 +120,16 @@ def enviar_alerta_teams(
                     'body': [
                         {
                             'type': 'TextBlock',
-                            'text': f'{mensagem}: {pedido}',
+                            'text': f'{mensagem}',
                             'weight': 'Bolder',
                             'size': 'large',
-                            'color': 'Accent'
+                            'color': 'Accent',
+                        },
+                        {
+                            'type': 'TextBlock',
+                            'text': f'{pedido}',
+                            'weight': 'Bolder',
+                            'size': 'large',
                         },
                         {
                             'type': 'TextBlock',
@@ -148,7 +152,7 @@ def enviar_alerta_teams(
                 response.status_code,
                 response.text,
             )
-    # O alerta é complementar e nunca deve interromper a inclusão do pedido.
+
     except Exception as error:
         logger.debug('Falha ao enviar alerta para Teams: %s', error)
 
@@ -156,6 +160,11 @@ def enviar_alerta_teams(
 def send_keys_sleep(keys: str, sleep_time: float = 0.1) -> None:
     send_keys(keys)
     sleep(sleep_time)
+
+
+def aguardar_campo(campo: WindowSpecification, timeout: int = 5) -> WindowSpecification:
+    campo.wait('ready', timeout=timeout)
+    return campo
 
 
 class LoginInvalidoError(Exception):

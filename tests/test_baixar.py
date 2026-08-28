@@ -7,7 +7,13 @@ class LinksPedidoTests(unittest.TestCase):
     HTML_PEDIDO = '''
         <div class="hvn-group">
             <dl>
-                <dt>Pedido</dt><dd>2026-12345</dd>
+                <dt>Pedido</dt>
+                <dd>
+                    2026-12345
+                    <div class="tags-pedido-status tag-nota-agendada">
+                        Liberado
+                    </div>
+                </dd>
             </dl>
             <a title="Ordem de compra" href="/documentos/pedido.pdf"></a>
             <a title="Arq. de integração" href="/documentos/pedido.rar"></a>

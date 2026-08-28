@@ -149,7 +149,8 @@ def links_pedido(html_content: str, pedido: str) -> tuple[str, str]:
         if not dd_pedido:
             continue
 
-        if dd_pedido.get_text(strip=True) != pedido:
+        numero_extraido = next(dd_pedido.stripped_strings, '')
+        if numero_extraido != pedido:
             continue
 
         ordem = grupo.select_one('a[title*="Ordem de compra"]')
@@ -187,4 +188,3 @@ def exibir_resumo(resultados: dict[str, bool]) -> None:
     for pedido, sucesso in resultados.items():
         if not sucesso:
             salvar_pedido_txt(pedido)
-

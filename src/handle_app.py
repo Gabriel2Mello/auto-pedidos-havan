@@ -3,11 +3,15 @@ from time import sleep
 
 from pywinauto import WindowSpecification
 from pywinauto.application import Application
-from pywinauto.keyboard import send_keys
 
 from src.config import CAMPOS, ATALHOS
 from src.logs import get_logger
-from src.utils import SisplanError, salvar_pedido_txt
+from src.utils import (
+    SisplanError,
+    salvar_pedido_txt,
+    send_keys_sleep,
+    aguardar_campo,
+)
 
 logger = get_logger(__name__)
 
@@ -165,10 +169,9 @@ def handle_produto_sem_cadastro(pedido: str) -> bool:
 
         if bloqueio.exists(timeout=1):
             logger.info('Produto sem cadastro. Ignorando...')
-            bloqueio.OK.click()
+            aguardar_campo(bloqueio).OK.click()
             sleep(0.2)
-            send_keys(ATALHOS['fechar'])
-            sleep(0.2)
+            send_keys_sleep(ATALHOS['fechar'], 0.2)
             salvar_pedido_txt(pedido)
 
             return True
@@ -194,11 +197,9 @@ def handle_aviso_duplicado() -> bool:
 
         if aviso.exists(timeout=1):
             logger.info('Pedido já existe. Cancelando duplicidade...')
-            send_keys(ATALHOS['nao'])
-            sleep(0.2)
-            send_keys(ATALHOS['desistir'])
-            sleep(0.2)
-            send_keys(ATALHOS['sim'])
+            send_keys_sleep(ATALHOS['nao'], 0.2)
+            send_keys_sleep(ATALHOS['desistir'], 0.2)
+            send_keys_sleep(ATALHOS['sim'])
 
             return True
 

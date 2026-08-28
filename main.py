@@ -10,7 +10,11 @@ from src.importar import importar_pedido
 from src.imprimir import processar_impressao
 from src.logs import setup_logging, get_logger
 from src.login import realizar_login
-from src.utils import SisplanError, input_pedido, set_app_id
+from src.utils import (
+    SisplanError,
+    input_pedido,
+    set_app_id,
+)
 
 setup_logging()
 logger = get_logger(__name__)

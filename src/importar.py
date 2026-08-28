@@ -2,7 +2,6 @@ from time import sleep
 from typing import cast
 
 from pywinauto import WindowSpecification
-from pywinauto.keyboard import send_keys
 
 from src.logs import get_logger
 from src.config import (
@@ -23,6 +22,7 @@ from src.utils import (
     salvar_pedido_txt,
     enviar_alerta_teams,
     send_keys_sleep,
+    aguardar_campo,
 )
 
 logger = get_logger(__name__)
@@ -52,7 +52,7 @@ def importar_pedido(
         pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
         send_keys_sleep(ATALHOS['incluir'], 0.3)
 
-        campos['numero'].type_keys('{TAB}')
+        aguardar_campo(campos['numero']).type_keys('{TAB}')
         numero_interno: str = cast(str, campos['numero'].window_text())
 
         xml_path = caminho_xml(pedido)
@@ -60,12 +60,6 @@ def importar_pedido(
         dados_xml = extrair_dados_xml(xml_root)
 
         preencher_dados_fixos(campos)
-        processar_operacao_comercial(
-            dados_xml['operacao'],
-            pedido,
-            numero_interno,
-            campos
-        )
 
         if definir_empresa(dados_xml['produto']) == 'MATRIZ':
             selecionar_empresa_matriz(campos['empresa'])
@@ -79,20 +73,29 @@ def importar_pedido(
         aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
 
         grid.click_input(button='right')  # Abre as opções do grid.
-        send_keys(ATALHOS['importar'])
-        send_keys(ATALHOS['havan'])
+        send_keys_sleep(ATALHOS['importar'])
+        send_keys_sleep(ATALHOS['havan'])
 
         importa_arq_integracao(xml_path)
-        invalido = handle_produto_sem_cadastro(pedido)
+        sem_cadastro = handle_produto_sem_cadastro(pedido)
 
         pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
 
-        if invalido:
+        if sem_cadastro:
             send_keys_sleep(ATALHOS['desistir'], 0.2)
-            send_keys(ATALHOS['sim'])
-        else:
-            send_keys(ATALHOS['gravar'])
-            invalido = handle_aviso_duplicado()
+            send_keys_sleep(ATALHOS['sim'])
+            enviar_alerta_teams(pedido, '', 'PRODUTO SEM CADASTRO')
+
+            return '', sem_cadastro
+
+        processar_operacao_comercial(
+            dados_xml['operacao'],
+            pedido,
+            numero_interno,
+            campos
+        )
+        send_keys_sleep(ATALHOS['gravar'])
+        invalido = handle_aviso_duplicado()
 
         return numero_interno, invalido
 
@@ -112,7 +115,7 @@ def processar_operacao_comercial(
         return
 
     observacao, mensagem = operacao
-    campos['observacao_2'].set_text(observacao)
+    aguardar_campo(campos['observacao_2']).set_text(observacao)
     logger.info(mensagem)
 
     sleep(0.1)
@@ -132,9 +135,9 @@ def preencher_dados_fixos(campos: CamposSisplan) -> None:
     }
 
     for nome, valor in dados.items():
-        campos[nome].set_text(valor)
+        aguardar_campo(campos[nome]).set_text(valor)
 
-    campos['classe_gerencial'].set_focus()
+    aguardar_campo(campos['classe_gerencial']).set_focus()
     campos['classe_gerencial'].type_keys('20001{TAB}')
     sleep(0.3)
 
@@ -144,16 +147,12 @@ def preencher_datas(
     data_fatura: str,
     data_entrega: str,
 ) -> None:
-    campos['data_fatura'].set_text(data_fatura)
-    sleep(0.1)
-    campos['data_entrega'].set_text(data_entrega)
-    sleep(0.1)
-    campos['data_saida'].set_text(data_entrega)
-    sleep(0.1)
+    aguardar_campo(campos['data_entrega']).set_text(data_entrega)
+    aguardar_campo(campos['data_saida']).set_text(data_entrega)
+    aguardar_campo(campos['data_fatura']).set_text(data_fatura)
 
 
 def selecionar_empresa_matriz(combo_empresa: WindowSpecification) -> None:
-    combo_empresa.set_focus()
+    aguardar_campo(combo_empresa).set_focus()
     combo_empresa.type_keys('{UP}')
-    sleep(0.1)
 
