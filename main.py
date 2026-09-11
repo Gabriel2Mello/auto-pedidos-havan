@@ -1,27 +1,35 @@
-from time import sleep, perf_counter
 import sys
-from src.logs import setup_logging, get_logger
-
-setup_logging()
-logger = get_logger(__name__)
+from time import perf_counter, sleep
 
 from cloudscraper import create_scraper
 
-from src.login import realizar_login
 from src.baixar import baixar_pedidos
+from src.config import ConfiguracaoError, validar_configuracao
 from src.handle_app import inicia_app
 from src.importar import importar_pedido
 from src.imprimir import processar_impressao
+from src.logs import setup_logging, get_logger
+from src.login import realizar_login
 from src.utils import (
-    set_app_id,
-    input_pedido,
     SisplanError,
+    input_pedido,
+    set_app_id,
 )
+
+setup_logging()
+logger = get_logger(__name__)
 
 
 def main() -> None:
     if sys.platform == 'win32':
         set_app_id()
+
+    try:
+        validar_configuracao()
+    except ConfiguracaoError as error:
+        logger.critical(f'AVISO: {error}')
+        _ = input('\nPressione Enter para fechar...')
+        return
 
     numero_pedidos = input_pedido()
     if not numero_pedidos:
@@ -45,7 +53,8 @@ def main() -> None:
         pedido_grade, aba_pedido, grid, campos = inicia_app()
         for pedido in numero_pedidos:
             try:
-                if not resultados.get(pedido): continue
+                if not resultados.get(pedido):
+                    continue
 
                 numero_interno, invalido = importar_pedido(
                     pedido,
@@ -54,7 +63,8 @@ def main() -> None:
                     grid,
                     campos
                 )
-                if invalido: continue
+                if invalido:
+                    continue
                 logger.info(f'Número interno: {numero_interno}')
 
                 processar_impressao(pedido, numero_interno)
@@ -62,11 +72,13 @@ def main() -> None:
             except (KeyboardInterrupt, SystemExit, SisplanError):
                 raise
 
-            except Exception as e:
-                logger.error(f'Erro no pedido: {e}')
+            except Exception as error:
+                logger.exception('Erro inesperado no pedido %s: %s', pedido, error)
 
-    except (SisplanError, Exception) as e:
-        logger.critical_split(f'Erro fatal: {e}')
+    except SisplanError as error:
+        logger.critical_split(f'Erro fatal: {error}')
+    except Exception as error:
+        logger.exception('Erro fatal inesperado: %s', error)
 
     finally:
         elapsed_time = perf_counter() - start_time

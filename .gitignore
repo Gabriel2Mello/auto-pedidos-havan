@@ -1,2 +1,13 @@
-__pycache__
-venv32
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+venv32/
+
+# Artefatos gerados pela aplicação e pelo empacotamento
+*.log
+build/
+dist/
+PROMOCIONAL.txt
+pedidos_com_erro.txt

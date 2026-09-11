@@ -1,18 +1,26 @@
-from time import sleep
 from pathlib import Path
+from time import sleep
 
 from pywinauto import WindowSpecification
 from pywinauto.application import Application
-from pywinauto.keyboard import send_keys
 
 from src.config import CAMPOS, ATALHOS
 from src.logs import get_logger
-from src.utils import SisplanError, salvar_pedido_txt
+from src.utils import (
+    SisplanError,
+    salvar_pedido_txt,
+    send_keys_sleep,
+    aguardar_campo,
+)
 
 logger = get_logger(__name__)
 
 
-def get_field_index(parent: WindowSpecification, class_name: str, campo: str) -> WindowSpecification:
+def get_field_index(
+    parent: WindowSpecification,
+    class_name: str,
+    campo: str,
+) -> WindowSpecification:
     index = CAMPOS.get(campo)
     if index is None:
         raise RuntimeError(f'Campo não mapeado: {campo}')
@@ -23,14 +31,20 @@ def get_field_index(parent: WindowSpecification, class_name: str, campo: str) ->
     )
 
 
-def get_field_title(parent: WindowSpecification, class_name: str, title: str) -> WindowSpecification:
+def get_field_title(
+    parent: WindowSpecification,
+    class_name: str,
+    title: str,
+) -> WindowSpecification:
     return parent.child_window(
         class_name=class_name,
         title=title
     )
 
 
-def mapear_campos(aba_pedido: WindowSpecification) -> dict[str, WindowSpecification]:
+def mapear_campos(
+    aba_pedido: WindowSpecification,
+) -> dict[str, WindowSpecification]:
     definicoes: dict[str, tuple[str, str]] = {
         'numero':        ('TEdit', 'numero'),
         'cliente':       ('TEdit', 'cliente'),
@@ -48,11 +62,18 @@ def mapear_campos(aba_pedido: WindowSpecification) -> dict[str, WindowSpecificat
         'observacao_2':  ('TMemo', 'observacao_2'),
     }
 
-    return {nome: get_field_index(aba_pedido, classe, chave)
-            for nome, (classe, chave) in definicoes.items()}
+    return {
+        nome: get_field_index(aba_pedido, classe, chave)
+        for nome, (classe, chave) in definicoes.items()
+    }
 
 
-def inicia_app() -> tuple[WindowSpecification, WindowSpecification, WindowSpecification, dict[str, WindowSpecification]]:
+def inicia_app() -> tuple[
+    WindowSpecification,
+    WindowSpecification,
+    WindowSpecification,
+    dict[str, WindowSpecification],
+]:
     logger.debug('Iniciando aplicação')
     try:
         app: Application = Application(backend='win32').connect(
@@ -65,15 +86,14 @@ def inicia_app() -> tuple[WindowSpecification, WindowSpecification, WindowSpecif
             title=CAMPOS['sisplan'],
             class_name='TApplication'
         )
-        _ = main_window.restore().set_focus()
+        main_window.restore().set_focus()
         main_window.wait('ready', timeout=5)
-
 
         janela_vendas: WindowSpecification = app.window(
             title_re='.*VenPedidoGrade.*',
             class_name='TfmPrincipal'
         )
-        _ = janela_vendas.set_focus()
+        janela_vendas.set_focus()
 
         pedido_grade: WindowSpecification = get_field_title(
             janela_vendas, 'TTabSheet', '1002 - Pedido Por Grade'
@@ -95,9 +115,12 @@ def inicia_app() -> tuple[WindowSpecification, WindowSpecification, WindowSpecif
 
         return pedido_grade, aba_pedido, grid, campos
 
-    except Exception as e:
-        logger.debug(f'Erro na janela do Sisplan: {e}', exc_info=True)
-        raise SisplanError('Não foi possível encontrar a tela "1002 - Pedido por Grade" do Sisplan') from e
+    except Exception as error:
+        logger.debug('Erro na janela do Sisplan: %s', error, exc_info=True)
+        raise SisplanError(
+            'Não foi possível encontrar a tela '
+            '"1002 - Pedido por Grade" do Sisplan'
+        ) from error
 
 
 def importa_arq_integracao(xml_path: str | Path) -> None:
@@ -118,13 +141,18 @@ def importa_arq_integracao(xml_path: str | Path) -> None:
             janela, 'Edit', 'nome'
         )
 
-        _ = nome_field.set_focus()
-        _ = nome_field.set_edit_text(str(xml_path))
-        _ = nome_field.type_keys('{ENTER}')
+        nome_field.set_focus()
+        nome_field.set_edit_text(str(xml_path))
+        nome_field.type_keys('{ENTER}')
 
-    except Exception as e:
-        logger.debug(f'Erro na tela "Abrir" ao importar o Pedido Havan no Grid: {e}')
-        raise SisplanError(f'Erro ao interagir com janela de importação Pedido Havan') from e
+    except Exception as error:
+        logger.debug(
+            'Erro na tela "Abrir" ao importar o Pedido Havan no Grid: %s',
+            error,
+        )
+        raise SisplanError(
+            'Erro ao interagir com janela de importação Pedido Havan'
+        ) from error
 
 
 def handle_produto_sem_cadastro(pedido: str) -> bool:
@@ -141,16 +169,16 @@ def handle_produto_sem_cadastro(pedido: str) -> bool:
 
         if bloqueio.exists(timeout=1):
             logger.info('Produto sem cadastro. Ignorando...')
-            bloqueio.OK.click()
+            aguardar_campo(bloqueio).OK.click()
             sleep(0.2)
-            send_keys(ATALHOS['fechar'])
-            sleep(0.2)
+            send_keys_sleep(ATALHOS['fechar'], 0.2)
             salvar_pedido_txt(pedido)
 
             return True
 
         return False
-    except:
+    except Exception as error:
+        logger.debug('Janela de produto sem cadastro não encontrada: %s', error)
         return False
 
 
@@ -169,15 +197,14 @@ def handle_aviso_duplicado() -> bool:
 
         if aviso.exists(timeout=1):
             logger.info('Pedido já existe. Cancelando duplicidade...')
-            send_keys(ATALHOS['nao'])
-            sleep(0.2)
-            send_keys(ATALHOS['desistir'])
-            sleep(0.2)
-            send_keys(ATALHOS['sim'])
+            send_keys_sleep(ATALHOS['nao'], 0.2)
+            send_keys_sleep(ATALHOS['desistir'], 0.2)
+            send_keys_sleep(ATALHOS['sim'])
 
             return True
 
         return False
-    except:
-      return False
+    except Exception as error:
+        logger.debug('Janela de pedido duplicado não encontrada: %s', error)
+        return False
 

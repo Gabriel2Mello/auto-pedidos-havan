@@ -1,7 +1,8 @@
+import io
 import logging
 import sys
-import io
 from typing import cast
+
 
 # pyright: reportArgumentType=false
 class CustomLogger(logging.Logger):
@@ -24,14 +25,21 @@ logging.setLoggerClass(CustomLogger)
 def get_logger(name: str) -> CustomLogger:
     return cast(CustomLogger, logging.getLogger(name))
 
-def setup_logging():
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+def _configurar_stdout_utf8() -> None:
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    elif hasattr(sys.stdout, 'buffer'):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+
+def setup_logging() -> None:
+    _configurar_stdout_utf8()
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
     if not root_logger.handlers:
-        # --- HANDLER PARA ARQUIVO ---
         arquivo_handler = logging.FileHandler(
             filename='auto-pedidos.log',
             mode='w',
@@ -44,7 +52,6 @@ def setup_logging():
         )
         arquivo_handler.setFormatter(arquivo_format)
 
-        # --- HANDLER PARA CONSOLE ---
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
         console_format = logging.Formatter('%(message)s')
