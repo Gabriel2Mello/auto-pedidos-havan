@@ -11,3 +11,4 @@ build/
 dist/
 PROMOCIONAL.txt
 pedidos_com_erro.txt
+config.toml

@@ -1,46 +1,106 @@
+import sys
+from dataclasses import dataclass
 from os import environ
 from pathlib import Path
+from tomllib import TOMLDecodeError, load
+from typing import Mapping
 
 
 class ConfiguracaoError(ValueError):
     """Indica que uma configuração obrigatória está ausente ou inválida."""
 
 
-def _ler_variavel(nome: str) -> str:
-    return environ.get(nome, '').strip().strip('"')
+def diretorio_aplicacao() -> Path:
+    """Retorna a pasta do executável ou a raiz do projeto em desenvolvimento."""
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    return Path(__file__).resolve().parent.parent
 
 
-_unrar_raw = _ler_variavel('UNRAR_TOOL')
-_sumatra_raw = _ler_variavel('SUMATRA')
-_base_path_raw = _ler_variavel('HAVAN_PEDIDOS')
+def _ler_segredo(ambiente: Mapping[str, str], nome: str) -> str:
+    return ambiente.get(nome, '').strip().strip('"')
 
-UNRAR_TOOL = Path(_unrar_raw)
-SUMATRA = Path(_sumatra_raw)
-BASE_PATH_PEDIDOS = Path(_base_path_raw)
-TEAMS_WEBHOOK_URL = _ler_variavel('TEAMS_WEBHOOK_URL')
-CNPJ_MATRIZ = _ler_variavel('CNPJ_MATRIZ')
-SENHA_PORTAL = _ler_variavel('SENHA_PORTAL')
-IMPRESSORA = _ler_variavel('IMPRESSORA_PEDIDO')
+
+def _ler_texto(dados: dict[str, object], nome: str) -> str:
+    valor = dados.get(nome, '')
+    return valor.strip() if isinstance(valor, str) else ''
+
+
+@dataclass(frozen=True)
+class Configuracao:
+    unrar_tool: Path
+    sumatra: Path
+    pasta_pedidos: Path
+    impressora: str
+    cnpj_matriz: str
+    senha_portal: str
+    teams_webhook_url: str = ''
+    erro_leitura: str = ''
+
+    @classmethod
+    def carregar(
+        cls,
+        arquivo: Path | None = None,
+        ambiente: Mapping[str, str] = environ,
+    ) -> 'Configuracao':
+        caminho = arquivo or diretorio_aplicacao() / 'config.toml'
+        dados: dict[str, object] = {}
+        erro_leitura = ''
+
+        try:
+            with caminho.open('rb') as config_file:
+                dados = load(config_file)
+        except FileNotFoundError:
+            erro_leitura = f'Arquivo de configuração não encontrado: {caminho}'
+        except (OSError, TOMLDecodeError) as error:
+            erro_leitura = f'Não foi possível ler {caminho}: {error}'
+
+        return cls(
+            unrar_tool=Path(_ler_texto(dados, 'unrar_tool')),
+            sumatra=Path(_ler_texto(dados, 'sumatra')),
+            pasta_pedidos=Path(_ler_texto(dados, 'pasta_pedidos')),
+            impressora=_ler_texto(dados, 'impressora'),
+            cnpj_matriz=_ler_segredo(ambiente, 'CNPJ_MATRIZ'),
+            senha_portal=_ler_segredo(ambiente, 'SENHA_PORTAL'),
+            teams_webhook_url=_ler_segredo(ambiente, 'TEAMS_WEBHOOK_URL'),
+            erro_leitura=erro_leitura,
+        )
+
+    def validar(self) -> None:
+        erros: list[str] = []
+
+        if self.erro_leitura:
+            erros.append(self.erro_leitura)
+        if str(self.unrar_tool) == '.' or not self.unrar_tool.is_file():
+            erros.append('unrar_tool deve apontar para um arquivo válido')
+        if str(self.sumatra) == '.' or not self.sumatra.is_file():
+            erros.append('sumatra deve apontar para um arquivo válido')
+        if str(self.pasta_pedidos) == '.':
+            erros.append('pasta_pedidos não foi configurada')
+        if not self.impressora:
+            erros.append('impressora não foi configurada')
+        if not self.cnpj_matriz or not self.senha_portal:
+            erros.append('CNPJ_MATRIZ e SENHA_PORTAL devem ser configuradas')
+
+        if erros:
+            raise ConfiguracaoError(
+                f'Configuração inválida: {"; ".join(erros)}.'
+            )
+
+
+CONFIG = Configuracao.carregar()
+
+UNRAR_TOOL = CONFIG.unrar_tool
+SUMATRA = CONFIG.sumatra
+BASE_PATH_PEDIDOS = CONFIG.pasta_pedidos
+IMPRESSORA = CONFIG.impressora
+CNPJ_MATRIZ = CONFIG.cnpj_matriz
+SENHA_PORTAL = CONFIG.senha_portal
+TEAMS_WEBHOOK_URL = CONFIG.teams_webhook_url
 
 
 def validar_configuracao() -> None:
-    """Valida as dependências externas antes de iniciar a automação."""
-    erros: list[str] = []
-
-    if not _unrar_raw or not UNRAR_TOOL.is_file():
-        erros.append('UNRAR_TOOL deve apontar para um arquivo válido')
-    if not _sumatra_raw or not SUMATRA.is_file():
-        erros.append('SUMATRA deve apontar para um arquivo válido')
-    if not _base_path_raw:
-        erros.append('HAVAN_PEDIDOS não foi configurada')
-    if not CNPJ_MATRIZ or not SENHA_PORTAL:
-        erros.append('CNPJ_MATRIZ e SENHA_PORTAL devem ser configuradas')
-    if not IMPRESSORA:
-        erros.append('IMPRESSORA_PEDIDO não foi configurada')
-
-    if erros:
-        detalhes = '; '.join(erros)
-        raise ConfiguracaoError(f'Configuração inválida: {detalhes}.')
+    CONFIG.validar()
 
 
 ORIGIN = 'https://cliente.havan.com.br'
@@ -109,4 +169,3 @@ ATALHOS = {
     'sim':      '%s',
     'fechar':   '%f',
 }
-

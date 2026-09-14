@@ -1,0 +1,5 @@
+# Copie este arquivo como config.toml ao lado do executável.
+unrar_tool = 'C:\Program Files\WinRAR\UnRAR.exe'
+sumatra = 'C:\LocalApps\SumatraPDF.exe'
+pasta_pedidos = 'D:\Automacao\ArquivoPedidos'
+impressora = "HP LaserJet M402 - Almoxarifado"

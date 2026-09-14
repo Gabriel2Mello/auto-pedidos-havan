@@ -38,18 +38,29 @@ O ambiente de execução precisa das seguintes ferramentas instaladas no Windows
 
 ---
 
-## 🔧 Configuração do Ambiente (Variáveis de Ambiente)
+## 🔧 Configuração
 
-O projeto adota o isolamento de credenciais e caminhos locais através de variáveis de ambiente do sistema operacional:
+As opções operacionais ficam no arquivo `config.toml`, ao lado do executável.
+Copie `config.example.toml`, renomeie a cópia para `config.toml` e ajuste:
 
-| Variável | Tipo | Descrição | Exemplo de Valor |
-| :--- | :--- | :--- | :--- |
-| `CNPJ_MATRIZ` | `String` | CNPJ de autenticação. | `00000000000100` |
-| `SENHA_PORTAL` | `String` | Senha de acesso. | `MinhaSenhaHavan123` |
-| `UNRAR_TOOL` | `Path` | Caminho executável do UnRAR. | `C:\Program Files\WinRAR\UnRAR.exe` |
-| `SUMATRA` | `Path` | Caminho executável SumatraPDF. | `C:\LocalApps\SumatraPDF.exe` |
-| `HAVAN_PEDIDOS` | `Path` | Diretório para arquivos baixados. | `D:\Automacao\ArquivoPedidos` |
-| `IMPRESSORA_PEDIDO` | `String` | Nome dispositivo de impressão. | `HP LaserJet M402 - Almoxarifado` |
+```toml
+unrar_tool = 'C:\Program Files\WinRAR\UnRAR.exe'
+sumatra = 'C:\LocalApps\SumatraPDF.exe'
+pasta_pedidos = 'D:\Automacao\ArquivoPedidos'
+impressora = "HP LaserJet M402 - Almoxarifado"
+```
+
+O arquivo local `config.toml` é ignorado pelo Git para que configurações de uma
+máquina não sejam enviadas ao repositório. O `config.example.toml` serve como
+modelo versionado.
+
+Credenciais e integrações sensíveis continuam em variáveis de ambiente:
+
+| Variável | Obrigatória | Descrição |
+| :--- | :---: | :--- |
+| `CNPJ_MATRIZ` | Sim | CNPJ usado na autenticação do portal. |
+| `SENHA_PORTAL` | Sim | Senha de acesso ao portal. |
+| `TEAMS_WEBHOOK_URL` | Não | Webhook para envio dos alertas ao Teams. |
 
 ---
 
@@ -78,4 +89,3 @@ python -m unittest discover -v
 Antes de alterar uma regra de negócio, adicione ou ajuste um teste em `tests/`.
 Assim, mudanças estruturais podem ser feitas com segurança sem alterar o
 resultado esperado pelo processo operacional.
-
