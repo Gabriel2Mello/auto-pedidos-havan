@@ -101,6 +101,10 @@ def importar_pedido(
 
     except Exception as error:
         logger.debug('Erro no Sisplan: %s', error, exc_info=True)
+        salvar_pedido_txt(
+            pedido,
+            motivo=str(error) or 'Falha ao importar pedido no Sisplan',
+        )
         raise SisplanError() from error
 
 
@@ -155,4 +159,3 @@ def preencher_datas(
 def selecionar_empresa_matriz(combo_empresa: WindowSpecification) -> None:
     aguardar_campo(combo_empresa).set_focus()
     combo_empresa.type_keys('{UP}')
-

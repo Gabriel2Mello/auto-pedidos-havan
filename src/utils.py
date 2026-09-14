@@ -75,7 +75,11 @@ def obter_diretorio_executavel() -> Path:
     return Path(sys.argv[0]).parent.absolute()
 
 
-def salvar_pedido_txt(pedido: str, promocional: bool = False) -> None:
+def salvar_pedido_txt(
+    pedido: str,
+    promocional: bool = False,
+    motivo: str = '',
+) -> None:
     if not pedido:
         return
 
@@ -84,10 +88,12 @@ def salvar_pedido_txt(pedido: str, promocional: bool = False) -> None:
     arquivo_destino = pasta_destino / nome_arquivo
 
     agora = datetime.now().strftime('%d/%m/%Y %H:%M')
+    motivo_formatado = ' '.join(motivo.split())
+    sufixo = f', {motivo_formatado}' if motivo_formatado else ''
 
     try:
         with arquivo_destino.open('a', encoding='utf-8') as arquivo:
-            arquivo.write(f'[{agora}] {pedido}\n')
+            arquivo.write(f'[{agora}] {pedido}{sufixo}\n')
 
         logger.info(f'Adicionado ao arquivo: {nome_arquivo}')
 
@@ -177,4 +183,3 @@ class LoginInvalidoError(Exception):
 class SisplanError(Exception):
     def __init__(self, message: str = 'Falha na tela do Sisplan') -> None:
         super().__init__(message)
-

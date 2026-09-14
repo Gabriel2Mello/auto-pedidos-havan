@@ -60,6 +60,7 @@ def baixar_pedidos(
 
                 if not sucesso:
                     pbar.write(f'Erro no pedido {pedido}: {erro}')
+                    salvar_pedido_txt(pedido, motivo=erro or 'Erro desconhecido')
 
                 pbar.update()
 
@@ -184,7 +185,3 @@ def exibir_resumo(resultados: dict[str, bool]) -> None:
     for pedido, sucesso in resultados.items():
         status = 'Baixado' if sucesso else 'Falhou'
         logger.info(f'{pedido}: {status}')
-
-    for pedido, sucesso in resultados.items():
-        if not sucesso:
-            salvar_pedido_txt(pedido)

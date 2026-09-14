@@ -172,7 +172,7 @@ def handle_produto_sem_cadastro(pedido: str) -> bool:
             aguardar_campo(bloqueio).OK.click()
             sleep(0.2)
             send_keys_sleep(ATALHOS['fechar'], 0.2)
-            salvar_pedido_txt(pedido)
+            salvar_pedido_txt(pedido, motivo='produto sem cadastro')
 
             return True
 
@@ -207,4 +207,3 @@ def handle_aviso_duplicado() -> bool:
     except Exception as error:
         logger.debug('Janela de pedido duplicado não encontrada: %s', error)
         return False
-
