@@ -10,6 +10,15 @@ class ConfiguracaoError(ValueError):
     """Indica que uma configuração obrigatória está ausente ou inválida."""
 
 
+MODELO_CONFIG = """# Copie este arquivo como config.toml e ajuste os valores.
+# Variáveis de ambiente "CNPJ_MATRIZ", "SENHA_PORTAL" e "TEAMS_WEBHOOK_URL".
+unrar_tool = 'C:\\Program Files\\WinRAR\\UnRAR.exe'
+sumatra = 'C:\\LocalApps\\SumatraPDF.exe'
+pasta_pedidos = 'D:\\Automacao\\ArquivoPedidos'
+impressora = "HP LaserJet M402 - Almoxarifado"
+"""
+
+
 def diretorio_aplicacao() -> Path:
     """Retorna a pasta do executável ou a raiz do projeto em desenvolvimento."""
     if getattr(sys, 'frozen', False):
@@ -24,6 +33,13 @@ def _ler_segredo(ambiente: Mapping[str, str], nome: str) -> str:
 def _ler_texto(dados: dict[str, object], nome: str) -> str:
     valor = dados.get(nome, '')
     return valor.strip() if isinstance(valor, str) else ''
+
+
+def criar_modelo_config(caminho_config: Path) -> Path:
+    caminho_modelo = caminho_config.with_name('config.example.toml')
+    if not caminho_modelo.exists():
+        caminho_modelo.write_text(MODELO_CONFIG, encoding='utf-8')
+    return caminho_modelo
 
 
 @dataclass(frozen=True)
@@ -51,7 +67,17 @@ class Configuracao:
             with caminho.open('rb') as config_file:
                 dados = load(config_file)
         except FileNotFoundError:
-            erro_leitura = f'Arquivo de configuração não encontrado: {caminho}'
+            try:
+                caminho_modelo = criar_modelo_config(caminho)
+                erro_leitura = (
+                    f'Arquivo de configuração não encontrado: {caminho}. '
+                    f'Modelo disponível em: {caminho_modelo}'
+                )
+            except OSError as error:
+                erro_leitura = (
+                    f'Arquivo de configuração não encontrado: {caminho}. '
+                    f'Não foi possível criar o modelo: {error}'
+                )
         except (OSError, TOMLDecodeError) as error:
             erro_leitura = f'Não foi possível ler {caminho}: {error}'
 
@@ -72,19 +98,19 @@ class Configuracao:
         if self.erro_leitura:
             erros.append(self.erro_leitura)
         if str(self.unrar_tool) == '.' or not self.unrar_tool.is_file():
-            erros.append('unrar_tool deve apontar para um arquivo válido')
+            erros.append('unrar_tool arquivo inválido')
         if str(self.sumatra) == '.' or not self.sumatra.is_file():
-            erros.append('sumatra deve apontar para um arquivo válido')
+            erros.append('sumatra arquivo inválido')
         if str(self.pasta_pedidos) == '.':
             erros.append('pasta_pedidos não foi configurada')
         if not self.impressora:
-            erros.append('impressora não foi configurada')
+            erros.append('nome da impressora não foi configurado')
         if not self.cnpj_matriz or not self.senha_portal:
             erros.append('CNPJ_MATRIZ e SENHA_PORTAL devem ser configuradas')
 
         if erros:
             raise ConfiguracaoError(
-                f'Configuração inválida: {"; ".join(erros)}.'
+                f'Configuração com erro: {"; ".join(erros)}.'
             )
 
 

@@ -39,10 +39,16 @@ class ConfiguracaoTests(unittest.TestCase):
         self.assertEqual(config.senha_portal, 'segredo')
 
     def test_informa_todas_as_configuracoes_ausentes(self) -> None:
-        config = Configuracao.carregar(
-            Path('arquivo-que-nao-existe.toml'),
-            {},
-        )
+        with tempfile.TemporaryDirectory() as pasta:
+            raiz = Path(pasta)
+            config = Configuracao.carregar(raiz / 'config.toml', {})
+
+            modelo = raiz / 'config.example.toml'
+            self.assertTrue(modelo.is_file())
+            self.assertIn(
+                "unrar_tool = 'C:\\Program Files\\WinRAR\\UnRAR.exe'",
+                modelo.read_text(encoding='utf-8'),
+            )
 
         with self.assertRaises(ConfiguracaoError) as contexto:
             config.validar()

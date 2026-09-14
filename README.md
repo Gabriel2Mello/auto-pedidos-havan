@@ -52,7 +52,9 @@ impressora = "HP LaserJet M402 - Almoxarifado"
 
 O arquivo local `config.toml` é ignorado pelo Git para que configurações de uma
 máquina não sejam enviadas ao repositório. O `config.example.toml` serve como
-modelo versionado.
+modelo versionado. Se `config.toml` não existir ao iniciar o robô, esse arquivo
+de exemplo será criado automaticamente na mesma pasta, sem substituir um modelo
+existente.
 
 Credenciais e integrações sensíveis continuam em variáveis de ambiente:
 
