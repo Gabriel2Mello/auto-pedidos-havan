@@ -19,6 +19,7 @@ from src.utils import (
     caminho_xml,
     carregar_xml,
     SisplanError,
+    formatar_motivo_erro,
     salvar_pedido_txt,
     enviar_alerta_teams,
     send_keys_sleep,
@@ -103,7 +104,7 @@ def importar_pedido(
         logger.debug('Erro no Sisplan: %s', error, exc_info=True)
         salvar_pedido_txt(
             pedido,
-            motivo=str(error) or 'Falha ao importar pedido no Sisplan',
+            motivo=formatar_motivo_erro('Falha na tela do Sisplan', error),
         )
         raise SisplanError() from error
 
