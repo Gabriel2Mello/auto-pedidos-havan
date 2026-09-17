@@ -22,6 +22,8 @@ from src.config import (
 
 logger = get_logger(__name__)
 
+MAX_CARACTERES_MOTIVO = 500
+
 
 def set_app_id() -> None:
     try:
@@ -75,6 +77,18 @@ def obter_diretorio_executavel() -> Path:
     return Path(sys.argv[0]).parent.absolute()
 
 
+def formatar_motivo_erro(mensagem: str, erro: Exception) -> str:
+    detalhe = str(erro).strip()
+    return f'{mensagem}, {detalhe}' if detalhe else mensagem
+
+
+def normalizar_motivo(motivo: str) -> str:
+    motivo_formatado = ' '.join(motivo.split())
+    if len(motivo_formatado) <= MAX_CARACTERES_MOTIVO:
+        return motivo_formatado
+    return f'{motivo_formatado[:MAX_CARACTERES_MOTIVO - 3]}...'
+
+
 def salvar_pedido_txt(
     pedido: str,
     promocional: bool = False,
@@ -88,7 +102,7 @@ def salvar_pedido_txt(
     arquivo_destino = pasta_destino / nome_arquivo
 
     agora = datetime.now().strftime('%d/%m/%Y %H:%M')
-    motivo_formatado = ' '.join(motivo.split())
+    motivo_formatado = normalizar_motivo(motivo)
     sufixo = f', {motivo_formatado}' if motivo_formatado else ''
 
     try:
