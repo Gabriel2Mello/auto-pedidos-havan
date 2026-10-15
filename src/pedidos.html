@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="havan-token" content="__TOKEN__">
+  <title>Pedidos Havan · Nunes</title>
+  <link rel="icon" href="/icons/icone.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/icons/icone-192.png">
+  <link rel="stylesheet" href="/pedidos.css">
+  <script src="/pedidos.js" defer></script>
+</head>
+<body>
+<main>
+  <header class="cabecalho">
+    <div class="marca"><img src="/icons/icone.svg" width="48" height="48" alt=""><div><p class="sobretitulo">NUNES · AUTOMAÇÕES</p><h1>Pedidos Havan</h1><p class="muted">Do pedido ao Sisplan, com o andamento sempre salvo.</p></div></div>
+    <div class="acoes"><button id="tema" type="button">Tema escuro</button><button id="encerrar" type="button">Encerrar</button></div>
+  </header>
+
+  <section class="filas" aria-label="Filas de pedidos">
+    <button class="fila" type="button" data-fila="para_baixar"><span class="marcador"></span><span>A baixar</span><strong id="n-para_baixar">0</strong><small>Aguardando os arquivos</small></button>
+    <button class="fila" type="button" data-fila="baixados"><span class="marcador"></span><span>Baixados</span><strong id="n-baixados">0</strong><small>Preparação e inclusão</small></button>
+    <button class="fila" type="button" data-fila="importados"><span class="marcador"></span><span>No Sisplan</span><strong id="n-importados">0</strong><small>Pedidos identificados no sistema</small></button>
+    <button class="fila" type="button" data-fila="enviados"><span class="marcador"></span><span>Enviados para impressão</span><strong id="n-enviados">0</strong><small>Confira o papel na impressora</small></button>
+  </section>
+
+  <div class="principal">
+    <section class="cartao entrada" aria-labelledby="titulo-entrada">
+      <div class="titulo-secao"><h2 id="titulo-entrada">Processar pedidos</h2><span class="etiqueta">Um pedido por vez</span></div>
+      <div class="modos" role="group" aria-label="Escolha o que deseja fazer">
+        <button type="button" data-modo="normal" aria-pressed="true">Inserir</button>
+        <button type="button" data-modo="retomar" aria-pressed="false">Retomar <span id="n-pendentes">0</span></button>
+        <button type="button" data-modo="reimprimir" aria-pressed="false">Reimprimir</button>
+      </div>
+      <form id="formulario">
+        <p id="ajuda-modo" class="muted">Informe os pedidos. Os que já estão no Sisplan serão identificados antes de incluir.</p>
+        <div id="campo-pedidos"><label for="pedidos">Números dos pedidos Havan</label><textarea id="pedidos" rows="3" maxlength="12000" placeholder="109335, 109336&#10;2026-109337" aria-describedby="dica-pedidos" required></textarea><p id="dica-pedidos" class="dica">Separe por vírgula ou coloque um pedido por linha. Sem o ano, usamos o ano atual.</p></div>
+        <label id="confirmacao-reimpressao" class="confirmacao" hidden><input id="confirmar-copia" type="checkbox"><span>Conferi a impressão anterior e quero enviar outra cópia.</span></label>
+        <div class="acoes enviar"><button type="submit" id="iniciar" class="botao-principal" disabled>Inserir e processar</button><button type="button" id="parar" hidden>Parar processamento</button></div>
+        <p id="mensagem-acao" class="mensagem-acao" role="alert"></p>
+      </form>
+    </section>
+
+    <section class="cartao andamento" aria-labelledby="titulo-andamento">
+      <div class="titulo-secao"><h2 id="titulo-andamento">Andamento</h2><span id="fase" class="etiqueta">Iniciando</span></div>
+      <p id="status" class="status" role="status">Carregando os pedidos salvos…</p>
+      <p id="pedido-atual" class="muted">As etapas concluídas ficam preservadas para retomar.</p>
+      <progress id="progresso" value="0" max="1" aria-label="Andamento do lote"></progress>
+      <p id="orientacao" class="dica">O Sisplan deve estar aberto na tela 1002 — Pedido por Grade.</p>
+      <div id="resumo" class="resumo" hidden></div>
+    </section>
+  </div>
+
+  <section id="aviso-erro" class="aviso" hidden aria-labelledby="titulo-erro">
+    <p class="sobretitulo">PROCESSAMENTO PAUSADO</p><h2 id="titulo-erro" tabindex="-1">É preciso conferir este pedido</h2>
+    <p id="erro-pedido"></p><p id="erro-mensagem"></p>
+    <p id="erro-seguranca" class="dica"></p>
+    <div class="acoes"><button type="button" id="repetir" class="botao-principal">Tentar novamente</button><button type="button" id="pular">Deixar pendente e continuar</button><button type="button" id="parar-erro">Parar e preservar os pedidos</button></div>
+  </section>
+
+  <section class="cartao historico" aria-labelledby="titulo-historico">
+    <div class="titulo-secao"><div><h2 id="titulo-historico">Pedidos salvos</h2><p class="dica">A fila pendente esvazia. O histórico continua disponível.</p></div><div class="filtros"><label class="sr-only" for="busca">Buscar pedido ou número Sisplan</label><input id="busca" type="search" placeholder="Buscar pedido ou nº Sisplan"><label class="sr-only" for="filtro">Filtrar pedidos</label><select id="filtro"><option value="todos">Todos os pedidos</option><option value="pendentes">Somente pendentes</option><option value="para_baixar">A baixar</option><option value="baixados">Baixados</option><option value="importados">No Sisplan</option><option value="enviados">Enviados para impressão</option></select></div></div>
+    <div class="tabela"><table><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Nº Sisplan</th><th scope="col">Situação</th><th scope="col">Observação</th></tr></thead><tbody id="linhas"><tr><td colspan="4" class="vazio">Carregando os pedidos…</td></tr></tbody></table></div>
+    <div class="paginacao"><span id="quantidade" class="dica">Nenhum pedido carregado</span><div class="acoes"><button id="anterior" type="button" disabled>Anterior</button><button id="proxima" type="button" disabled>Próxima</button></div></div>
+  </section>
+
+  <section class="suporte" aria-label="Informações de suporte"><details><summary>Atividade desta execução</summary><ol id="atividade"></ol></details><div class="acoes"><span class="dica">Código de execução: <strong id="codigo">—</strong></span><button id="copiar-suporte" type="button">Copiar diagnóstico</button><button id="baixar-log" type="button">Baixar log</button></div></section>
+  <p id="conexao" class="conexao" role="status" hidden></p>
+</main>
+<footer class="assinatura">Desenvolvido por <a href="https://github.com/Gabriel2Mello" target="_blank" rel="noopener noreferrer" aria-label="g2mello — perfil no GitHub">g2me<span class="assinatura-ll"><span>l</span><span>l</span></span>o</a></footer>
+</body>
+</html>

@@ -3,16 +3,15 @@ from typing import TYPE_CHECKING
 from requests.exceptions import RequestException, Timeout
 
 from src.logs import get_logger
-from src.utils import LoginInvalidoError
+from src.erros import (LoginInvalidoError, SessaoPortalExpiradaError)
 from src.config import (
     DEFAULT_HEADERS,
     BASE_URL,
-    CNPJ_MATRIZ,
-    SENHA_PORTAL,
+    configuracao_atual,
 )
 
 if TYPE_CHECKING:
-    from cloudscraper import ScraperMock
+    from cloudscraper import ScraperMock, ResponseMock
 
 LOGIN_INDEX_URL = f'{BASE_URL}/Login/Index'
 FAZER_LOGIN_URL = f'{BASE_URL}/Login/FazerLogin?Length=5'
@@ -20,6 +19,15 @@ PEDIDO_COMPRA_URL = f'{BASE_URL}/PedidoCompra/Index'
 REQUEST_TIMEOUT = (5, 10)
 
 logger = get_logger(__name__)
+
+
+def conferir_sessao(response: 'ResponseMock', *, html: bool = False) -> None:
+    voltou_login = '/login/' in response.url.lower() or response.status_code == 401
+    if html:
+        texto = response.text.lower()
+        voltou_login = voltou_login or ('<form' in texto and 'senhamd5' in texto)
+    if voltou_login:
+        raise SessaoPortalExpiradaError()
 
 
 def configurar_sessao(scraper: 'ScraperMock') -> None:
@@ -32,8 +40,8 @@ def realizar_login(scraper: 'ScraperMock') -> None:
 
     payload = {
         'TipoLogin': '0',
-        'Documento': CNPJ_MATRIZ,
-        'SenhaMd5': SENHA_PORTAL,
+        'Documento': configuracao_atual().cnpj_matriz,
+        'SenhaMd5': configuracao_atual().senha_portal,
     }
 
     try:

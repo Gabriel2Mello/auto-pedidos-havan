@@ -1,17 +1,18 @@
 from pathlib import Path
 from time import sleep
+from typing import cast
 
 from pywinauto import WindowSpecification
 from pywinauto.application import Application
+from pywinauto.findwindows import ElementNotFoundError, find_element
+from pywinauto.timings import TimeoutError as JanelaTimeoutError
+from pywinauto.timings import wait_until_passes
 
 from src.config import CAMPOS, ATALHOS
 from src.logs import get_logger
-from src.utils import (
-    SisplanError,
-    salvar_pedido_txt,
-    send_keys_sleep,
-    aguardar_campo,
-)
+from src.erros import (SisplanError)
+from src.arquivos import (salvar_pedido_txt)
+from src.windows import (send_keys_sleep, aguardar_campo)
 
 logger = get_logger(__name__)
 
@@ -123,19 +124,13 @@ def inicia_app() -> tuple[
         ) from error
 
 
-def importa_arq_integracao(xml_path: str | Path) -> None:
+def importa_arq_integracao(xml_path: str | Path, processo: int) -> None:
     logger.debug('Importando pedido Havan no grid')
     try:
-        app_dialog: Application = Application(backend='win32').connect(
-            title='Abrir',
-            class_name='#32770',
-            timeout=2
-        )
-
-        janela: WindowSpecification = app_dialog.window(
-            title='Abrir', class_name='#32770'
-        )
-        janela.wait('ready', timeout=2)
+        janela = localizar_aviso('Abrir', '#32770', 2, processo)
+        if janela is None:
+            raise SisplanError('Janela Abrir do Sisplan não encontrada.')
+        janela.set_focus()
 
         nome_field: WindowSpecification = get_field_index(
             janela, 'Edit', 'nome'
@@ -155,55 +150,67 @@ def importa_arq_integracao(xml_path: str | Path) -> None:
         ) from error
 
 
-def handle_produto_sem_cadastro(pedido: str) -> bool:
+def localizar_aviso(
+    titulo: str, classe: str, timeout: int, processo: int,
+) -> WindowSpecification | None:
+    """Somente ausência na busca é opcional; falhas de interação são fatais."""
     try:
+        if processo <= 0:
+            raise SisplanError('Processo do Sisplan inválido.')
+        # Application.connect(process=...) ignora título/classe nesta biblioteca.
+        # Buscar primeiro dentro do processo e conectar pelo handle encontrado.
+        elemento = wait_until_passes(
+            timeout, 0.2, find_element, ElementNotFoundError,
+            title=titulo, class_name=classe, process=processo,
+            backend='win32', visible_only=True,
+        )
+        handle = cast(int, elemento.handle)
         app_dialog: Application = Application(backend='win32').connect(
-            title='Bloqueio',
-            class_name='#32770',
-            timeout=2
+            handle=handle,
         )
-
-        bloqueio: WindowSpecification = app_dialog.window(
-            title='Bloqueio', class_name='#32770'
-        )
-
-        if bloqueio.exists(timeout=1):
-            logger.info('Produto sem cadastro. Ignorando...')
-            aguardar_campo(bloqueio).OK.click()
-            sleep(0.2)
-            send_keys_sleep(ATALHOS['fechar'], 0.2)
-            salvar_pedido_txt(pedido, motivo='produto sem cadastro')
-
-            return True
-
-        return False
+    except ElementNotFoundError:
+        return None
+    except JanelaTimeoutError as error:
+        if isinstance(getattr(error, 'original_exception', None), ElementNotFoundError):
+            return None
+        raise SisplanError(f'Falha ao procurar a janela "{titulo}".') from error
     except Exception as error:
-        logger.debug('Janela de produto sem cadastro não encontrada: %s', error)
-        return False
+        raise SisplanError(f'Falha ao procurar a janela "{titulo}".') from error
 
-
-def handle_aviso_duplicado() -> bool:
     try:
-        app_dialog: Application = Application(backend='win32').connect(
-            title='Aviso',
-            class_name='TfmAviso',
-            timeout=3
-        )
-
-        aviso: WindowSpecification = app_dialog.window(
-            title='Aviso', class_name='TfmAviso'
-        )
-        aviso.wait('ready', timeout=3)
-
-        if aviso.exists(timeout=1):
-            logger.info('Pedido já existe. Cancelando duplicidade...')
-            send_keys_sleep(ATALHOS['nao'], 0.2)
-            send_keys_sleep(ATALHOS['desistir'], 0.2)
-            send_keys_sleep(ATALHOS['sim'])
-
-            return True
-
-        return False
+        janela = app_dialog.window(handle=handle)
+        janela.wait('ready', timeout=timeout)
+        return janela
     except Exception as error:
-        logger.debug('Janela de pedido duplicado não encontrada: %s', error)
+        raise SisplanError(f'Janela "{titulo}" encontrada, mas indisponível.') from error
+
+
+def handle_produto_sem_cadastro(pedido: str, processo: int) -> bool:
+    bloqueio = localizar_aviso('Bloqueio', '#32770', 2, processo)
+    if bloqueio is None:
         return False
+    try:
+        bloqueio.set_focus()
+        logger.info('Produto sem cadastro. Ignorando...')
+        aguardar_campo(bloqueio).OK.click()
+        sleep(0.2)
+        send_keys_sleep(ATALHOS['fechar'], 0.2)
+        salvar_pedido_txt(pedido, motivo='produto sem cadastro')
+        return True
+    except Exception as error:
+        raise SisplanError('Falha ao tratar a janela de produto sem cadastro.') from error
+
+
+def handle_aviso_duplicado(processo: int) -> bool:
+    aviso = localizar_aviso('Aviso', 'TfmAviso', 3, processo)
+    if aviso is None:
+        return False
+    try:
+        aviso.set_focus()
+        logger.info('Pedido já existe. Cancelando duplicidade...')
+        send_keys_sleep(ATALHOS['nao'], 0.2)
+        send_keys_sleep(ATALHOS['desistir'], 0.2)
+        send_keys_sleep(ATALHOS['sim'])
+        return True
+    except Exception as error:
+        raise SisplanError('Falha ao tratar a janela de pedido duplicado.') from error

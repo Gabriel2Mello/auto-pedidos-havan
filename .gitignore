@@ -13,3 +13,7 @@ PROMOCIONAL.txt
 pedidos_com_erro.txt
 config.toml
 main.spec
+auto-pedidos.log.*
+estado-pedidos.sqlite3*
+estado-pedidos.lock
+Abrir Pedidos Havan.lnk

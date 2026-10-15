@@ -1,13 +1,14 @@
+from src.erros import ConfiguracaoError as ConfiguracaoError
 import sys
-from dataclasses import dataclass
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from os import environ
 from pathlib import Path
 from tomllib import TOMLDecodeError, load
-from typing import Mapping
+from typing import Generator, Mapping
 
-
-class ConfiguracaoError(ValueError):
-    """Indica que uma configuração obrigatória está ausente ou inválida."""
+from src.seguranca import registrar_segredos
 
 
 MODELO_CONFIG = """# Copie este arquivo como config.toml e ajuste os valores.
@@ -16,6 +17,8 @@ unrar_tool = 'C:\\Program Files\\WinRAR\\UnRAR.exe'
 sumatra = 'C:\\LocalApps\\SumatraPDF.exe'
 pasta_pedidos = 'D:\\Automacao\\ArquivoPedidos'
 impressora = "HP LaserJet M402 - Almoxarifado"
+banco_config = 'C:\\Configuracao\\banco-sisplan.json'
+banco_perfil = "principal"
 """
 
 
@@ -49,9 +52,11 @@ class Configuracao:
     pasta_pedidos: Path
     impressora: str
     cnpj_matriz: str
-    senha_portal: str
-    teams_webhook_url: str = ''
+    senha_portal: str = field(repr=False)
+    teams_webhook_url: str = field(default='', repr=False)
     erro_leitura: str = ''
+    banco_config: Path = Path()
+    banco_perfil: str = 'principal'
 
     @classmethod
     def carregar(
@@ -81,7 +86,7 @@ class Configuracao:
         except (OSError, TOMLDecodeError) as error:
             erro_leitura = f'Não foi possível ler {caminho}: {error}'
 
-        return cls(
+        config = cls(
             unrar_tool=Path(_ler_texto(dados, 'unrar_tool')),
             sumatra=Path(_ler_texto(dados, 'sumatra')),
             pasta_pedidos=Path(_ler_texto(dados, 'pasta_pedidos')),
@@ -90,14 +95,21 @@ class Configuracao:
             senha_portal=_ler_segredo(ambiente, 'SENHA_PORTAL'),
             teams_webhook_url=_ler_segredo(ambiente, 'TEAMS_WEBHOOK_URL'),
             erro_leitura=erro_leitura,
+            banco_config=(
+                caminho.parent / _ler_texto(dados, 'banco_config')
+                if _ler_texto(dados, 'banco_config') else Path()
+            ),
+            banco_perfil=_ler_texto(dados, 'banco_perfil') or 'principal',
         )
+        registrar_segredos(config.senha_portal, config.teams_webhook_url)
+        return config
 
-    def validar(self) -> None:
+    def validar(self, apenas_impressao: bool = False) -> None:
         erros: list[str] = []
 
         if self.erro_leitura:
             erros.append(self.erro_leitura)
-        if str(self.unrar_tool) == '.' or not self.unrar_tool.is_file():
+        if not apenas_impressao and (str(self.unrar_tool) == '.' or not self.unrar_tool.is_file()):
             erros.append('unrar_tool arquivo inválido')
         if str(self.sumatra) == '.' or not self.sumatra.is_file():
             erros.append('sumatra arquivo inválido')
@@ -105,7 +117,9 @@ class Configuracao:
             erros.append('pasta_pedidos não foi configurada')
         if not self.impressora:
             erros.append('nome da impressora não foi configurado')
-        if not self.cnpj_matriz or not self.senha_portal:
+        if str(self.banco_config) == '.' or not self.banco_config.is_file():
+            erros.append('banco_config arquivo de conexão inválido')
+        if not apenas_impressao and (not self.cnpj_matriz or not self.senha_portal):
             erros.append('CNPJ_MATRIZ e SENHA_PORTAL devem ser configuradas')
 
         if erros:
@@ -115,6 +129,21 @@ class Configuracao:
 
 
 CONFIG = Configuracao.carregar()
+_configuracao_execucao: ContextVar[Configuracao | None] = ContextVar('havan_configuracao', default=None)
+
+
+def configuracao_atual() -> Configuracao:
+    return _configuracao_execucao.get() or CONFIG
+
+
+@contextmanager
+def usar_configuracao(config: Configuracao) -> Generator[None, None, None]:
+    registrar_segredos(config.senha_portal, config.teams_webhook_url)
+    token = _configuracao_execucao.set(config)
+    try:
+        yield
+    finally:
+        _configuracao_execucao.reset(token)
 
 UNRAR_TOOL = CONFIG.unrar_tool
 SUMATRA = CONFIG.sumatra
@@ -123,10 +152,11 @@ IMPRESSORA = CONFIG.impressora
 CNPJ_MATRIZ = CONFIG.cnpj_matriz
 SENHA_PORTAL = CONFIG.senha_portal
 TEAMS_WEBHOOK_URL = CONFIG.teams_webhook_url
+CLIENTE_HAVAN = '00022'
 
 
-def validar_configuracao() -> None:
-    CONFIG.validar()
+def validar_configuracao(apenas_impressao: bool = False) -> None:
+    configuracao_atual().validar(apenas_impressao=apenas_impressao)
 
 
 ORIGIN = 'https://cliente.havan.com.br'

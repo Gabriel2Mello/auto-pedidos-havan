@@ -1,5 +1,7 @@
+import sys
+from contextvars import copy_context
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -7,17 +9,14 @@ from requests.exceptions import RequestException, Timeout
 from tqdm import tqdm
 
 from src.logs import get_logger
+from src.login import conferir_sessao
 from src.config import (
     BASE_URL,
     ORIGIN,
     CONTENT_TYPE,
 )
-from src.utils import (
-    caminho_pdf,
-    caminho_xml,
-    extrair_xml,
-    salvar_pedido_txt,
-)
+from src.arquivos import (caminho_pdf, caminho_xml, extrair_xml, salvar_pedido_txt)
+from src.erros import (SessaoPortalExpiradaError)
 
 if TYPE_CHECKING:
     from cloudscraper import ScraperMock
@@ -38,19 +37,21 @@ def baixar_pedidos(
     scraper: 'ScraperMock',
     numero_pedidos: list[str],
     max_threads: int = 1,
+    ao_baixar: Callable[[str], None] | None = None,
 ) -> dict[str, bool]:
     resultados: dict[str, bool] = {}
     logger.info_split('Iniciando processo de download...')
 
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
         futures: dict[Future[tuple[str, bool, str | None]], str] = {
-            executor.submit(processar_unico, scraper, pedido): pedido
+            executor.submit(copy_context().run, processar_unico, scraper, pedido): pedido
             for pedido in numero_pedidos
         }
 
         with tqdm(
             total=len(futures),
             desc='Baixando',
+            disable=sys.stderr is None,
             bar_format='{l_bar}{bar:20}| {n_fmt}/{total_fmt} [{elapsed}]'
         ) as pbar:
             for future in as_completed(futures):
@@ -58,8 +59,12 @@ def baixar_pedidos(
 
                 resultados[pedido] = sucesso
 
+                if sucesso and ao_baixar is not None:
+                    ao_baixar(pedido)
+
                 if not sucesso:
-                    pbar.write(f'Erro no pedido {pedido}: {erro}')
+                    if sys.stdout is not None:
+                        pbar.write(f'Erro no pedido {pedido}: {erro}')
                     salvar_pedido_txt(pedido, motivo=erro or 'Erro desconhecido')
 
                 pbar.update()
@@ -80,7 +85,11 @@ def processar_unico(
         salvar_arquivos(pdf, xml, pedido)
         return pedido, True, None
 
+    except SessaoPortalExpiradaError:
+        logger.warning('Pedido %s: sessão do portal expirada; aguardando decisão do operador.', pedido)
+        raise
     except Exception as error:
+        logger.exception('Pedido %s: falha no download ou na extração.', pedido)
         return pedido, False, str(error)
 
 
@@ -95,6 +104,8 @@ def baixar_arquivos(scraper: 'ScraperMock', pedido: str) -> tuple[bytes, bytes]:
         response_pdf = f_pdf.result()
         response_rar = f_rar.result()
 
+    conferir_sessao(response_pdf)
+    conferir_sessao(response_rar)
     response_pdf.raise_for_status()
     response_rar.raise_for_status()
 
@@ -115,9 +126,12 @@ def html_grid_pedido(scraper: 'ScraperMock', pedido: str) -> str:
             data=payload,
             timeout=REQUEST_TIMEOUT,
         )
+        conferir_sessao(response, html=True)
         response.raise_for_status()
         return response.text
 
+    except SessaoPortalExpiradaError:
+        raise
     except Timeout as error:
         logger.debug('Timeout(Grid Havan) no pedido %s: %s', pedido, error)
         raise RuntimeError(

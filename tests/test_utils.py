@@ -3,17 +3,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.utils import (
-    MAX_CARACTERES_MOTIVO,
-    formatar_motivo_erro,
-    salvar_pedido_txt,
-)
+from src.arquivos import (MAX_CARACTERES_MOTIVO, formatar_motivo_erro, salvar_pedido_txt)
 
 
 class SalvarPedidoTxtTests(unittest.TestCase):
     def test_salva_pedido_com_motivo_na_mesma_linha(self) -> None:
         with tempfile.TemporaryDirectory() as pasta:
-            with patch('src.utils.obter_diretorio_executavel', return_value=Path(pasta)):
+            with patch('src.arquivos.obter_diretorio_executavel', return_value=Path(pasta)):
                 salvar_pedido_txt(
                     '2026-45404',
                     motivo='produto sem\ncadastro',
@@ -31,7 +27,7 @@ class SalvarPedidoTxtTests(unittest.TestCase):
 
     def test_mantem_formato_promocional_sem_motivo(self) -> None:
         with tempfile.TemporaryDirectory() as pasta:
-            with patch('src.utils.obter_diretorio_executavel', return_value=Path(pasta)):
+            with patch('src.arquivos.obter_diretorio_executavel', return_value=Path(pasta)):
                 salvar_pedido_txt('2026-45404', promocional=True)
 
             conteudo = (Path(pasta) / 'PROMOCIONAL.txt').read_text(
@@ -56,7 +52,7 @@ class SalvarPedidoTxtTests(unittest.TestCase):
 
     def test_limita_motivo_extenso_e_mantem_em_uma_linha(self) -> None:
         with tempfile.TemporaryDirectory() as pasta:
-            with patch('src.utils.obter_diretorio_executavel', return_value=Path(pasta)):
+            with patch('src.arquivos.obter_diretorio_executavel', return_value=Path(pasta)):
                 salvar_pedido_txt(
                     '2026-45404',
                     motivo=f"detalhe\n{'x' * 600}",

@@ -1,5 +1,6 @@
 from time import sleep
-from typing import cast
+from dataclasses import dataclass
+from typing import Callable, Literal, cast
 
 from pywinauto import WindowSpecification
 
@@ -8,6 +9,7 @@ from src.config import (
     COORD_ABA_PEDIDO,
     COORD_ITENS_PEDIDO,
     ATALHOS,
+    CLIENTE_HAVAN,
 )
 from src.handle_app import (
     importa_arq_integracao,
@@ -15,16 +17,10 @@ from src.handle_app import (
     handle_produto_sem_cadastro,
 )
 from src.pedidos import definir_empresa, extrair_dados_xml
-from src.utils import (
-    caminho_xml,
-    carregar_xml,
-    SisplanError,
-    formatar_motivo_erro,
-    salvar_pedido_txt,
-    enviar_alerta_teams,
-    send_keys_sleep,
-    aguardar_campo,
-)
+from src.arquivos import (caminho_xml, carregar_xml, formatar_motivo_erro, salvar_pedido_txt)
+from src.erros import (SisplanError)
+from src.notificacoes import (enviar_alerta_teams)
+from src.windows import (send_keys_sleep, aguardar_campo)
 
 logger = get_logger(__name__)
 
@@ -40,25 +36,36 @@ OPERACOES_ESPECIAIS = {
 }
 
 
+@dataclass(frozen=True)
+class ResultadoImportacao:
+    numero: str
+    situacao: Literal['aguarda_confirmacao', 'duplicado', 'sem_cadastro']
+    operacao: str = ''
+
+
 def importar_pedido(
     pedido: str,
     pedido_grade: WindowSpecification,
     aba_pedido: WindowSpecification,
     grid: WindowSpecification,
     campos: CamposSisplan,
-) -> tuple[str, bool]:
+    antes_gravar: Callable[[str], None],
+) -> ResultadoImportacao:
     logger.info_split(f'Importando: {pedido}')
 
     try:
+        xml_path = caminho_xml(pedido)
+        xml_root = carregar_xml(xml_path)
+        dados_xml = extrair_dados_xml(xml_root)
+        processo = cast(int, pedido_grade.process_id())
+
         pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
         send_keys_sleep(ATALHOS['incluir'], 0.3)
 
         aguardar_campo(campos['numero']).type_keys('{TAB}')
-        numero_interno: str = cast(str, campos['numero'].window_text())
-
-        xml_path = caminho_xml(pedido)
-        xml_root = carregar_xml(xml_path)
-        dados_xml = extrair_dados_xml(xml_root)
+        numero_interno = cast(str, campos['numero'].window_text()).strip()
+        if not numero_interno:
+            raise SisplanError('Sisplan não informou o número interno do pedido.')
 
         preencher_dados_fixos(campos)
 
@@ -77,8 +84,8 @@ def importar_pedido(
         send_keys_sleep(ATALHOS['importar'])
         send_keys_sleep(ATALHOS['havan'])
 
-        importa_arq_integracao(xml_path)
-        sem_cadastro = handle_produto_sem_cadastro(pedido)
+        importa_arq_integracao(xml_path, processo)
+        sem_cadastro = handle_produto_sem_cadastro(pedido, processo)
 
         pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
 
@@ -87,7 +94,7 @@ def importar_pedido(
             send_keys_sleep(ATALHOS['sim'])
             enviar_alerta_teams(pedido, '', 'PRODUTO SEM CADASTRO')
 
-            return '', sem_cadastro
+            return ResultadoImportacao('', 'sem_cadastro')
 
         processar_operacao_comercial(
             dados_xml['operacao'],
@@ -95,10 +102,15 @@ def importar_pedido(
             numero_interno,
             campos
         )
+        # O estado precisa estar em disco antes de enviar o comando de gravação.
+        antes_gravar(numero_interno)
         send_keys_sleep(ATALHOS['gravar'])
-        invalido = handle_aviso_duplicado()
+        invalido = handle_aviso_duplicado(processo)
 
-        return numero_interno, invalido
+        return ResultadoImportacao(
+            numero_interno, 'duplicado' if invalido else 'aguarda_confirmacao',
+            dados_xml['operacao'],
+        )
 
     except Exception as error:
         logger.debug('Erro no Sisplan: %s', error, exc_info=True)
@@ -124,13 +136,20 @@ def processar_operacao_comercial(
     logger.info(mensagem)
 
     sleep(0.1)
+
+
+def notificar_operacao_confirmada(operacao_alvo: str, pedido: str, numero_interno: str) -> None:
+    operacao = OPERACOES_ESPECIAIS.get(operacao_alvo)
+    if operacao is None:
+        return
+    _, mensagem = operacao
     salvar_pedido_txt(pedido, True)
     enviar_alerta_teams(pedido, numero_interno, mensagem)
 
 
 def preencher_dados_fixos(campos: CamposSisplan) -> None:
     dados = {
-        'cliente':       '00022',
+        'cliente':       CLIENTE_HAVAN,
         'representante': '00001',
         'transporte':    '00001',
         'tabela_preco':  '004',
