@@ -68,6 +68,48 @@ class BaseInterface(unittest.TestCase):
 
 
 class InterfaceTests(BaseInterface):
+    def test_reabrir_aguarda_execucao_anterior_liberar_historico(self) -> None:
+        nova = EstadoInterface(self.caminho, executor=self.despachar)
+        try:
+            self.aguardar(lambda: nova.mensagem.startswith('Aguardando a execução anterior'))
+            self.assertFalse(nova.pronto.is_set())
+            self.estado.encerrar()
+            self.assertTrue(nova.pronto.wait(3))
+            self.assertEqual(nova.fase, 'PRONTO')
+            self.assertFalse(nova.bloqueado)
+            self.assertEqual(self.chamadas, [])
+        finally:
+            nova.encerrar()
+            nova.worker.join(3)
+            self.assertFalse(nova.worker.is_alive())
+
+    def test_pode_encerrar_enquanto_aguarda_historico(self) -> None:
+        nova = EstadoInterface(self.caminho, executor=self.despachar)
+        try:
+            self.aguardar(lambda: nova.mensagem.startswith('Aguardando a execução anterior'))
+            nova.encerrar()
+            self.assertTrue(nova.finalizado.wait(3))
+            self.assertEqual(nova.fase, 'ENCERRADO')
+            self.assertEqual(self.estado.fase, 'PRONTO')
+            self.assertEqual(self.chamadas, [])
+        finally:
+            nova.encerrar()
+            nova.worker.join(3)
+
+    def test_historico_ainda_ocupado_tem_mensagem_especifica(self) -> None:
+        with patch('src.controlador.TEMPO_LIBERAR_HISTORICO', 0):
+            nova = EstadoInterface(self.caminho, executor=self.despachar)
+            try:
+                self.assertTrue(nova.finalizado.wait(3))
+                self.assertEqual(nova.fase, 'FALHA')
+                self.assertIn('Outra execução ainda está aberta', nova.mensagem)
+                self.assertNotIn('Não consegui salvar ou ler', nova.mensagem)
+                self.assertTrue(nova.bloqueado)
+                self.assertEqual(self.chamadas, [])
+            finally:
+                nova.encerrar()
+                nova.worker.join(3)
+
     def test_lista_e_salva_antes_da_resposta_e_conexao_pertence_ao_executor(self) -> None:
         def executar(pedidos, modo, *, historico, **kwargs):
             self.assertNotEqual(get_ident(), principal)
@@ -201,9 +243,11 @@ class ApiTests(BaseInterface):
         self.servidor.server_close()
         self.http.join(3)
 
-    def requisitar(self, caminho, dados=None, *, token=True, origem=None, host=None, corpo=None):
+    def requisitar(self, caminho, dados=None, *, token=True, origem=None, host=None, corpo=None,
+                   pagina='pagina-teste'):
         conn = HTTPConnection('127.0.0.1', self.servidor.server_port, timeout=4)
         headers = {'Host': host or f'127.0.0.1:{self.servidor.server_port}'}
+        headers['X-Havan-Pagina'] = pagina
         if token:
             headers['Authorization'] = 'Bearer ' + self.token
         if dados is not None or corpo is not None:
@@ -258,12 +302,86 @@ class ApiTests(BaseInterface):
             self.servidor.service_actions()
         self.assertFalse(self.estado.encerrando)
         with self.estado.trava:
-            self.servidor.presenca = 1
+            self.servidor.paginas['pagina-teste'] = Event()
         with patch('src.interface_web.monotonic', return_value=110):
             self.servidor.service_actions()
         self.assertFalse(self.estado.encerrando)
         with self.estado.trava:
-            self.servidor.presenca = 0
+            self.servidor.paginas.clear()
         with patch('src.interface_web.monotonic', return_value=110):
             self.servidor.service_actions()
         self.assertTrue(self.estado.encerrando)
+
+    def abrir_presenca(self, pagina):
+        conn = HTTPConnection('127.0.0.1', self.servidor.server_port, timeout=3)
+        self.addCleanup(conn.close)
+        conn.request('GET', '/api/presenca', headers={
+            'Authorization': 'Bearer ' + self.token, 'X-Havan-Pagina': pagina,
+        })
+        resposta = conn.getresponse()
+        self.assertEqual(resposta.status, 200)
+        self.assertEqual(resposta.readline(), b': ativo\n')
+        return conn
+
+    def test_fechar_ultima_pagina_encerra_sem_botao_e_libera_historico(self) -> None:
+        self.abrir_presenca('principal')
+        self.assertEqual(self.requisitar('/api/fechar', {}, pagina='principal')[0], 200)
+        self.assertTrue(self.estado.finalizado.wait(3))
+        self.assertEqual(self.estado.fase, 'ENCERRADO')
+        self.assertEqual(self.chamadas, [])
+        with EstadoPedidos(self.caminho) as historico:
+            self.assertEqual(historico.pendentes(), [])
+
+    def test_fechar_uma_pagina_preserva_outra_e_ignora_fechamento_repetido(self) -> None:
+        self.abrir_presenca('principal')
+        self.abrir_presenca('segunda')
+        for _ in range(2):
+            self.assertEqual(self.requisitar('/api/fechar', {}, pagina='principal')[0], 200)
+        with self.estado.trava, patch('src.interface_web.monotonic', return_value=monotonic()+10):
+            self.servidor.service_actions()
+            self.assertEqual(set(self.servidor.paginas), {'segunda'})
+        self.assertFalse(self.estado.encerrando)
+
+    def test_recarregar_reconecta_antes_de_encerrar(self) -> None:
+        self.abrir_presenca('antes')
+        self.assertEqual(self.requisitar('/api/fechar', {}, pagina='antes')[0], 200)
+        self.abrir_presenca('depois')
+        with self.estado.trava, patch('src.interface_web.monotonic', return_value=monotonic()+10):
+            self.servidor.service_actions()
+        self.assertFalse(self.estado.encerrando)
+        self.assertEqual(self.estado.fase, 'PRONTO')
+
+    def test_aviso_de_fechamento_chega_apos_desconexao_e_ainda_encerra(self) -> None:
+        self.abrir_presenca('principal')
+        self.servidor.fechar_pagina('principal')
+        self.assertFalse(self.servidor.fechamento_solicitado)
+        self.assertEqual(self.requisitar('/api/fechar', {}, pagina='principal')[0], 200)
+        self.assertTrue(self.servidor.fechamento_solicitado)
+        self.assertTrue(self.estado.finalizado.wait(3))
+
+    def test_reconectar_presenca_substituida_nao_remove_a_nova(self) -> None:
+        self.abrir_presenca('principal')
+        anterior = self.servidor.paginas['principal']
+        self.abrir_presenca('principal')
+        self.assertTrue(anterior.is_set())
+        self.assertFalse(self.servidor.paginas['principal'].is_set())
+        self.assertFalse(self.estado.encerrando)
+
+    def test_fechar_pagina_nao_abandona_etapa_e_preserva_pendencias(self) -> None:
+        def executar(pedidos, modo, *, historico, parar, **kwargs):
+            historico.salvar(EstadoPedido(pedidos[0], '100', 'gravacao_pendente'))
+            self.executado.set()
+            self.liberar.wait(3)
+            self.assertTrue(parar())
+            return ResumoExecucao()
+        self.executor = executar
+        self.abrir_presenca('principal')
+        self.iniciar()
+        self.assertTrue(self.executado.wait(2))
+        self.assertEqual(self.requisitar('/api/fechar', {}, pagina='principal')[0], 200)
+        self.aguardar(lambda: self.estado.encerrando)
+        self.assertFalse(self.estado.finalizado.is_set())
+        self.liberar.set()
+        self.assertTrue(self.estado.finalizado.wait(3))
+        with EstadoPedidos(self.caminho) as historico:
+            self.assertEqual(historico.obter('2026-12345').etapa, 'gravacao_pendente')

@@ -50,8 +50,9 @@ class RegressaoRevisaoTests(unittest.TestCase):
                     pilha.enter_context(EstadoPedidos(caminho))
                 else:
                     caminho = Path(pasta) / 'ausente' / 'estado.sqlite3'
-                estado = EstadoInterface(caminho, executor=MagicMock())
-                self.assertTrue(estado.finalizado.wait(3))
+                with patch('src.controlador.TEMPO_LIBERAR_HISTORICO', 0):
+                    estado = EstadoInterface(caminho, executor=MagicMock())
+                    self.assertTrue(estado.finalizado.wait(3))
                 self.assertEqual(estado.fase, 'FALHA')
                 servidor, _ = criar_servidor(estado)
                 http = Thread(target=servidor.serve_forever, kwargs={'poll_interval': .02}, daemon=True)

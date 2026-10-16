@@ -23,6 +23,10 @@ class EstadoError(RuntimeError):
     """Não foi possível preservar o histórico; não repetir ações incertas."""
 
 
+class EstadoEmUsoError(EstadoError):
+    """Outra execução ainda possui a trava do histórico local."""
+
+
 class BancoSisplanError(RuntimeError):
     """Falha de acesso ao banco: a importação não pode prosseguir."""
 

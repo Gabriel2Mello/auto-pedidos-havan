@@ -1,6 +1,6 @@
 """Mensagens para o operador, independentes da interface escolhida."""
 from src.erros import (
-    BancoSisplanError, ConfiguracaoError, EstadoError, PedidoRejeitadoError,
+    BancoSisplanError, ConfiguracaoError, EstadoEmUsoError, EstadoError, PedidoRejeitadoError,
     SisplanError, SessaoPortalExpiradaError,
 )
 
@@ -12,6 +12,9 @@ def mensagem_erro(erro: Exception) -> str:
         return ('A configuração precisa ser corrigida. Pare este processamento, ajuste o arquivo '
                 'e inicie outro processamento ou use Retomar para aplicar os valores. '
                 'Se alterou variáveis de ambiente do Windows, reabra o programa.')
+    if isinstance(erro, EstadoEmUsoError):
+        return ('Outra execução ainda está aberta ou terminando uma etapa. '
+                'Feche-a pelo botão Encerrar e reabra o atalho após ela terminar.')
     if isinstance(erro, EstadoError):
         return 'Não consegui salvar ou ler o andamento. Avise o responsável antes de continuar.'
     if isinstance(erro, BancoSisplanError):

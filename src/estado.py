@@ -1,6 +1,8 @@
 """Histórico local das etapas, persistido antes de ações que não devem se repetir."""
 
 from src.erros import EstadoError as EstadoError
+from src.erros import EstadoEmUsoError
+import errno
 import os
 import sqlite3
 from dataclasses import dataclass
@@ -43,12 +45,20 @@ class EstadoPedidos:
                 self._trava.write(b'0')
                 self._trava.flush()
             self._trava.seek(0)
-            if os.name == 'nt':
-                import msvcrt
-                msvcrt.locking(self._trava.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(self._trava, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                if os.name == 'nt':
+                    import msvcrt
+                    msvcrt.locking(self._trava.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self._trava, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError as erro:
+                if erro.errno in (errno.EACCES, errno.EAGAIN):
+                    raise EstadoEmUsoError('Outra execução ainda possui o histórico local.') from None
+                raise
+        except EstadoEmUsoError:
+            self._fechar()
+            raise
         except OSError:
             logger.exception('Histórico: falha ao adquirir a trava; arquivo=%s.', self.caminho)
             self._fechar()

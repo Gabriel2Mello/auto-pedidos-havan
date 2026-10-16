@@ -9,10 +9,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from queue import Queue
 from threading import Event, RLock, Thread, get_ident
+from time import monotonic
 from typing import Callable, Protocol
 from uuid import uuid4
 
-from src.erros import BancoSisplanError, ConfiguracaoError
+from src.erros import BancoSisplanError, ConfiguracaoError, EstadoEmUsoError
 from src.config import diretorio_aplicacao
 from src.estado import EstadoError, EstadoPedidos
 from src.logs import get_logger
@@ -25,6 +26,7 @@ from src.etapas import ETAPAS_FINAIS, ROTULOS, fila_da_etapa
 from src.erros import (SessaoPortalExpiradaError)
 
 logger = get_logger(__name__)
+TEMPO_LIBERAR_HISTORICO = 10
 
 
 class Executor(Protocol):
@@ -276,16 +278,30 @@ class EstadoInterface:
     def _executar(self) -> None:
         handler = MensagensInterface(self)
         try:
-            with EstadoPedidos(self.caminho) as historico:
-                self._historico = historico
-                self._atualizar()
-                with self.trava:
-                    self.fase = 'PRONTO'
-                    self.mensagem = 'Tudo pronto. Insira pedidos ou retome as pendências.'
-                logging.getLogger().addHandler(handler)
-                self.pronto.set()
-                while (trabalho := self.comandos.get()) is not None:
-                    self._processar(trabalho)
+            limite = monotonic() + TEMPO_LIBERAR_HISTORICO
+            while not self.parada.is_set():
+                try:
+                    with EstadoPedidos(self.caminho) as historico:
+                        self._historico = historico
+                        self._atualizar()
+                        with self.trava:
+                            if self.encerrando:
+                                break
+                            self.fase = 'PRONTO'
+                            self.mensagem = 'Tudo pronto. Insira pedidos ou retome as pendências.'
+                        logging.getLogger().addHandler(handler)
+                        self.pronto.set()
+                        while (trabalho := self.comandos.get()) is not None:
+                            self._processar(trabalho)
+                    break
+                except EstadoEmUsoError:
+                    if monotonic() >= limite:
+                        raise
+                    with self.trava:
+                        if not self.encerrando:
+                            self.mensagem = 'Aguardando a execução anterior liberar o histórico…'
+                    if self.parada.wait(.1):
+                        break
         except Exception as erro:
             self._falha(erro)
         finally:

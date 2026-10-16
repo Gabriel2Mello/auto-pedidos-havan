@@ -18,13 +18,6 @@
     <div class="acoes"><button id="tema" type="button">Tema escuro</button><button id="encerrar" type="button">Encerrar</button></div>
   </header>
 
-  <section class="filas" aria-label="Filas de pedidos">
-    <button class="fila" type="button" data-fila="para_baixar"><span class="marcador"></span><span>A baixar</span><strong id="n-para_baixar">0</strong><small>Aguardando os arquivos</small></button>
-    <button class="fila" type="button" data-fila="baixados"><span class="marcador"></span><span>Baixados</span><strong id="n-baixados">0</strong><small>Preparação e inclusão</small></button>
-    <button class="fila" type="button" data-fila="importados"><span class="marcador"></span><span>No Sisplan</span><strong id="n-importados">0</strong><small>Pedidos identificados no sistema</small></button>
-    <button class="fila" type="button" data-fila="enviados"><span class="marcador"></span><span>Enviados para impressão</span><strong id="n-enviados">0</strong><small>Confira o papel na impressora</small></button>
-  </section>
-
   <div class="principal">
     <section class="cartao entrada" aria-labelledby="titulo-entrada">
       <div class="titulo-secao"><h2 id="titulo-entrada">Processar pedidos</h2><span class="etiqueta">Um pedido por vez</span></div>
@@ -35,7 +28,7 @@
       </div>
       <form id="formulario">
         <p id="ajuda-modo" class="muted">Informe os pedidos. Os que já estão no Sisplan serão identificados antes de incluir.</p>
-        <div id="campo-pedidos"><label for="pedidos">Números dos pedidos Havan</label><textarea id="pedidos" rows="3" maxlength="12000" placeholder="109335, 109336&#10;2026-109337" aria-describedby="dica-pedidos" required></textarea><p id="dica-pedidos" class="dica">Separe por vírgula ou coloque um pedido por linha. Sem o ano, usamos o ano atual.</p></div>
+        <div id="campo-pedidos"><label for="pedidos">Números dos pedidos Havan</label><textarea id="pedidos" rows="3" maxlength="12000" placeholder="109335, 109336&#10;2026-109337" aria-describedby="dica-pedidos" required></textarea><p id="dica-pedidos" class="dica">Separe por vírgula ou coloque um pedido por linha. Sem o ano, será utilizado o ano atual.</p></div>
         <label id="confirmacao-reimpressao" class="confirmacao" hidden><input id="confirmar-copia" type="checkbox"><span>Conferi a impressão anterior e quero enviar outra cópia.</span></label>
         <div class="acoes enviar"><button type="submit" id="iniciar" class="botao-principal" disabled>Inserir e processar</button><button type="button" id="parar" hidden>Parar processamento</button></div>
         <p id="mensagem-acao" class="mensagem-acao" role="alert"></p>
@@ -51,6 +44,13 @@
       <div id="resumo" class="resumo" hidden></div>
     </section>
   </div>
+
+  <section class="filas" aria-label="Filas de pedidos">
+    <button class="fila" type="button" data-fila="para_baixar"><span class="marcador"></span><span>A baixar</span><strong id="n-para_baixar">0</strong><small>Aguardando os arquivos</small></button>
+    <button class="fila" type="button" data-fila="baixados"><span class="marcador"></span><span>Baixados</span><strong id="n-baixados">0</strong><small>Preparação e inclusão</small></button>
+    <button class="fila" type="button" data-fila="importados"><span class="marcador"></span><span>No Sisplan</span><strong id="n-importados">0</strong><small>Pedidos identificados no sistema</small></button>
+    <button class="fila" type="button" data-fila="enviados"><span class="marcador"></span><span>Enviados para impressão</span><strong id="n-enviados">0</strong><small>Confira o papel na impressora</small></button>
+  </section>
 
   <section id="aviso-erro" class="aviso" hidden aria-labelledby="titulo-erro">
     <p class="sobretitulo">PROCESSAMENTO PAUSADO</p><h2 id="titulo-erro" tabindex="-1">É preciso conferir este pedido</h2>

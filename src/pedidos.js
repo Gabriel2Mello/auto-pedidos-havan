@@ -1,9 +1,10 @@
 'use strict';
 const el = id => document.getElementById(id);
 const token = document.querySelector('meta[name="havan-token"]').content;
-const headers = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json'};
+const headers = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'X-Havan-Pagina': crypto.randomUUID()};
 const fases = {INICIANDO:'Iniciando',PRONTO:'Pronto',EXECUTANDO:'Em andamento',PAUSADO:'Aguardando sua escolha',PARANDO:'Parando com segurança',CONCLUIDO:'Finalizado',INTERROMPIDO:'Parado',FALHA:'Precisa de atenção',ENCERRANDO:'Encerrando',ENCERRADO:'Encerrado'};
 let modo='normal', estado=null, enviando=false, encerrado=false, encerramentoPedido=false, pagina=0, erroVisivel='', tabelaAnterior='', atividadeAnterior='', presenca=null;
+let estadoAnterior='', saindo=false;
 
 async function api(caminho, dados) {
   const resposta = await fetch(caminho, {method:dados===undefined?'GET':'POST',headers,body:dados===undefined?undefined:JSON.stringify(dados),cache:'no-store'});
@@ -54,6 +55,7 @@ function renderizarTabela() {
   el('anterior').disabled=pagina===0;el('proxima').disabled=inicio+50>=lista.length;
 }
 function renderizar(s) {
+  const chave=JSON.stringify(s);if(chave===estadoAnterior)return;estadoAnterior=chave;
   estado=s; encerrado=s.fase==='ENCERRADO';
   for(const [fila,n] of Object.entries(s.filas))el('n-'+fila).textContent=n;
   el('n-pendentes').textContent=s.pendentes;
@@ -78,10 +80,10 @@ function renderizar(s) {
   atualizarBotoes();renderizarTabela();
 }
 async function atualizar() {
-  if(encerrado)return;
+  if(encerrado||saindo)return;
   try{renderizar(await api('/api/estado'));el('conexao').hidden=true;}
-  catch(_){el('conexao').hidden=false;el('conexao').textContent=encerramentoPedido?'Aplicação encerrada. Você pode fechar esta aba.':'Não consegui falar com o programa. Reabra o atalho se ele tiver sido fechado. Confira o andamento antes de reenviar pedidos.';if(encerramentoPedido){encerrado=true;pararPresenca();}else{el('iniciar').disabled=true;}}
-  if(!encerrado)setTimeout(atualizar,1000);
+  catch(_){estadoAnterior='';el('conexao').hidden=false;const texto=encerramentoPedido?'Aplicação encerrada. Você pode fechar esta aba.':'Não consegui falar com o programa. Reabra o atalho se ele tiver sido fechado. Confira o andamento antes de reenviar pedidos.';if(el('conexao').textContent!==texto)el('conexao').textContent=texto;if(encerramentoPedido){encerrado=true;pararPresenca();}else{el('iniciar').disabled=true;}}
+  if(!encerrado&&!saindo)setTimeout(atualizar,1000);
 }
 async function acao(caminho,dados){
   if(enviando)return;enviando=true;mensagem('');atualizarBotoes();
@@ -121,10 +123,14 @@ try{const salvo=localStorage.getItem('tema-pedidos-havan');aplicarTema(['claro',
 el('tema').onclick=()=>{const tema=document.documentElement.dataset.tema==='escuro'?'claro':'escuro';aplicarTema(tema);try{localStorage.setItem('tema-pedidos-havan',tema);}catch(_){}};
 function pararPresenca(){presenca?.abort();}
 async function acompanhar(){
-  if(encerrado)return;presenca=new AbortController();
+  if(encerrado||saindo)return;presenca=new AbortController();
   try{const r=await fetch('/api/presenca',{headers,signal:presenca.signal});if(!r.ok)return;const leitor=r.body.getReader();while(!encerrado){const {done}=await leitor.read();if(done)break;}}
-  catch(_){}finally{if(!encerrado&&!encerramentoPedido)setTimeout(acompanhar,1000);}
+  catch(_){}finally{if(!encerrado&&!encerramentoPedido&&!saindo)setTimeout(acompanhar,1000);}
 }
 window.addEventListener('beforeunload',e=>{if(!encerrado&&!encerramentoPedido){e.preventDefault();e.returnValue='';}});
-window.addEventListener('pagehide',pararPresenca);
+window.addEventListener('pagehide',()=>{
+  saindo=true;pararPresenca();
+  if(!encerrado&&!encerramentoPedido)fetch('/api/fechar',{method:'POST',headers,body:'{}',keepalive:true}).catch(()=>{});
+});
+window.addEventListener('pageshow',e=>{if(e.persisted)window.location.reload();});
 acompanhar();atualizar();

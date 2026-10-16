@@ -5,6 +5,7 @@ from pathlib import Path
 from decimal import Decimal
 
 from src.estado import EstadoError, EstadoPedido, EstadoPedidos
+from src.erros import EstadoEmUsoError
 from src.pedidos import ItemEsperado
 
 
@@ -25,7 +26,7 @@ class EstadoTests(unittest.TestCase):
 
     def test_segunda_execucao_e_bloqueada_e_trava_e_liberada_ao_sair(self) -> None:
         with EstadoPedidos(self.caminho):
-            with self.assertRaises(EstadoError):
+            with self.assertRaises(EstadoEmUsoError):
                 with EstadoPedidos(self.caminho):
                     self.fail('Execuções simultâneas não podem imprimir o mesmo pedido')
         with EstadoPedidos(self.caminho) as historico:

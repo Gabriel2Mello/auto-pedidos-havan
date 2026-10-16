@@ -24,20 +24,32 @@ class ServidorInterface(ThreadingHTTPServer):
     def __init__(self, handler: type[BaseHTTPRequestHandler], estado: EstadoInterface) -> None:
         super().__init__(('127.0.0.1', 0), handler)
         self.estado = estado
-        self.presenca = 0
+        self.paginas: dict[str, Event] = {}
         self.teve_pagina = False
+        self.fechamento_solicitado = False
         self.sem_paginas_desde = monotonic()
         self.parar_presenca = Event()
         self.fechando = False
 
     def service_actions(self) -> None:
         with self.estado.trava:
-            limite = 5 if self.teve_pagina else 120
-            if not self.presenca and monotonic() - self.sem_paginas_desde >= limite:
+            limite = 1 if self.fechamento_solicitado else 5 if self.teve_pagina else 120
+            if not self.paginas and monotonic() - self.sem_paginas_desde >= limite:
                 self.estado.encerrar()
             if self.estado.finalizado.is_set() and self.estado.encerrando and not self.fechando:
                 self.fechando = True
                 Thread(target=self.shutdown, daemon=True).start()
+
+    def fechar_pagina(self, pagina: str, *, solicitado: bool = False) -> None:
+        with self.estado.trava:
+            presenca = self.paginas.pop(pagina, None)
+            if presenca is not None:
+                presenca.set()
+                if not self.paginas:
+                    self.sem_paginas_desde = monotonic()
+            if solicitado and not self.paginas:
+                self.fechamento_solicitado = True
+                self.sem_paginas_desde = monotonic()
 
     def shutdown(self) -> None:
         self.parar_presenca.set()
@@ -84,30 +96,38 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
             self.responder(status, json.dumps(dados, ensure_ascii=False, allow_nan=False).encode('utf-8'))
 
         def acompanhar(self) -> None:
+            pagina = self.headers.get('X-Havan-Pagina', '')
+            if not pagina or len(pagina) > 100 or not pagina.isascii():
+                self.json_resposta(400, {'erro': 'Identificação da página inválida.'})
+                return
+            presenca = Event()
             with estado.trava:
                 if estado.encerrando:
                     self.json_resposta(503, {'erro': 'O programa está encerrando.'})
                     return
-                servidor.presenca += 1
+                anterior = servidor.paginas.get(pagina)
+                if anterior is not None:
+                    anterior.set()
+                servidor.paginas[pagina] = presenca
                 servidor.teve_pagina = True
+                servidor.fechamento_solicitado = False
             try:
                 self.connection.settimeout(3)
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/event-stream')
                 self.send_header('Cache-Control', 'no-store')
                 self.end_headers()
-                while not servidor.parar_presenca.is_set():
+                while not servidor.parar_presenca.is_set() and not presenca.is_set():
                     self.wfile.write(b': ativo\n\n')
                     self.wfile.flush()
-                    if servidor.parar_presenca.wait(1):
+                    if presenca.wait(1):
                         break
             except (OSError, ValueError):
                 pass
             finally:
                 with estado.trava:
-                    servidor.presenca -= 1
-                    if not servidor.presenca:
-                        servidor.sem_paginas_desde = monotonic()
+                    if servidor.paginas.get(pagina) is presenca:
+                        servidor.fechar_pagina(pagina)
 
         def do_GET(self) -> None:
             caminho = urlsplit(self.path).path
@@ -125,6 +145,10 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                     arquivo, tipo = publicos[caminho]
                     conteudo = (raiz / arquivo).read_bytes()
                     if caminho == '/':
+                        with estado.trava:
+                            if not servidor.paginas:
+                                servidor.sem_paginas_desde = monotonic()
+                                servidor.fechamento_solicitado = False
                         conteudo = conteudo.replace(b'__TOKEN__', token.encode('ascii'))
                     self.responder(200, conteudo, tipo)
                 elif not self.autorizado():
@@ -168,6 +192,8 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                     estado.parar(dados.get('execucao'))
                 elif caminho == '/api/encerrar':
                     estado.encerrar()
+                elif caminho == '/api/fechar':
+                    servidor.fechar_pagina(self.headers.get('X-Havan-Pagina', ''), solicitado=True)
                 else:
                     self.json_resposta(404, {'erro': 'Ação não encontrada.'})
                     return

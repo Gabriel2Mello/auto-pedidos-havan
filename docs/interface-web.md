@@ -19,10 +19,13 @@ Configure `config.toml`, o perfil de banco e as variáveis de ambiente conforme
 o README. O painel não cria nem distribui credenciais. Para atualizações,
 preserve `config.toml`, `estado-pedidos.sqlite3`, os pedidos e os logs.
 
-O script gera `Abrir Pedidos Havan.lnk` nesta pasta, apontando para a instalação
-atual e usando `icons/icone.ico`. Pode ser copiado para a área de trabalho.
-Gere novamente se mudar o projeto de pasta. O arquivo `.lnk` é específico da
-máquina e não é versionado. Também é possível abrir diretamente
+O script gera `Abrir Pedidos Havan.lnk` nesta pasta, usando `icons/icone.ico`.
+O atalho aponta diretamente para `Pedidos Havan.exe` ou, se ele não existir,
+para o `pythonw.exe` de `.venv` ou `venv32`, com `havan.py` como argumento.
+Esse formato permite fixar o atalho na barra de tarefas do Windows.
+Pode ser copiado para a área de trabalho. Gere novamente se mudar o projeto
+de pasta ou alterar o executável/ambiente Python usado. O arquivo `.lnk` é
+específico da máquina e não é versionado. Também é possível abrir diretamente
 `Abrir Pedidos Havan.cmd`, que procura `Pedidos Havan.exe` na mesma pasta,
 depois `.venv` e por último `venv32`. O executável tem prioridade quando presente.
 O programa abre tendo esta pasta como diretório de trabalho.
@@ -64,12 +67,22 @@ operação. Cliques simultâneos, solicitações repetidas e respostas a avisos
 antigos são recusados. A trava existente impede outra execução na mesma pasta,
 inclusive pelo console. A tela pode ser recarregada sem reenviar o lote.
 
-Ao fechar a última aba, o programa aguarda cerca de cinco segundos para permitir
-recarregamentos e solicita parada segura. Se estiver incluindo um pedido,
+Ao tentar fechar sem usar Encerrar, a página solicita a confirmação nativa
+do navegador, inclusive quando não há processamento. O navegador só permite
+esse aviso após alguma interação com a página, como um clique.
+Ao confirmar o fechamento da última aba ou janela, a página avisa o programa para encerrar
+automaticamente. Há uma tolerância de cerca de um segundo para permitir
+recarregamentos. Se o aviso falhar, a desconexão da página é detectada e há
+uma tolerância de cinco segundos, permitindo reconexões transitórias.
+Se estiver incluindo um pedido,
 termina a confirmação da gravação antes de parar, preservando a impressão
 pendente. Não força o encerramento de uma ação em andamento. Ao reabrir, use
 Retomar. Se o navegador não chegar a conectar, o prazo inicial é de dois minutos.
 O encerramento pode demorar enquanto uma integração termina sua etapa atual.
+Se o atalho for reaberto durante a liberação do histórico, a nova execução
+aguarda até dez segundos. Caso outra execução continue aberta ou terminando
+uma etapa, o painel informa essa situação sem confundi-la com falha de gravação.
+O painel só redesenha o andamento quando os dados mudam.
 
 A pré-validação no banco, conferência de barras/itens e o tratamento de “Aviso”
 como última barreira de duplicidade foram preservados. Inclusões incertas
