@@ -84,4 +84,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    main()
+    from integracao_hub import executar_console
+    raise SystemExit(executar_console('pedidos-havan', 'Pedidos Havan', main))

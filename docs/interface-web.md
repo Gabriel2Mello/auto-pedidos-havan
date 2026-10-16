@@ -128,3 +128,14 @@ computadores. A proposta correspondente continua em
 As correções posteriores e a leitura de configuração por lote estão descritas
 em [refatoracao-2026-10-15.md](refatoracao-2026-10-15.md). Um erro de configuração
 oferece parar e orienta aplicar os ajustes em outro lote ou Retomar.
+
+## Integração com o Hub Nunes
+
+O contrato local `integracao_hub.py`, mantido no Hub Nunes e copiado para esta
+aplicação, publica endereço, saúde e estado da interface e permite solicitar
+a parada segura pelo monitor. O atalho próprio e o console usam a mesma trava
+Sisplan por usuário e sessão: encerre Havan antes de abrir outra ferramenta
+que use o ERP. A trava permanece enquanto o encerramento aguarda o executor.
+Outra aba conectada mantém o servidor aberto; fechar a última segue a parada
+segura já descrita. Executáveis antigos precisam ser reconstruídos para
+incorporar essa integração; os atalhos Python usam os fontes atualizados.

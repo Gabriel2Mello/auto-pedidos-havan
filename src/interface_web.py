@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from integracao_hub import atender_integracao
+
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from secrets import compare_digest, token_urlsafe
@@ -130,6 +132,8 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                         servidor.fechar_pagina(pagina)
 
         def do_GET(self) -> None:
+            if atender_integracao(self):
+                return
             caminho = urlsplit(self.path).path
             publicos = {
                 '/': ('src/pedidos.html', 'text/html; charset=utf-8'),
@@ -166,6 +170,8 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                 self.json_resposta(500, {'erro': 'Não consegui abrir esse recurso. Avise o responsável.'})
 
         def do_POST(self) -> None:
+            if atender_integracao(self):
+                return
             if not self.autorizado():
                 self.close_connection = True
                 self.json_resposta(403, {'erro': 'Acesso não autorizado.'})
