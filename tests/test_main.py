@@ -15,7 +15,7 @@ from src.importar import ResultadoImportacao
 from src.prevalidacao import PedidoRejeitadoError
 from tests.fixtures import xml_pedido
 from src.pedidos import ItemEsperado
-from src.erros import (SessaoPortalExpiradaError)
+from src.erros import SessaoPortalExpiradaError, NumeroInternoForaSequenciaError
 
 
 class FluxoPrevalidacaoTests(unittest.TestCase):
@@ -34,7 +34,7 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
     def test_parar_durante_inclusao_confirma_gravacao_e_deixa_impressao_pendente(self) -> None:
         self.preparar()
         parada = Event()
-        def importar(*args):
+        def importar(*args, **kwargs):
             args[-1]('100')
             parada.set()
             return ResultadoImportacao('100', 'aguarda_confirmacao')
@@ -56,6 +56,7 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         banco_classe = self.stack.enter_context(patch('src.servico_pedidos.BancoSisplan'))
         banco_classe.return_value.__enter__.return_value = self.banco
         self.banco.consultar_pedidos.return_value = {}
+        self.banco.consultar_referencia_numero.return_value = 100
         self.banco.confirmar_gravacao.return_value = PedidoExistente('100', 2)
         self.banco.consultar_barras.return_value = {
             '0123456789012': {ProdutoCadastrado('P1', 'C1', 'T1')},
@@ -66,7 +67,7 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         self.app = self.stack.enter_context(patch('src.servico_pedidos.inicia_app'))
         self.app.return_value = (MagicMock(), MagicMock(), MagicMock(), {})
         self.importar = self.stack.enter_context(patch('src.servico_pedidos.importar_pedido'))
-        def simular_importacao(*args: object) -> ResultadoImportacao:
+        def simular_importacao(*args: object, **kwargs: object) -> ResultadoImportacao:
             args[-1]('100')
             return ResultadoImportacao('100', 'aguarda_confirmacao')
         self.importar.side_effect = simular_importacao
@@ -195,7 +196,7 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
     def test_duplicidade_cancelada_nao_deixa_numero_provisorio_preso_na_fila(self) -> None:
         self.preparar()
         self.banco.consultar_pedidos.side_effect = [{}, {}, BancoSisplanError('Não consultar após cancelar')]
-        def duplicado(*args):
+        def duplicado(*args, **kwargs):
             args[-1]('100')
             return ResultadoImportacao('100', 'duplicado')
         self.importar.side_effect = duplicado
@@ -415,6 +416,48 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         with EstadoPedidos(self.estado_path) as historico:
             self.assertEqual(historico.obter('2026-12345').etapa, 'importacao_iniciada')
             self.assertEqual(historico.obter('2026-67890').etapa, 'para_baixar')
+
+    def test_duas_anomalias_pausam_lote_e_preservam_pedido_para_tentativa_manual(self) -> None:
+        self.preparar('2026-12345')
+        self.preparar('2026-67890')
+        self.importar.side_effect = NumeroInternoForaSequenciaError('Duas inclusões canceladas')
+        decisao = MagicMock(return_value='encerrar')
+        main.processar_pedidos(['2026-12345', '2026-67890'], ao_erro=decisao)
+        self.assertEqual(decisao.call_args.args[2:], (True, False))
+        self.importar.assert_called_once()
+        self.banco.confirmar_gravacao.assert_not_called()
+        self.imprimir.assert_not_called()
+        self.notificar.assert_not_called()
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.obter('2026-12345').etapa, 'baixado')
+            self.assertEqual(historico.obter('2026-12345').numero, '')
+            self.assertEqual(historico.obter('2026-67890').etapa, 'para_baixar')
+
+    def test_repeticao_apos_anomalias_so_ocorre_apos_decisao_do_operador(self) -> None:
+        self.preparar()
+        simular = self.importar.side_effect
+        def importar(*args, **kwargs):
+            if self.importar.call_count == 1:
+                raise NumeroInternoForaSequenciaError('Duas inclusões canceladas')
+            return simular(*args, **kwargs)
+        self.importar.side_effect = importar
+        def decidir(*args):
+            self.assertEqual(self.importar.call_count, 1)
+            return 'repetir'
+        main.processar_pedidos(['2026-12345'], ao_erro=decidir)
+        self.assertEqual(self.importar.call_count, 2)
+        self.assertEqual(self.banco.consultar_referencia_numero.call_count, 2)
+        self.baixar.assert_called_once()
+        self.imprimir.assert_called_once()
+
+    def test_falha_na_referencia_impede_abrir_inclusao(self) -> None:
+        self.preparar()
+        self.banco.consultar_referencia_numero.side_effect = BancoSisplanError('Referência indisponível')
+        with self.assertRaises(BancoSisplanError):
+            main.processar_pedidos(['2026-12345'])
+        self.assert_sem_interface()
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.obter('2026-12345').etapa, 'baixado')
 
     def test_arquivos_removidos_de_pedido_baixado_exigem_novo_download(self) -> None:
         self.preparar()

@@ -85,6 +85,29 @@ class BancoTests(unittest.TestCase):
             ProdutoCadastrado('P1', 'C1', 'T1'), ProdutoCadastrado('P2', 'C2', 'T2'),
         })
 
+    @patch('src.banco.BancoSisplan._consultar')
+    def test_referencia_ignora_numero_isolado_errado_e_usa_ordem_de_inclusao(self, consultar: MagicMock) -> None:
+        banco = BancoSisplan(self.arquivo)
+        for numeros, esperado in ((['1', '11254', '11253', '11252', '11251'], 11252),
+                                  (['99999999', '11254', '11253', '11252', '11251'], 11253)):
+            with self.subTest(numeros=numeros):
+                consultar.return_value = [[numero] for numero in numeros]
+                self.assertEqual(banco.consultar_referencia_numero(), esperado)
+        sql, parametros = consultar.call_args.args
+        self.assertIn('ORDER BY id DESC LIMIT 5', sql)
+        self.assertNotIn('MAX(', sql)
+        self.assertNotIn('codcli =', sql)
+        self.assertEqual(parametros, ())
+
+    @patch('src.banco.BancoSisplan._consultar')
+    def test_referencia_recusa_historico_insuficiente_ou_invalido(self, consultar: MagicMock) -> None:
+        banco = BancoSisplan(self.arquivo)
+        for numeros in ([], ['11250'], ['11251', '11250'], ['0', '11251', '11250']):
+            with self.subTest(numeros=numeros):
+                consultar.return_value = [[numero] for numero in numeros]
+                with self.assertRaises(BancoSisplanError):
+                    banco.consultar_referencia_numero()
+
     @patch('src.banco.connect')
     def test_falha_de_consulta_nao_retorna_ausencia_nem_expoe_segredo(self, conectar: MagicMock) -> None:
         conexao = conectar.return_value

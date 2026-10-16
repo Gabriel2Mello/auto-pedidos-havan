@@ -6,6 +6,26 @@ from src.config import Configuracao, ConfiguracaoError
 
 
 class ConfiguracaoTests(unittest.TestCase):
+    def test_tolerancia_numero_interno_tem_padrao_e_pode_ser_configurada(self) -> None:
+        with tempfile.TemporaryDirectory() as pasta:
+            arquivo = Path(pasta) / 'config.toml'
+            arquivo.write_text('', encoding='utf-8')
+            self.assertEqual(Configuracao.carregar(arquivo, {}).tolerancia_numero_interno, 100)
+            arquivo.write_text('tolerancia_numero_interno = 25\n', encoding='utf-8')
+            config = Configuracao.carregar(arquivo, {})
+            self.assertEqual(config.tolerancia_numero_interno, 25)
+            self.assertEqual(config.erro_leitura, '')
+
+    def test_tolerancia_invalida_nao_desativa_protecao(self) -> None:
+        with tempfile.TemporaryDirectory() as pasta:
+            arquivo = Path(pasta) / 'config.toml'
+            for valor in ('0', '-1', 'true', '1.5', '"100"'):
+                with self.subTest(valor=valor):
+                    arquivo.write_text(f'tolerancia_numero_interno = {valor}\n', encoding='utf-8')
+                    config = Configuracao.carregar(arquivo, {})
+                    with self.assertRaisesRegex(ConfiguracaoError, 'tolerancia_numero_interno'):
+                        config.validar()
+
     def test_carrega_operacao_do_toml_e_segredos_do_ambiente(self) -> None:
         with tempfile.TemporaryDirectory() as pasta:
             raiz = Path(pasta)

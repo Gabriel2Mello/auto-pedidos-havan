@@ -19,6 +19,7 @@ pasta_pedidos = 'D:\\Automacao\\ArquivoPedidos'
 impressora = "HP LaserJet M402 - Almoxarifado"
 banco_config = 'C:\\Configuracao\\banco-sisplan.json'
 banco_perfil = "principal"
+tolerancia_numero_interno = 100
 """
 
 
@@ -57,6 +58,7 @@ class Configuracao:
     erro_leitura: str = ''
     banco_config: Path = Path()
     banco_perfil: str = 'principal'
+    tolerancia_numero_interno: int = 100
 
     @classmethod
     def carregar(
@@ -86,6 +88,11 @@ class Configuracao:
         except (OSError, TOMLDecodeError) as error:
             erro_leitura = f'Não foi possível ler {caminho}: {error}'
 
+        tolerancia = dados.get('tolerancia_numero_interno', 100)
+        if type(tolerancia) is not int or tolerancia < 1:
+            erro_leitura = (erro_leitura + ' tolerancia_numero_interno deve ser um inteiro positivo.').strip()
+            tolerancia = 100
+
         config = cls(
             unrar_tool=Path(_ler_texto(dados, 'unrar_tool')),
             sumatra=Path(_ler_texto(dados, 'sumatra')),
@@ -100,6 +107,7 @@ class Configuracao:
                 if _ler_texto(dados, 'banco_config') else Path()
             ),
             banco_perfil=_ler_texto(dados, 'banco_perfil') or 'principal',
+            tolerancia_numero_interno=tolerancia,
         )
         registrar_segredos(config.senha_portal, config.teams_webhook_url)
         return config
@@ -109,6 +117,8 @@ class Configuracao:
 
         if self.erro_leitura:
             erros.append(self.erro_leitura)
+        if type(self.tolerancia_numero_interno) is not int or self.tolerancia_numero_interno < 1:
+            erros.append('tolerancia_numero_interno deve ser um inteiro positivo')
         if not apenas_impressao and (str(self.unrar_tool) == '.' or not self.unrar_tool.is_file()):
             erros.append('unrar_tool arquivo inválido')
         if str(self.sumatra) == '.' or not self.sumatra.is_file():

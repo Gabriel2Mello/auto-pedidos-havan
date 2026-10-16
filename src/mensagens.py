@@ -1,11 +1,13 @@
 """Mensagens para o operador, independentes da interface escolhida."""
 from src.erros import (
     BancoSisplanError, ConfiguracaoError, EstadoEmUsoError, EstadoError, PedidoRejeitadoError,
-    SisplanError, SessaoPortalExpiradaError,
+    SisplanError, SessaoPortalExpiradaError, NumeroInternoForaSequenciaError,
 )
 
 
 def mensagem_erro(erro: Exception) -> str:
+    if isinstance(erro, NumeroInternoForaSequenciaError):
+        return str(erro)
     if isinstance(erro, SessaoPortalExpiradaError):
         return str(erro)
     if isinstance(erro, ConfiguracaoError):

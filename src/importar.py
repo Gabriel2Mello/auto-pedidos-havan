@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Callable, Literal, cast
 
 from pywinauto import WindowSpecification
+from pywinauto.timings import wait_until
 
 from src.logs import get_logger
 from src.config import (
@@ -10,6 +11,7 @@ from src.config import (
     COORD_ITENS_PEDIDO,
     ATALHOS,
     CLIENTE_HAVAN,
+    configuracao_atual,
 )
 from src.handle_app import (
     importa_arq_integracao,
@@ -18,7 +20,7 @@ from src.handle_app import (
 )
 from src.pedidos import definir_empresa, extrair_dados_xml
 from src.arquivos import (caminho_xml, carregar_xml, formatar_motivo_erro, salvar_pedido_txt)
-from src.erros import (SisplanError)
+from src.erros import SisplanError, NumeroInternoForaSequenciaError
 from src.notificacoes import (enviar_alerta_teams)
 from src.windows import (send_keys_sleep, aguardar_campo)
 
@@ -43,6 +45,20 @@ class ResultadoImportacao:
     operacao: str = ''
 
 
+class _NumeroInternoSuspeitoError(ValueError):
+    pass
+
+
+def conferir_numero_interno(numero: str, referencia: int) -> None:
+    tolerancia = configuracao_atual().tolerancia_numero_interno
+    if (not numero.isascii() or not numero.isdigit() or int(numero) <= 0
+            or abs(int(numero) - referencia) > tolerancia):
+        raise _NumeroInternoSuspeitoError(
+            f'Número interno {numero or "vazio"!r} fora da faixa: '
+            f'referência {referencia}, tolerância de {tolerancia} números.'
+        )
+
+
 def importar_pedido(
     pedido: str,
     pedido_grade: WindowSpecification,
@@ -50,6 +66,50 @@ def importar_pedido(
     grid: WindowSpecification,
     campos: CamposSisplan,
     antes_gravar: Callable[[str], None],
+    *, referencia_numero: int,
+) -> ResultadoImportacao:
+    for tentativa in range(2):
+        numero_anterior = cast(str, campos['numero'].window_text()).strip()
+        try:
+            return _importar_uma_tentativa(
+                pedido, pedido_grade, aba_pedido, grid, campos, antes_gravar,
+                referencia_numero=referencia_numero,
+            )
+        except _NumeroInternoSuspeitoError as error:
+            logger.warning('Pedido %s, tentativa %s: %s Cancelando inclusão.', pedido, tentativa + 1, error)
+            try:
+                pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+                send_keys_sleep(ATALHOS['desistir'], 0.2)
+                send_keys_sleep(ATALHOS['sim'])
+                pedido_grade.wait('ready', timeout=5)
+                # Não repetir se a tela não restaurou o pedido anterior ao Incluir.
+                wait_until(5, 0.2, lambda: cast(str, campos['numero'].window_text()).strip() == numero_anterior)
+            except Exception as cancelamento:
+                mensagem = ('Não foi possível confirmar o cancelamento da inclusão com número '
+                            'interno suspeito. Confira e cancele a inclusão no Sisplan antes de reiniciar.')
+                logger.exception('Pedido %s: %s', pedido, mensagem)
+                salvar_pedido_txt(pedido, motivo=mensagem)
+                raise SisplanError(mensagem) from cancelamento
+            if tentativa == 0:
+                logger.info('Inclusão cancelada. Tentando o mesmo pedido %s mais uma vez.', pedido)
+                continue
+            mensagem = (f'Pedido {pedido}: o Sisplan gerou número interno suspeito nas duas tentativas. '
+                        f'{error} As duas inclusões foram canceladas sem gravar. '
+                        'Confira a numeração e a tela do Sisplan com o responsável. '
+                        'Após corrigir, escolha tentar este pedido novamente ou pare o processamento.')
+            salvar_pedido_txt(pedido, motivo=mensagem)
+            raise NumeroInternoForaSequenciaError(mensagem) from error
+    raise AssertionError('Tentativas de inclusão esgotadas.')
+
+
+def _importar_uma_tentativa(
+    pedido: str,
+    pedido_grade: WindowSpecification,
+    aba_pedido: WindowSpecification,
+    grid: WindowSpecification,
+    campos: CamposSisplan,
+    antes_gravar: Callable[[str], None],
+    *, referencia_numero: int,
 ) -> ResultadoImportacao:
     logger.info_split(f'Importando: {pedido}')
 
@@ -64,8 +124,7 @@ def importar_pedido(
 
         aguardar_campo(campos['numero']).type_keys('{TAB}')
         numero_interno = cast(str, campos['numero'].window_text()).strip()
-        if not numero_interno:
-            raise SisplanError('Sisplan não informou o número interno do pedido.')
+        conferir_numero_interno(numero_interno, referencia_numero)
 
         preencher_dados_fixos(campos)
 
@@ -102,6 +161,9 @@ def importar_pedido(
             numero_interno,
             campos
         )
+        # O número pode mudar durante o preenchimento ou a importação do XML.
+        numero_interno = cast(str, campos['numero'].window_text()).strip()
+        conferir_numero_interno(numero_interno, referencia_numero)
         # O estado precisa estar em disco antes de enviar o comando de gravação.
         antes_gravar(numero_interno)
         send_keys_sleep(ATALHOS['gravar'])
@@ -112,6 +174,8 @@ def importar_pedido(
             dados_xml['operacao'],
         )
 
+    except _NumeroInternoSuspeitoError:
+        raise
     except Exception as error:
         logger.debug('Erro no Sisplan: %s', error, exc_info=True)
         salvar_pedido_txt(

@@ -6,3 +6,5 @@ impressora = "HP LaserJet M402 - Almoxarifado"
 # Caminho do JSON privado indicado pelo estrutura-nunes (não copie as senhas).
 banco_config = 'C:\Configuracao\banco-sisplan.json'
 banco_perfil = "principal"
+# Distância máxima em relação à mediana dos cinco pedidos numéricos recentes.
+tolerancia_numero_interno = 100

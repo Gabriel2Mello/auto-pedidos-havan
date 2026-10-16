@@ -19,6 +19,10 @@ class SisplanError(Exception):
         super().__init__(message)
 
 
+class NumeroInternoForaSequenciaError(SisplanError):
+    """Duas inclusões com número suspeito foram canceladas antes da gravação."""
+
+
 class EstadoError(RuntimeError):
     """Não foi possível preservar o histórico; não repetir ações incertas."""
 

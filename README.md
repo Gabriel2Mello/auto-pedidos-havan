@@ -71,6 +71,7 @@ pasta_pedidos = 'D:\Automacao\ArquivoPedidos'
 impressora = "HP LaserJet M402 - Almoxarifado"
 banco_config = 'C:\Configuracao\banco-sisplan.json'
 banco_perfil = "principal"
+tolerancia_numero_interno = 100
 ```
 
 O arquivo local `config.toml` é ignorado pelo Git para que configurações de uma
@@ -247,6 +248,23 @@ Timeout, retorno de erro do Sumatra ou interrupção durante o envio deixam a
 impressão **incerta**. Ela não será reenviada automaticamente: confira a fila e
 use `--reimprimir` se precisar enviá-la novamente. Falha antes de iniciar o
 programa, como executável ausente, deixa a impressão pendente e permite retomada.
+
+Antes de cada nova inclusão, o robô consulta os cinco pedidos com número interno
+numérico mais recentemente incluídos no Sisplan (todos os clientes e empresas)
+e usa a mediana como referência. Isso evita que um registro isolado errado, como
+`1`, determine a faixa aceita. São necessários pelo menos três números recentes.
+A distância máxima permitida é `tolerancia_numero_interno`, por padrão **100**,
+para cima ou para baixo da referência; não é exigida sequência exata. Por exemplo,
+com referência `11250`, aceita de `11150` a `11350`, mas rejeita `1` e `999999`.
+
+O número é conferido ao iniciar a inclusão e novamente antes de gravar. Um
+número vazio, inválido ou fora da faixa cancela a inclusão e permite **uma única
+nova tentativa automática do mesmo pedido**. Antes de repetir, o robô aguarda a
+tela restaurar o número exibido antes de Incluir. Se o cancelamento falhar, o
+lote para e mantém a inclusão como incerta para conferência manual. Se a segunda
+tentativa também gerar um número suspeito, ela é cancelada e o lote pausa para
+o operador corrigir o Sisplan e escolher tentar novamente ou parar. O pedido
+permanece baixado, sem gravação nem impressão; os próximos pedidos aguardam.
 
 Se houve interrupção na gravação, o robô tenta confirmar o número esperado no
 banco antes de imprimir. Caso o pedido continue ausente, a inclusão permanece

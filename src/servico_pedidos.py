@@ -21,7 +21,7 @@ from src.login import realizar_login
 from src.contratos import AoErro, AoProgresso, Modo
 from src.prevalidacao import PedidoRejeitadoError, validar_pedido_baixado
 from src.resumo import ResumoExecucao
-from src.erros import ConfiguracaoError, SessaoPortalExpiradaError
+from src.erros import ConfiguracaoError, SessaoPortalExpiradaError, NumeroInternoForaSequenciaError
 
 if TYPE_CHECKING:
     from cloudscraper import ScraperMock
@@ -89,6 +89,8 @@ def registrar_falha(
 
 
 def opcoes_seguras(erro: Exception, registro: EstadoPedido | None) -> tuple[bool, bool]:
+    if isinstance(erro, NumeroInternoForaSequenciaError):
+        return registro is not None and registro.etapa == 'baixado', False
     if isinstance(erro, (EstadoError, ConfiguracaoError)):
         return False, False
     if registro is not None and registro.etapa in INCLUSOES_INCERTAS:
@@ -313,16 +315,22 @@ def importar_novo(
         logger.info('Pedido %s preservado antes de iniciar a inclusão.', pedido)
         return
     historico.salvar_itens_esperados(pedido, itens_esperados)
+    referencia_numero = banco.consultar_referencia_numero()
     if recursos.sisplan is None:
         recursos.sisplan = recursos.contexto.integracoes.sisplan()
     historico.salvar(EstadoPedido(pedido, '', 'importacao_iniciada'))
     def registrar_gravacao(numero: str) -> None:
         historico.salvar(EstadoPedido(pedido, numero, 'gravacao_pendente'))
 
-    resultado = recursos.contexto.integracoes.importar(
-        pedido, *recursos.sisplan,
-        registrar_gravacao,
-    )
+    try:
+        resultado = recursos.contexto.integracoes.importar(
+            pedido, *recursos.sisplan, registrar_gravacao,
+            referencia_numero=referencia_numero,
+        )
+    except NumeroInternoForaSequenciaError:
+        # As duas inclusões foram canceladas e nenhum comando de gravação foi enviado.
+        historico.salvar(EstadoPedido(pedido, '', 'baixado'))
+        raise
     if resultado.situacao == 'duplicado':
         # O cancelamento já terminou. Não manter o número provisório da inclusão rejeitada.
         informar_existente(pedido, [], historico, resumo)

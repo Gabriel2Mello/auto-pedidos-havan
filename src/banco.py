@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
+from statistics import median_low
 from time import monotonic, sleep
 from types import TracebackType
 from typing import Sequence, cast
@@ -163,6 +164,23 @@ class BancoSisplan:
                 PedidoExistente(str(numero), int(str(empresa)) if empresa is not None else None)
             )
         return resultado
+
+    def consultar_referencia_numero(self) -> int:
+        """Usa a ordem de inclusão, sem deixar um número isolado definir a faixa."""
+        linhas = self._consultar(
+            'SELECT numero FROM sisplan.pedido_001 '
+            "WHERE BTRIM(numero::text) ~ '^[0-9]+$' "
+            'ORDER BY id DESC LIMIT 5', (),
+        )
+        numeros = [int(str(linha[0]).strip()) for linha in linhas]
+        if len(numeros) < 3 or min(numeros) <= 0:
+            raise BancoSisplanError(
+                'Não há números internos recentes suficientes para conferir a sequência. '
+                'Solicite a conferência do Sisplan ao responsável antes de incluir pedidos.'
+            )
+        referencia = median_low(numeros)
+        logger.info('Referência dos números internos: %s (pedidos recentes: %s).', referencia, numeros)
+        return referencia
 
     def consultar_barras(
         self, barras: Sequence[str],

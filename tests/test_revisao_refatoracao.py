@@ -230,7 +230,7 @@ class RegressaoRevisaoTests(unittest.TestCase):
             classe.return_value.__enter__.return_value = banco
             portal = pilha.enter_context(patch('src.servico_pedidos.create_scraper'))
             app = pilha.enter_context(patch('src.servico_pedidos.inicia_app', return_value=(MagicMock(), MagicMock(), MagicMock(), {})))
-            def importar(*args):
+            def importar(*args, **kwargs):
                 args[-1](numero)
                 return ResultadoImportacao(numero, 'aguarda_confirmacao')
             inclusao = pilha.enter_context(patch('src.servico_pedidos.importar_pedido', side_effect=importar))
