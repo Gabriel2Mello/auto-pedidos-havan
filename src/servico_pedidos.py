@@ -21,7 +21,7 @@ from src.login import realizar_login
 from src.contratos import AoErro, AoProgresso, Modo
 from src.prevalidacao import PedidoRejeitadoError, validar_pedido_baixado
 from src.resumo import ResumoExecucao
-from src.erros import ConfiguracaoError, SessaoPortalExpiradaError, NumeroInternoForaSequenciaError
+from src.erros import ConfiguracaoError, SessaoPortalExpiradaError, NumeroInternoForaSequenciaError, ProdutoSemCadastroError
 
 if TYPE_CHECKING:
     from cloudscraper import ScraperMock
@@ -75,7 +75,10 @@ def registrar_falha(
         if registro is None:
             resumo.situacoes[pedido] = 'falhou'
             return
-        if registro.etapa in ('impressao_iniciada', 'impressao_incerta'):
+        if isinstance(erro, ProdutoSemCadastroError) and registro.etapa in ETAPAS_INICIAIS:
+            registro = replace(registro, etapa='sem_cadastro')
+            resumo.situacoes[pedido] = 'sem_cadastro'
+        elif registro.etapa in ('impressao_iniciada', 'impressao_incerta'):
             resumo.situacoes[pedido] = 'impressao_incerta'
         elif registro.etapa in INCLUSOES_INCERTAS:
             resumo.situacoes[pedido] = 'gravacao_pendente'
@@ -276,7 +279,7 @@ def importar_novo(
                           + ', '.join(outras_inclusoes))
     logger.debug('Pedido %s: etapa salva=%s.', pedido, registro.etapa)
     logger.info('Conferindo arquivos e produtos do pedido %s.', pedido)
-    if registro.etapa == 'baixado' and not conferir_arquivos_baixados(pedido):
+    if registro.etapa in ('baixado', 'sem_cadastro') and not conferir_arquivos_baixados(pedido):
         registro = replace(registro, etapa='para_baixar', erro='Arquivos locais precisam ser baixados novamente.')
         historico.salvar(registro)
         raise PedidoRejeitadoError(
@@ -336,8 +339,11 @@ def importar_novo(
         informar_existente(pedido, [], historico, resumo)
         return
     if resultado.situacao == 'sem_cadastro':
-        historico.salvar(EstadoPedido(pedido, '', 'baixado'))
-        raise PedidoRejeitadoError('O Sisplan encontrou produto sem cadastro. Solicite a correção ao responsável.')
+        historico.salvar(EstadoPedido(pedido, '', 'sem_cadastro'))
+        raise ProdutoSemCadastroError(
+            'O Sisplan encontrou produto sem cadastro. Pedido salvo. '
+            'Após cadastrar os produtos, escolha Importar novamente ou Retomar.'
+        )
     confirmado = banco.confirmar_gravacao(pedido, resultado.numero, itens_esperados=itens_esperados)
     historico.salvar(EstadoPedido(pedido, confirmado.numero, 'importado', confirmado.empresa))
     resumo.importados.add(pedido)

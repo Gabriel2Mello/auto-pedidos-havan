@@ -81,6 +81,13 @@ class EstadoPedidos:
                 'tamanho TEXT NOT NULL, quantidade TEXT NOT NULL, '
                 'PRIMARY KEY (pedido,codigo,cor,tamanho))'
             )
+            # Identifica também as pendências de cadastro salvas por versões anteriores.
+            self._conexao.execute(
+                "UPDATE pedidos SET etapa='sem_cadastro' WHERE etapa='baixado' AND ("
+                "erro LIKE 'Código de barras não cadastrado:%' OR "
+                "erro LIKE '%; Código de barras não cadastrado:%' OR "
+                "erro LIKE 'O Sisplan encontrou produto sem cadastro.%')"
+            )
             self._conexao.commit()
         except sqlite3.Error as error:
             self._registrar_erro(error, 'abrir')

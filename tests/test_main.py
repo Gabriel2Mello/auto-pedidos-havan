@@ -15,7 +15,7 @@ from src.importar import ResultadoImportacao
 from src.prevalidacao import PedidoRejeitadoError
 from tests.fixtures import xml_pedido
 from src.pedidos import ItemEsperado
-from src.erros import SessaoPortalExpiradaError, NumeroInternoForaSequenciaError
+from src.erros import SessaoPortalExpiradaError, NumeroInternoForaSequenciaError, ProdutoSemCadastroError
 
 
 class FluxoPrevalidacaoTests(unittest.TestCase):
@@ -134,6 +134,62 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         with self.assertRaises(PedidoRejeitadoError):
             main.processar_pedidos(['2026-12345'])
         self.assert_sem_interface()
+
+    def test_sem_cadastro_preserva_pendencia_e_so_importa_apos_cadastro_e_solicitacao(self) -> None:
+        self.preparar()
+        cadastradas = self.banco.consultar_barras.return_value
+        self.banco.consultar_barras.return_value = {}
+        resumo = main.processar_pedidos(['2026-12345'], ao_erro=lambda *args: 'pular')
+        self.assertEqual(resumo.situacoes['2026-12345'], 'sem_cadastro')
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.obter('2026-12345').etapa, 'sem_cadastro')
+            self.assertIn('0123456789012', historico.obter('2026-12345').erro)
+            self.assertEqual(historico.pendentes(), ['2026-12345'])
+        with self.assertRaises(ProdutoSemCadastroError):
+            main.processar_pedidos([], modo='retomar')
+        self.assert_sem_interface()
+        self.banco.consultar_barras.return_value = cadastradas
+        self.baixar.reset_mock()
+        resumo = main.processar_pedidos([], modo='retomar')
+        self.baixar.assert_not_called()
+        self.importar.assert_called_once()
+        self.assertEqual(resumo.importados, {'2026-12345'})
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertNotEqual(historico.obter('2026-12345').etapa, 'sem_cadastro')
+            self.assertEqual(historico.obter('2026-12345').erro, '')
+
+    def test_sem_cadastro_detectado_no_sisplan_tambem_fica_salvo_para_nova_importacao(self) -> None:
+        self.preparar()
+        self.importar.side_effect = None
+        self.importar.return_value = ResultadoImportacao('', 'sem_cadastro')
+        resumo = main.processar_pedidos(['2026-12345'], ao_erro=lambda *args: 'pular')
+        self.assertEqual(resumo.situacoes['2026-12345'], 'sem_cadastro')
+        self.banco.confirmar_gravacao.assert_not_called()
+        self.imprimir.assert_not_called()
+        with EstadoPedidos(self.estado_path) as historico:
+            registro = historico.obter('2026-12345')
+            self.assertEqual((registro.etapa, registro.numero), ('sem_cadastro', ''))
+        self.importar.return_value = ResultadoImportacao('100', 'aguarda_confirmacao')
+        main.processar_pedidos(['2026-12345'])
+        self.assertEqual(self.importar.call_count, 2)
+        self.banco.confirmar_gravacao.assert_called_once()
+
+    def test_nova_tentativa_sem_cadastro_confere_duplicidade_antes_de_importar(self) -> None:
+        self.salvar_estado('sem_cadastro', '')
+        self.banco.consultar_pedidos.return_value = {'2026-12345': [PedidoExistente('100', 2)]}
+        resumo = main.processar_pedidos(['2026-12345'])
+        self.assertEqual(resumo.situacoes['2026-12345'], 'existente')
+        self.baixar.assert_not_called()
+        self.assert_sem_interface()
+
+    def test_sem_cadastro_com_arquivos_ausentes_permite_baixar_de_novo(self) -> None:
+        self.preparar()
+        self.salvar_estado('sem_cadastro', '')
+        self.caminho('2026-12345').unlink()
+        self.baixar.side_effect = lambda *args, **kwargs: (self.preparar() or {'2026-12345': True})
+        main.processar_pedidos(['2026-12345'], ao_erro=lambda *args: 'repetir')
+        self.baixar.assert_called_once()
+        self.importar.assert_called_once()
 
     def test_xml_divergente_ou_malformado_impede_inclusao(self) -> None:
         for texto in ('<OrdemCompra/>', '<quebrado'):
@@ -383,7 +439,7 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         self.baixar.assert_called_once()
         self.assertEqual(resumo.situacoes['2026-67890'], 'aguardando')
         with EstadoPedidos(self.estado_path) as historico:
-            self.assertEqual(historico.obter('2026-12345').etapa, 'baixado')
+            self.assertEqual(historico.obter('2026-12345').etapa, 'sem_cadastro')
             self.assertEqual(historico.obter('2026-67890').etapa, 'para_baixar')
         self.assertEqual(decisao.call_args.args[2:], (True, True))
         self.banco.consultar_barras.return_value = {'0123456789012': {ProdutoCadastrado('P1', 'C1', 'T1')}}

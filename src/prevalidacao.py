@@ -1,6 +1,7 @@
 """Seleciona os pedidos aptos antes de qualquer inclusão pela interface."""
 
 from src.erros import PedidoRejeitadoError as PedidoRejeitadoError
+from src.erros import ProdutoSemCadastroError
 import xml.etree.ElementTree as ET
 from typing import Sequence
 from decimal import Decimal
@@ -23,6 +24,11 @@ def validar_pedido_baixado(banco: BancoSisplan, pedido: str) -> list[ItemEsperad
     pendencias = pendencias_barras(variacoes, cadastradas)
     if pendencias:
         registrar_rejeicao(pedido, pendencias)
+        if any(not cadastradas.get(v.barra) for v in variacoes):
+            raise ProdutoSemCadastroError(
+                '; '.join(pendencias) + '. Pedido salvo. Após cadastrar os produtos, '
+                'escolha Importar novamente ou Retomar.'
+            )
         raise PedidoRejeitadoError('; '.join(pendencias))
     totais: dict[ProdutoCadastrado, Decimal] = {}
     for variacao in variacoes:

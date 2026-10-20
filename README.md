@@ -281,6 +281,21 @@ importadas seguem para a retomada da impressão.
 
 ---
 
+### Pedidos com produto sem cadastro
+
+Pedidos bloqueados por falta de cadastro ficam salvos como **Produto sem cadastro**,
+com os códigos de barras e descrições encontrados na pré-validação. No histórico,
+use o filtro **Produto sem cadastro** para localizá-los. Após cadastrar os produtos
+no Sisplan, clique em **Importar novamente** no pedido desejado ou use **Retomar**
+para processar todas as pendências. No console, utilize **Retomar** ou informe os
+pedidos em **Inserir**.
+
+A nova tentativa confere o cadastro e a existência do pedido no Sisplan novamente,
+reaproveitando os arquivos locais válidos. Se ainda faltar cadastro, o pedido
+continua pendente. A situação é preservada ao fechar o programa; pendências antigas
+salvas como Baixado com motivo de produto sem cadastro também são identificadas
+ao reabrir. A tentativa começa apenas quando o operador a solicita.
+
 ## 🪵 Gerenciamento de Logs e Arquivos de Saída
 
 O robô gera saídas em tempo de execução localizados na pasta raiz do script:

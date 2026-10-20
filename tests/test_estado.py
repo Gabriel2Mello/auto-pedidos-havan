@@ -32,6 +32,23 @@ class EstadoTests(unittest.TestCase):
         with EstadoPedidos(self.caminho) as historico:
             self.assertEqual(historico.pendentes(), [])
 
+    def test_reabre_pedidos_sem_cadastro_e_recupera_pendencias_da_versao_anterior(self) -> None:
+        motivo = 'Código de barras não cadastrado: 0123456789012 (PRODUTO / AZUL)'
+        with EstadoPedidos(self.caminho) as historico:
+            historico.salvar(EstadoPedido('2026-11111', '', 'sem_cadastro', erro=motivo))
+            historico.salvar(EstadoPedido('2026-22222', '', 'baixado', erro=motivo))
+            historico.salvar(EstadoPedido('2026-33333', '', 'baixado', erro='XML inválido'))
+            historico.salvar(EstadoPedido('2026-44444', '', 'baixado', erro='O Sisplan encontrou produto sem cadastro. Solicite a correção ao responsável.'))
+            historico.salvar(EstadoPedido('2026-55555', '100', 'gravacao_pendente', erro=motivo))
+        with EstadoPedidos(self.caminho) as historico:
+            for pedido in ('2026-11111', '2026-22222', '2026-44444'):
+                self.assertEqual(historico.obter(pedido).etapa, 'sem_cadastro')
+                self.assertIn(pedido, historico.pendentes())
+            self.assertEqual(historico.obter('2026-22222').erro, motivo)
+            self.assertEqual(historico.obter('2026-33333').etapa, 'baixado')
+            self.assertEqual(historico.obter('2026-55555').etapa, 'gravacao_pendente')
+            self.assertEqual(historico.filas()['baixados'], 5)
+
     def test_arquivo_corrompido_nao_e_substituido(self) -> None:
         self.caminho.write_bytes(b'historico danificado')
         with self.assertRaises(EstadoError):

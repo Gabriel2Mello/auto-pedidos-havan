@@ -68,6 +68,23 @@ class BaseInterface(unittest.TestCase):
 
 
 class InterfaceTests(BaseInterface):
+    def test_exibe_produto_sem_cadastro_e_aceita_nova_importacao_do_pedido(self) -> None:
+        def executar(pedidos, modo, *, historico, **kwargs):
+            historico.salvar(EstadoPedido(pedidos[0], '', 'sem_cadastro', erro='Produto pendente: 0123456789012'))
+            return ResumoExecucao({pedidos[0]: 'sem_cadastro'})
+        self.executor = executar
+        self.iniciar()
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        situacao = self.estado.situacao()
+        pedido = next(p for p in situacao['pedidos'] if p['etapa'] == 'sem_cadastro')
+        self.assertEqual(pedido['rotulo'], 'Produto sem cadastro')
+        self.assertTrue(pedido['pendente'])
+        self.assertIn('0123456789012', pedido['erro'])
+        self.assertEqual(situacao['resumo']['sem_cadastro'], 1)
+        self.iniciar(pedidos='2026-12345', solicitacao='nova-importacao')
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        self.assertEqual(self.chamadas[-1][0], (['2026-12345'], 'normal'))
+
     def test_reabrir_aguarda_execucao_anterior_liberar_historico(self) -> None:
         nova = EstadoInterface(self.caminho, executor=self.despachar)
         try:

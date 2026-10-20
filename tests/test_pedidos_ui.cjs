@@ -6,15 +6,15 @@ const {test} = require('node:test');
 const vm = require('node:vm');
 
 function painel() {
-  const elementos = new Map(), eventos = new Map();
+  const elementos = new Map(), eventos = new Map(), criados = [];
   class Elemento {
-    constructor() { this.texto=''; this.escritas=0; this.value=''; this.checked=false; }
+    constructor() { this.texto=''; this.escritas=0; this.value=''; this.checked=false; this.children=[]; this.atributos={}; }
     set textContent(valor) { this.texto=valor; this.escritas++; }
     get textContent() { return this.texto; }
-    setAttribute() {}
+    setAttribute(nome, valor) { this.atributos[nome]=valor; }
     addEventListener() {}
-    append() {}
-    replaceChildren() { this.escritas++; }
+    append(...filhos) { this.children.push(...filhos); }
+    replaceChildren(...filhos) { this.children=filhos; this.escritas++; }
     focus() {}
   }
   const obter = id => {
@@ -25,8 +25,8 @@ function painel() {
   const contexto = vm.createContext({
     document: {
       getElementById: obter, querySelector: () => ({content:'token-local'}),
-      querySelectorAll: () => [], documentElement: {dataset:{}},
-      createElement: () => new Elemento(), createDocumentFragment: () => new Elemento(),
+      querySelectorAll: seletor => seletor==='[data-reimportar]'?criados.filter(e=>'data-reimportar' in e.atributos):[], documentElement: {dataset:{}},
+      createElement: () => {const e=new Elemento();criados.push(e);return e;}, createDocumentFragment: () => new Elemento(),
     },
     crypto: {randomUUID}, AbortController,
     localStorage: {getItem: () => 'claro'},
@@ -113,4 +113,37 @@ test('Encerrar já confirmado dispensa uma segunda confirmação ao fechar a aba
   let avisos=0;
   p.eventos.get('beforeunload')({preventDefault: () => avisos++});
   assert.equal(avisos, 0);
+});
+
+test('filtro de produto sem cadastro permite importar novamente apenas o pedido escolhido', async () => {
+  const p=painel(), chamadas=[];
+  p.estado.pedidos=[
+    {pedido:'2026-12345',numero:'',etapa:'sem_cadastro',fila:'baixados',rotulo:'Produto sem cadastro',erro:'Barra 0123456789012',pendente:true},
+    {pedido:'2026-67890',numero:'',etapa:'baixado',fila:'baixados',rotulo:'Baixado',erro:'',pendente:true},
+  ];
+  p.estado.pendentes=2;
+  p.obter('filtro').value='sem_cadastro';
+  p.renderizar(p.estado);
+  const linhas=p.obter('linhas').children[0].children;
+  assert.equal(linhas.length,1);
+  assert.equal(linhas[0].children[0].textContent,'2026-12345');
+  const botao=linhas[0].children[3].children[0];
+  assert.equal(botao.textContent,'Importar novamente');
+  assert.equal(botao.disabled,false);
+  p.contexto.fetch=async (url,opcoes)=>{
+    chamadas.push({url,opcoes});
+    return {ok:true,json:async()=>url==='/api/estado'?p.estado:{ok:true}};
+  };
+  await botao.onclick();
+  const dados=JSON.parse(chamadas[0].opcoes.body);
+  assert.equal(chamadas[0].url,'/api/iniciar');
+  assert.equal(dados.modo,'normal');
+  assert.equal(dados.pedidos,'2026-12345');
+  assert.ok(dados.solicitacao);
+  p.renderizar({...p.estado,fase:'EXECUTANDO',ocupada:true});
+  assert.equal(botao.disabled,true);
+  await botao.onclick();
+  assert.equal(chamadas.length,2);
+  p.renderizar(p.estado);
+  assert.equal(botao.disabled,false);
 });

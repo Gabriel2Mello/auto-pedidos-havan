@@ -39,6 +39,10 @@ class PedidoRejeitadoError(RuntimeError):
     """O pedido permanece na fila até o problema ser corrigido."""
 
 
+class ProdutoSemCadastroError(PedidoRejeitadoError):
+    """O pedido aguarda cadastro de produto antes de uma nova importação."""
+
+
 class ConfiguracaoError(ValueError):
     """Indica que uma configuração obrigatória está ausente ou inválida."""
 

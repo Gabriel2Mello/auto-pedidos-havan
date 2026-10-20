@@ -21,6 +21,7 @@ class ResumoExecucao:
         logger.info('Rejeitados: %s | Falhas: %s', contagem['rejeitado'], contagem['falhou'])
         logger.info('Impressões enviadas ao SumatraPDF: %s', contagem['impressao_enviada'])
         for situacao, titulo in (
+            ('sem_cadastro', 'Pedidos aguardando cadastro de produto'),
             ('gravacao_pendente', 'Gravações não confirmadas'),
             ('impressao_pendente', 'Impressões pendentes'),
             ('impressao_incerta', 'Envios de impressão incertos'),

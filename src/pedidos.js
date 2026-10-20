@@ -23,9 +23,11 @@ function mudarModo(novo) {
   el('iniciar').textContent=modo==='normal'?'Inserir e processar':modo==='retomar'?'Retomar pendências':'Reimprimir pedidos';
   atualizarBotoes();
 }
+function inicioBloqueado() { return enviando||!estado||estado.ocupada||estado.bloqueado||encerrado||estado.encerrando; }
 function atualizarBotoes() {
-  const bloqueado=enviando||!estado||estado.ocupada||estado.bloqueado||encerrado||estado.encerrando;
+  const bloqueado=inicioBloqueado();
   document.querySelectorAll('[data-modo]').forEach(b=>b.disabled=bloqueado);
+  document.querySelectorAll('[data-reimportar]').forEach(b=>b.disabled=bloqueado);
   el('iniciar').disabled=bloqueado||(modo==='retomar'&&!estado?.pendentes);
   el('pedidos').disabled=bloqueado; el('confirmar-copia').disabled=bloqueado;
   el('parar').hidden=!estado?.ocupada||['INICIANDO','ENCERRANDO','PARANDO'].includes(estado?.fase);
@@ -34,7 +36,7 @@ function atualizarBotoes() {
 }
 function renderizarTabela() {
   const filtro=el('filtro').value, busca=el('busca').value.trim().toLowerCase();
-  const lista=(estado?.pedidos??[]).filter(p=>(filtro==='todos'||(filtro==='pendentes'?p.pendente:p.fila===filtro))&&(`${p.pedido} ${p.numero}`.toLowerCase().includes(busca)));
+  const lista=(estado?.pedidos??[]).filter(p=>(filtro==='todos'||(filtro==='pendentes'?p.pendente:filtro==='sem_cadastro'?p.etapa==='sem_cadastro':p.fila===filtro))&&(`${p.pedido} ${p.numero}`.toLowerCase().includes(busca)));
   pagina=Math.min(pagina,Math.max(0,Math.ceil(lista.length/50)-1));
   const inicio=pagina*50, visiveis=lista.slice(inicio,inicio+50), chave=JSON.stringify([visiveis,filtro,busca,pagina]);
   if(chave!==tabelaAnterior){
@@ -44,7 +46,12 @@ function renderizarTabela() {
       const tr=document.createElement('tr');
       [p.pedido,p.numero||'—',p.rotulo||'Conferir situação',p.erro||'—'].forEach((texto,i)=>{
         const td=document.createElement('td');
-        if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['importacao_iniciada','gravacao_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
+        if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
+        if(i===3&&p.etapa==='sem_cadastro'){
+          const botao=document.createElement('button');botao.type='button';botao.textContent='Importar novamente';
+          botao.setAttribute('data-reimportar',p.pedido);botao.setAttribute('aria-label','Importar novamente o pedido '+p.pedido);
+          botao.disabled=inicioBloqueado();botao.onclick=()=>importarNovamente(p.pedido);td.append(botao);
+        }
         tr.append(td);
       });linhas.append(tr);
     }
@@ -65,7 +72,7 @@ function renderizar(s) {
   el('progresso').max=Math.max(1,s.total);el('progresso').value=s.fase==='CONCLUIDO'?s.total:Math.max(0,s.indice-(s.ocupada?1:0));
   el('orientacao').textContent=s.ocupada?'Durante a inclusão, aguarde o robô terminar antes de usar o teclado, o mouse ou a tela do Sisplan.':'O Sisplan deve estar aberto na tela 1002 — Pedido por Grade.';
   const resumo=s.resumo??{};el('resumo').hidden=!Object.keys(resumo).length;
-  el('resumo').textContent=`Importações confirmadas: ${resumo.importacoes_confirmadas??0} · Já existentes: ${resumo.existente??0}\nImpressões enviadas: ${resumo.impressao_enviada??0} · Não processados: ${resumo.aguardando??0}`;
+  el('resumo').textContent=`Importações confirmadas: ${resumo.importacoes_confirmadas??0} · Já existentes: ${resumo.existente??0}\nImpressões enviadas: ${resumo.impressao_enviada??0} · Não processados: ${resumo.aguardando??0}\nAguardando cadastro de produto: ${resumo.sem_cadastro??0}`;
   el('aviso-erro').hidden=!s.erro;
   if(s.erro){
     el('erro-pedido').textContent='Pedido: '+s.erro.pedido;el('erro-mensagem').textContent=s.erro.mensagem;
@@ -90,6 +97,10 @@ async function acao(caminho,dados){
   try{await api(caminho,dados);renderizar(await api('/api/estado'));}
   catch(erro){mensagem(erro.message);}
   finally{enviando=false;atualizarBotoes();}
+}
+async function importarNovamente(pedido){
+  if(inicioBloqueado())return;
+  await acao('/api/iniciar',{modo:'normal',pedidos:pedido,solicitacao:crypto.randomUUID()});
 }
 el('formulario').addEventListener('submit',async e=>{
   e.preventDefault();

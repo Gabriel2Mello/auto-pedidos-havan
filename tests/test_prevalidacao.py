@@ -5,10 +5,25 @@ from unittest.mock import MagicMock, patch
 from src.banco import ProdutoCadastrado
 from src.pedidos import ItemEsperado, VariacaoPedido
 from src.prevalidacao import pendencias_barras, validar_pedido_baixado
+from src.erros import PedidoRejeitadoError, ProdutoSemCadastroError
 from tests.fixtures import xml_pedido
 
 
 class PendenciasBarrasTests(unittest.TestCase):
+    def test_distingue_produto_ausente_de_cadastro_ambiguo(self) -> None:
+        produto = ProdutoCadastrado('P1', 'C1', 'T1')
+        for cadastradas, tipo in (
+            ({}, ProdutoSemCadastroError),
+            ({'0123456789012': {produto, ProdutoCadastrado('P2', 'C1', 'T1')}}, PedidoRejeitadoError),
+        ):
+            with self.subTest(tipo=tipo):
+                banco = MagicMock()
+                banco.consultar_barras.return_value = cadastradas
+                with patch('src.prevalidacao.carregar_xml', return_value=xml_pedido()), patch('src.prevalidacao.salvar_pedido_txt'):
+                    with self.assertRaises(tipo) as erro:
+                        validar_pedido_baixado(banco, '2026-12345')
+                self.assertIs(type(erro.exception), tipo)
+
     def test_soma_variacoes_que_apontam_para_mesmo_produto_cor_tamanho(self) -> None:
         root = xml_pedido(barras_por_item=(('0123456789012', '1234567890123'),))
         quantidades = root.findall('.//QuantidadePrimariaTotalSolicitada')
