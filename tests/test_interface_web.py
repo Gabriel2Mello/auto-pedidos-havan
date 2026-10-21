@@ -1,8 +1,9 @@
 import json
+import socket
 import sqlite3
 import tempfile
 import unittest
-from http.client import HTTPConnection
+from http.client import HTTPConnection, RemoteDisconnected
 from pathlib import Path
 from queue import SimpleQueue
 from threading import Event, Thread, get_ident
@@ -279,11 +280,73 @@ class ApiTests(BaseInterface):
         finally:
             conn.close()
 
+    def requisitar_recusa(self, caminho, dados=None, *, status_esperado=400, **campos):
+        # No Windows, fechar sem consumir o upload pode produzir RST antes
+        # de o cliente receber o JSON. Não equivale a aceitar a solicitação.
+        try:
+            status, _, corpo = self.requisitar(caminho, dados, **campos)
+            self.assertEqual(status, status_esperado)
+            self.assertIn('erro', json.loads(corpo))
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, RemoteDisconnected):
+            pass
+        self.assertEqual(self.chamadas, [])
+        self.assertFalse(self.executado.is_set())
+        self.assertEqual(self.estado.fase, 'PRONTO')
+        self.assertEqual(self.requisitar('/api/estado')[0], 200)
+
+    def test_recusas_repetidas_de_upload_nao_despacham_acoes_e_servidor_continua(self) -> None:
+        dados = {'modo':'normal','pedidos':'12345','solicitacao':'recusa-sintetica'}
+        for _ in range(10):
+            for campos in ({'origem': 'https://outro.example'}, {'token': False}, {'host': 'outro.example'}):
+                with self.subTest(campos=campos):
+                    self.requisitar_recusa('/api/iniciar', dados, status_esperado=403, **campos)
+            self.requisitar_recusa('/api/iniciar', corpo='x' * 65536)
+        self.assertEqual(self.requisitar('/api/iniciar', dados)[0], 200)
+        self.assertTrue(self.executado.wait(2))
+        self.assertEqual(len(self.chamadas), 1)
+
+    def cabecalhos_recusados(self, cabecalhos, *, corpo=b'', truncar=False):
+        conn = HTTPConnection('127.0.0.1', self.servidor.server_port, timeout=4)
+        try:
+            conn.putrequest('POST', '/api/iniciar', skip_host=True)
+            conn.putheader('Host', f'127.0.0.1:{self.servidor.server_port}')
+            conn.putheader('Authorization', 'Bearer ' + self.token)
+            conn.putheader('Origin', f'http://127.0.0.1:{self.servidor.server_port}')
+            conn.putheader('Content-Type', 'application/json')
+            for nome, valor in cabecalhos:
+                conn.putheader(nome, valor)
+            conn.endheaders(corpo)
+            if truncar:
+                assert conn.sock is not None
+                conn.sock.shutdown(socket.SHUT_WR)
+            resposta = conn.getresponse()
+            self.assertEqual(resposta.status, 400)
+            self.assertEqual(resposta.getheader('Connection'), 'close')
+            self.assertIn('erro', json.loads(resposta.read()))
+        finally:
+            conn.close()
+        self.assertEqual(self.chamadas, [])
+        self.assertFalse(self.executado.is_set())
+        self.assertEqual(self.estado.fase, 'PRONTO')
+
+    def test_framing_invalido_recusado_sem_esperar_corpo(self) -> None:
+        for cabecalhos in ([], [('Content-Length', '-1')], [('Content-Length', 'abc')],
+                            [('Content-Length', '16385')], [('Content-Length', '1'), ('Content-Length', '1')],
+                            [('Content-Length', '1'), ('Transfer-Encoding', 'chunked')]):
+            with self.subTest(cabecalhos=cabecalhos):
+                self.cabecalhos_recusados(cabecalhos)
+        self.assertEqual(self.requisitar('/api/estado')[0], 200)
+
+    def test_corpo_truncado_com_json_valido_nao_inicia_fluxo(self) -> None:
+        corpo = json.dumps({'modo':'normal','pedidos':'12345','solicitacao':'truncado'}).encode()
+        self.cabecalhos_recusados([('Content-Length', str(len(corpo) + 10))], corpo=corpo, truncar=True)
+        self.assertEqual(self.requisitar('/api/estado')[0], 200)
+
     def test_api_exige_token_host_e_origem(self) -> None:
         self.assertEqual(self.requisitar('/api/estado', token=False)[0], 403)
         self.assertEqual(self.requisitar('/api/estado', host='outro.example')[0], 403)
         dados = {'modo':'normal','pedidos':'12345','solicitacao':'api-1'}
-        self.assertEqual(self.requisitar('/api/iniciar', dados, origem='https://outro.example')[0], 403)
+        self.requisitar_recusa('/api/iniciar', dados, status_esperado=403, origem='https://outro.example')
         self.assertEqual(self.requisitar('/api/iniciar', dados)[0], 200)
         self.assertTrue(self.executado.wait(2))
 
@@ -299,8 +362,8 @@ class ApiTests(BaseInterface):
         self.assertEqual(self.requisitar('/../config.toml')[0], 404)
         self.assertEqual(self.requisitar('/icons/../../config.toml')[0], 404)
 
-    def test_json_malformado_tipo_invalido_e_corpo_grande_nao_iniciam_fluxo(self) -> None:
-        for corpo in ('{quebrado', '[]', '"texto"', 'x'*16385):
+    def test_json_malformado_e_tipo_invalido_nao_iniciam_fluxo(self) -> None:
+        for corpo in ('{quebrado', '[]', '"texto"'):
             self.assertEqual(self.requisitar('/api/iniciar', corpo=corpo)[0], 400)
         self.assertEqual(self.chamadas, [])
 

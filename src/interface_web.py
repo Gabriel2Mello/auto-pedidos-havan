@@ -86,6 +86,8 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
             self.send_header('Content-Type', tipo)
             self.send_header('Content-Length', str(len(conteudo)))
             self.send_header('Cache-Control', 'no-store')
+            if self.close_connection:
+                self.send_header('Connection', 'close')
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('Referrer-Policy', 'no-referrer')
             self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'")
@@ -185,6 +187,8 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                     raise ValueError('Solicitação inválida ou muito grande.')
                 self.connection.settimeout(5)
                 conteudo = self.rfile.read(int(tamanhos[0]))
+                if len(conteudo) != int(tamanhos[0]):
+                    raise ValueError('Corpo da solicitação incompleto.')
                 objeto: object = json.loads(conteudo)
                 if not isinstance(objeto, dict):
                     raise ValueError('Solicitação inválida.')
@@ -207,6 +211,7 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
             except ConflitoInterface as erro:
                 self.json_resposta(409, {'erro': str(erro)})
             except (ValueError, UnicodeError, OSError) as erro:
+                self.close_connection = True
                 self.json_resposta(400, {'erro': str(erro) if isinstance(erro, ValueError) else 'Não consegui ler a solicitação.'})
             except Exception:
                 logger.exception('Falha ao atender uma ação da interface.')

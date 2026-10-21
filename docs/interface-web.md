@@ -89,6 +89,43 @@ como última barreira de duplicidade foram preservados. Inclusões incertas
 continuam bloqueadas; a liberação especializada por `--reiniciar` permanece no
 console, após a conferência prevista no README.
 
+## Contrato HTTP de recusa — E8
+
+O adaptador mantém a exigência de Host local, token e Origin nas ações. Se o
+cliente receber a resposta, falha de autorização é **403**; enquadramento,
+JSON/tipo ou corpo inválido é **400**. Conflitos de execução continuam em 409.
+Não se inicia uma ação antes dessas verificações. O corpo precisa ter o número
+exato de bytes de `Content-Length`; mesmo um JSON válido é recusado se o envio
+terminar antes do tamanho declarado. O limite continua em 16.384 bytes e o
+timeout de leitura em cinco segundos. `Transfer-Encoding`, tamanho duplicado,
+ausente ou inválido são recusados antes da leitura.
+
+Recusas antecipadas fecham a conexão, sem consumir um upload não autorizado
+ou acima do limite. No Windows, dados ainda em envio podem provocar reset,
+aborto ou fechamento TCP antes da entrega do JSON de erro. Esse resultado é
+admitido para essas recusas de transporte: o teste também exige zero execução,
+fase PRONTO e resposta normal de uma nova consulta. Não se exige que o servidor
+consuma um upload arbitrário para garantir a entrega de uma mensagem de erro.
+Quando a resposta chega, seu status e JSON são conferidos exatamente. Respostas
+com conexão destinada ao fechamento incluem `Connection: close`.
+
+Uma queda após uma solicitação válida pode ocorrer depois de a ação ter sido
+aceita. Consulte o estado/histórico antes de decidir repetir; reset não é uma
+confirmação geral de que uma ação válida deixou de ocorrer. A E8 não implementa
+repetição automática nem altera as regras de inclusão/retomada/impressão.
+
+**193 testes Python e seis JavaScript aprovados**, incluindo três testes novos:
+40 uploads recusados seguidos de uma solicitação válida sintética, cabeçalhos
+inválidos sem envio do corpo e corpo truncado com JSON válido. Este último
+recebia 200 antes da correção e agora recebe 400, sem iniciar o executor.
+JSON malformado/tipo inválido com corpo completo continuam exigindo 400; o
+tratamento de reset não foi aplicado genericamente às falhas de testes.
+Tipagem estrita de `src/interface_web.py`: zero erros/avisos. A validação usou
+HTTP local e executor fictício, em cópia sem configuração operacional, com
+rede externa/aplicativos bloqueados. Nenhum pedido real foi consultado, inserido
+ou impresso. Reabrir o Havan para carregar a atualização; executáveis antigos
+precisam ser reconstruídos.
+
 ## Implementação e identidade
 
 `havan.py` abre o navegador e o servidor em `127.0.0.1`, numa porta livre.
