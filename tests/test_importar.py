@@ -44,6 +44,14 @@ class ImportacaoTests(unittest.TestCase):
         with self.assertRaises(SisplanError):
             importar_pedido(*self.args, MagicMock(), referencia_numero=100)
 
+    def test_aviso_exige_restauracao_do_pedido_anterior(self) -> None:
+        self.duplicado.return_value = True
+        self.simular_numeros(['101'])
+        with patch('src.importar.wait_until', side_effect=TimeoutError('Tela não restaurou')):
+            with self.assertRaisesRegex(SisplanError, 'confirmar o cancelamento'):
+                importar_pedido(*self.args, MagicMock(), referencia_numero=100)
+        self.assertEqual(self.teclas().count(ATALHOS['incluir']), 1)
+
     def simular_numeros(self, numeros: list[str]) -> None:
         self.numero_atual = '11249'
         self.numero_anterior = self.numero_atual

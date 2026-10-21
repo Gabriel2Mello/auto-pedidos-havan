@@ -207,10 +207,11 @@ def handle_aviso_duplicado(processo: int) -> bool:
         return False
     try:
         aviso.set_focus()
-        logger.info('Pedido já existe. Cancelando duplicidade...')
+        logger.info('Aviso do Sisplan. Cancelando a inclusão antes de conferir no banco...')
         send_keys_sleep(ATALHOS['nao'], 0.2)
         send_keys_sleep(ATALHOS['desistir'], 0.2)
         send_keys_sleep(ATALHOS['sim'])
+        aviso.wait_not('visible', timeout=5)
         return True
     except Exception as error:
         raise SisplanError('Falha ao tratar a janela de pedido duplicado.') from error

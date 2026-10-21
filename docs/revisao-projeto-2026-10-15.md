@@ -1,5 +1,11 @@
 # Revisão do projeto — 15/10/2026
 
+> Atualização de 21/10/2026, E9: o responsável aprovou manter o cancelamento
+> e exigir correspondência única no banco para retirar o pedido da fila.
+> Ausência/ambiguidade/falha deixam `aviso_pendente`, sem reinclusão automática.
+> Essa decisão substitui o desfecho anterior do item 1. Uso e limites no
+> [README](../README.md#recuperação-de-avisos--e9-21102026).
+
 Atualização após a revisão: por orientação do responsável, o item 1 permanece
 como última barreira de duplicidade. Os itens 2 a 6 foram corrigidos, com a
 opção de reconectar ou parar explicitamente no caso do portal (item 3).

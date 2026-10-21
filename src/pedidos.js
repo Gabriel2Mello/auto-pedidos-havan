@@ -46,7 +46,7 @@ function renderizarTabela() {
       const tr=document.createElement('tr');
       [p.pedido,p.numero||'—',p.rotulo||'Conferir situação',p.erro||'—'].forEach((texto,i)=>{
         const td=document.createElement('td');
-        if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
+        if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
         if(i===3&&p.etapa==='sem_cadastro'){
           const botao=document.createElement('button');botao.type='button';botao.textContent='Importar novamente';
           botao.setAttribute('data-reimportar',p.pedido);botao.setAttribute('aria-label','Importar novamente o pedido '+p.pedido);

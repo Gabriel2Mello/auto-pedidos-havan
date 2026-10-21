@@ -88,6 +88,13 @@ class EstadoPedidos:
                 "erro LIKE '%; Código de barras não cadastrado:%' OR "
                 "erro LIKE 'O Sisplan encontrou produto sem cadastro.%')"
             )
+            # Versões anteriores podiam encerrar avisos sem identificar uma gravação.
+            # Recuperar a pendência, preservando número, data e diagnóstico já existentes.
+            self._conexao.execute(
+                "UPDATE pedidos SET etapa='aviso_pendente', erro=CASE WHEN erro='' THEN ? ELSE erro END "
+                "WHERE etapa='existente' AND TRIM(numero)=''",
+                ('Histórico anterior sem número confirmado. Conferir existência no banco; não reincluir automaticamente.',),
+            )
             self._conexao.commit()
         except sqlite3.Error as error:
             self._registrar_erro(error, 'abrir')
@@ -209,7 +216,7 @@ class EstadoPedidos:
     def inclusoes_incertas(self) -> list[str]:
         try:
             return [linha[0] for linha in self._conectar().execute(
-                "SELECT pedido FROM pedidos WHERE etapa IN ('importacao_iniciada','gravacao_pendente') ORDER BY rowid"
+                "SELECT pedido FROM pedidos WHERE etapa IN ('importacao_iniciada','gravacao_pendente','aviso_pendente') ORDER BY rowid"
             )]
         except sqlite3.Error as error:
             self._registrar_erro(error, 'conferir inclusões')

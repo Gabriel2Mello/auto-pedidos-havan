@@ -221,7 +221,8 @@ aberto na inicialização, o programa orienta o operador e aguarda Enter antes
 de fechar, sem iniciar o processamento.
 
 As buscas por diálogos são restritas ao processo do Sisplan. O tratamento de
-“Aviso” continua como última barreira de duplicidade, após as consultas ao banco.
+“Aviso” conserva a barreira de cancelamento. Desde a E9, a retirada da fila
+exige correspondência única no banco, conforme a seção de recuperação abaixo.
 
 Os argumentos anteriores continuam disponíveis para o responsável. Para
 retomar todas as etapas pendentes registradas por esta versão:
@@ -352,3 +353,42 @@ o contexto por lote e as evidências de 156 testes estão em
 As inclusões são registradas após a confirmação no Sisplan; retomadas de inclusão incerta só contam após confirmação e sem duplicar. Já existentes e pedidos com falha são contados por pedido em cada lote. Retomar impressão ou reimprimir não cria outra inclusão.
 
 O registro funciona na interface web e no console, mesmo com o hub fechado. O módulo `metricas_nunes.py` é distribuído a partir do Hub Nunes; seu README documenta armazenamento, recuperação, filtros e exportação. Feche e reabra esta ferramenta após atualizar. O histórico começa com esta versão e não importa operações anteriores. Falhas na estatística não repetem nem interrompem operações concluídas; uma fila local recupera gravações transitórias e falhas de persistência são registradas no log. Antes de rodar a suíte completa, use um terminal exclusivo de testes e configure NUNES_METRICAS_DADOS para uma pasta temporária; o README do Hub Nunes contém o comando de isolamento.
+
+
+## Recuperação de avisos — E9, 21/10/2026
+
+Por decisão do responsável em 21/10, o aviso genérico continua cancelando a
+inclusão, mas deixa de comprovar duplicidade sozinho. A automação aguarda o
+aviso desaparecer e a tela restaurar o número anterior antes de prosseguir.
+Se o cancelamento não for confirmado, mantém a inclusão incerta e interrompe.
+
+Depois do cancelamento confirmado, grava `aviso_pendente` antes da consulta.
+Só uma correspondência única pelo cliente/pedido Havan no banco permite
+concluir como `existente`, guardando número interno e empresa. Ausência,
+ambiguidade ou indisponibilidade do banco preservam a pendência e bloqueiam
+outras inclusões. O painel identifica **Aviso: conferir existência no banco**.
+Ao abrir o histórico, registros antigos `existente` sem número interno voltam
+a `aviso_pendente`, preservando os dados e eventual diagnóstico anterior.
+
+Use **Retomar** para consultar novamente. Se encontrar uma correspondência
+única, a pendência termina sem inclusão, impressão ou métrica de nova inclusão.
+Sem confirmação, continua bloqueada para análise com o responsável. Nem
+Retomar nem `--reiniciar` reincluem automaticamente um `aviso_pendente`.
+O comando especializado `--reiniciar` conserva sua regra anterior apenas
+para as outras etapas de inclusão incerta. Não altere o SQLite para liberar
+uma pendência sem esclarecer o que aconteceu no Sisplan.
+
+Esta decisão substitui o desfecho aprovado em 15/10 descrito em
+[revisão anterior](docs/revisao-projeto-2026-10-15.md), preservando o cancelamento.
+Não foi inventado reconhecimento de texto do aviso: mensagens desconhecidas
+também cancelam e exigem comprovação no banco. A checagem não transforma
+ausência de gravação em autorização para repetir o efeito.
+
+Validação: 198 testes Python e seis JavaScript aprovados; tipagem estrita dos
+módulos alterados sem erros/avisos. Inclui cancelamento incompleto, ausência,
+ambiguidade, indisponibilidade, migração conservadora e retomada somente por
+consulta. O histórico também foi reaberto por outro processo depois de saída
+abrupta, preservando a pendência. Somente dados sintéticos, sem portal, banco
+real ou interação real com o Sisplan. Reabra a ferramenta; executáveis antigos
+precisam ser reconstruídos. O retorno real da tela após cancelar ainda precisa
+de homologação acompanhada; divergência bloqueia a operação.

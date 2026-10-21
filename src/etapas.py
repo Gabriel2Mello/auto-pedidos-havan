@@ -2,24 +2,25 @@
 from typing import Literal
 
 Etapa = Literal[
-    'para_baixar', 'baixado', 'sem_cadastro', 'importacao_iniciada', 'gravacao_pendente',
+    'para_baixar', 'baixado', 'sem_cadastro', 'importacao_iniciada', 'gravacao_pendente', 'aviso_pendente',
     'importado', 'pdf_pronto', 'impressao_pendente', 'impressao_iniciada',
     'impressao_incerta', 'impressao_enviada', 'existente',
 ]
 ETAPAS = (
-    'para_baixar', 'baixado', 'sem_cadastro', 'importacao_iniciada', 'gravacao_pendente',
+    'para_baixar', 'baixado', 'sem_cadastro', 'importacao_iniciada', 'gravacao_pendente', 'aviso_pendente',
     'importado', 'pdf_pronto', 'impressao_pendente', 'impressao_iniciada',
     'impressao_incerta', 'impressao_enviada', 'existente',
 )
 
 ETAPAS_FINAIS = ('impressao_enviada', 'existente')
-INCLUSOES_INCERTAS = ('importacao_iniciada', 'gravacao_pendente')
+INCLUSOES_INCERTAS = ('importacao_iniciada', 'gravacao_pendente', 'aviso_pendente')
 ETAPAS_INICIAIS = ('para_baixar', 'baixado', 'sem_cadastro')
 
 ROTULOS: dict[str, str] = {
     'para_baixar': 'A baixar', 'baixado': 'Baixado',
     'sem_cadastro': 'Produto sem cadastro',
     'importacao_iniciada': 'Conferir inclusão', 'gravacao_pendente': 'Gravação não confirmada',
+    'aviso_pendente': 'Aviso: conferir existência no banco',
     'importado': 'Importação confirmada', 'pdf_pronto': 'PDF pronto',
     'impressao_pendente': 'Impressão pendente', 'impressao_iniciada': 'Enviando impressão',
     'impressao_incerta': 'Conferir impressão', 'impressao_enviada': 'Enviado para impressão',

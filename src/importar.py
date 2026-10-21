@@ -71,10 +71,20 @@ def importar_pedido(
     for tentativa in range(2):
         numero_anterior = cast(str, campos['numero'].window_text()).strip()
         try:
-            return _importar_uma_tentativa(
+            resultado = _importar_uma_tentativa(
                 pedido, pedido_grade, aba_pedido, grid, campos, antes_gravar,
                 referencia_numero=referencia_numero,
             )
+            if resultado.situacao == 'duplicado':
+                try:
+                    pedido_grade.wait('ready', timeout=5)
+                    wait_until(5, 0.2, lambda: cast(str, campos['numero'].window_text()).strip() == numero_anterior)
+                except Exception as erro:
+                    raise SisplanError(
+                        'Não foi possível confirmar o cancelamento após o aviso. '
+                        'Confira a tela do Sisplan antes de continuar.'
+                    ) from erro
+            return resultado
         except _NumeroInternoSuspeitoError as error:
             logger.warning('Pedido %s, tentativa %s: %s Cancelando inclusão.', pedido, tentativa + 1, error)
             try:

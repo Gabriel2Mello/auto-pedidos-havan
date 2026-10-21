@@ -187,13 +187,18 @@ def processar_pedidos(
 def informar_existente(
     pedido: str, encontrados: list[PedidoExistente], historico: EstadoPedidos, resumo: ResumoExecucao,
 ) -> None:
-    unico = encontrados[0] if len(encontrados) == 1 else None
+    if len(encontrados) != 1:
+        raise GravacaoNaoConfirmadaError(
+            f'Pedido {pedido}: não há uma correspondência única confirmada no banco. '
+            'A pendência foi preservada; confira com o responsável antes de prosseguir.'
+        )
+    unico = encontrados[0]
     historico.salvar(EstadoPedido(
-        pedido, unico.numero if unico else '', 'existente', unico.empresa if unico else None,
+        pedido, unico.numero, 'existente', unico.empresa,
     ))
     resumo.situacoes[pedido] = 'existente'
     logger.info('Pedido %s já consta no Sisplan%s. Nenhuma nova inclusão ou impressão.',
-                pedido, f'; número interno {unico.numero}' if unico else '')
+                pedido, f'; número interno {unico.numero}')
 
 
 def processar_um_pedido(
@@ -211,6 +216,9 @@ def processar_um_pedido(
         return
     if registro is None:
         raise EstadoError('Pedido não está na fila salva. Volte ao menu e escolha Inserir.')
+    if registro.etapa == 'aviso_pendente':
+        informar_existente(pedido, encontrados, historico, resumo)
+        return
     if modo == 'reiniciar' and registro.etapa in INCLUSOES_INCERTAS and not encontrados:
         historico.liberar_importacao(pedido)
         registro = historico.obter(pedido)
@@ -353,8 +361,10 @@ def importar_novo(
         historico.salvar(EstadoPedido(pedido, '', 'baixado'))
         raise
     if resultado.situacao == 'duplicado':
-        # O cancelamento já terminou. Não manter o número provisório da inclusão rejeitada.
-        informar_existente(pedido, [], historico, resumo)
+        # Persistir antes da consulta: queda de rede ou reinício não apagam o aviso.
+        historico.salvar(EstadoPedido(pedido, '', 'aviso_pendente'))
+        encontrados = banco.consultar_pedidos([pedido]).get(pedido, [])
+        informar_existente(pedido, encontrados, historico, resumo)
         return
     if resultado.situacao == 'sem_cadastro':
         historico.salvar(EstadoPedido(pedido, '', 'sem_cadastro'))

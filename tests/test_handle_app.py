@@ -46,6 +46,13 @@ class AvisosTests(unittest.TestCase):
         with self.assertRaisesRegex(SisplanError, 'tratar'):
             handle_aviso_duplicado(123)
 
+    @patch('src.handle_app.send_keys_sleep')
+    @patch('src.handle_app.localizar_aviso', return_value=MagicMock())
+    def test_cancelamento_incompleto_nao_confirma_aviso(self, localizar: MagicMock, enviar: MagicMock) -> None:
+        localizar.return_value.wait_not.side_effect = TimeoutError('Aviso continua aberto')
+        with self.assertRaises(SisplanError):
+            handle_aviso_duplicado(123)
+
     @patch('src.handle_app.localizar_aviso')
     def test_falha_no_botao_de_bloqueio_nao_retorna_false(self, localizar: MagicMock) -> None:
         localizar.return_value.wait.return_value = localizar.return_value

@@ -245,22 +245,63 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         self.preparar()
         self.importar.side_effect = None
         self.importar.return_value = ResultadoImportacao('', 'duplicado')
-        main.processar_pedidos(['2026-12345'])
+        with self.assertRaises(GravacaoNaoConfirmadaError):
+            main.processar_pedidos(['2026-12345'])
         self.importar.assert_called_once()
         self.imprimir.assert_not_called()
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.obter('2026-12345').etapa, 'aviso_pendente')
+            self.assertEqual(historico.pendentes(), ['2026-12345'])
+        # Nem Retomar nem Reiniciar convertem ausência no banco em outra inclusão.
+        for modo in ('retomar', 'reiniciar'):
+            with self.assertRaises(GravacaoNaoConfirmadaError):
+                main.processar_pedidos(['2026-12345'], modo=modo)
+        self.importar.assert_called_once()
 
     def test_duplicidade_cancelada_nao_deixa_numero_provisorio_preso_na_fila(self) -> None:
         self.preparar()
-        self.banco.consultar_pedidos.side_effect = [{}, {}, BancoSisplanError('Não consultar após cancelar')]
+        self.banco.consultar_pedidos.side_effect = [{}, {}, {'2026-12345': [PedidoExistente('102', 2)]}]
         def duplicado(*args, **kwargs):
             args[-1]('100')
             return ResultadoImportacao('100', 'duplicado')
         self.importar.side_effect = duplicado
         main.processar_pedidos(['2026-12345'])
         with EstadoPedidos(self.estado_path) as historico:
-            self.assertEqual(historico.obter('2026-12345').numero, '')
+            self.assertEqual(historico.obter('2026-12345').numero, '102')
             self.assertEqual(historico.obter('2026-12345').etapa, 'existente')
             self.assertEqual(historico.pendentes(), [])
+        self.imprimir.assert_not_called()
+
+    def test_aviso_com_consulta_indisponivel_preserva_estado_apos_reabrir(self) -> None:
+        self.preparar()
+        self.importar.side_effect = None
+        self.importar.return_value = ResultadoImportacao('100', 'duplicado')
+        self.banco.consultar_pedidos.side_effect = [{}, {}, BancoSisplanError('Rede indisponível')]
+        with self.assertRaises(BancoSisplanError):
+            main.processar_pedidos(['2026-12345'])
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.obter('2026-12345').etapa, 'aviso_pendente')
+            self.assertEqual(historico.inclusoes_incertas(), ['2026-12345'])
+        self.banco.consultar_pedidos.side_effect = None
+        self.banco.consultar_pedidos.return_value = {'2026-12345': [PedidoExistente('102', 2)]}
+        main.processar_pedidos([], modo='retomar')
+        self.importar.assert_called_once()
+        self.imprimir.assert_not_called()
+        self.banco.confirmar_gravacao.assert_not_called()
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.obter('2026-12345').etapa, 'existente')
+            self.assertEqual(historico.pendentes(), [])
+
+    def test_aviso_ambiguo_nao_sai_da_fila_nem_imprime(self) -> None:
+        self.preparar()
+        self.importar.side_effect = None
+        self.importar.return_value = ResultadoImportacao('100', 'duplicado')
+        ambiguos = {'2026-12345': [PedidoExistente('101', 1), PedidoExistente('102', 2)]}
+        self.banco.consultar_pedidos.side_effect = [{}, {}, ambiguos]
+        with self.assertRaises(GravacaoNaoConfirmadaError):
+            main.processar_pedidos(['2026-12345'])
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.obter('2026-12345').etapa, 'aviso_pendente')
         self.imprimir.assert_not_called()
 
     def salvar_estado(self, etapa: str = 'importado', numero: str = '100') -> None:
@@ -539,3 +580,17 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         with EstadoPedidos(self.estado_path) as historico:
             self.assertEqual(historico.pendentes(), [])
             self.assertEqual(historico.obter('2026-12345').etapa, 'existente')
+
+
+class MigracaoAvisoTests(unittest.TestCase):
+    def test_existente_antigo_sem_numero_volta_a_ficar_pendente_sem_perder_erro(self) -> None:
+        with tempfile.TemporaryDirectory() as pasta:
+            caminho = Path(pasta) / 'estado.sqlite3'
+            with EstadoPedidos(caminho) as historico:
+                historico.salvar(EstadoPedido('2026-12345', '', 'existente', erro='Diagnóstico preservado'))
+            with EstadoPedidos(caminho) as reaberto:
+                registro = reaberto.obter('2026-12345')
+                self.assertEqual(registro.etapa, 'aviso_pendente')
+                self.assertEqual(registro.erro, 'Diagnóstico preservado')
+                self.assertEqual(reaberto.pendentes(), ['2026-12345'])
+                self.assertEqual(reaberto.inclusoes_incertas(), ['2026-12345'])
