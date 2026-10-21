@@ -313,6 +313,14 @@ processados. Também é exibido quando uma falha interrompe o lote.
 
 ## 🧪 Desenvolvimento e testes
 
+**E8, 20/10/2026:** passaram 193 testes Python e seis JavaScript, sem operação
+real. A API rejeita corpo truncado antes de iniciar uma ação; o contrato de
+recusa distingue respostas 400/403 de reset TCP durante uploads recusados.
+Os testes verificam também ausência de execução e continuidade do servidor.
+Uso, evidências e limites no [guia HTTP](docs/interface-web.md#contrato-http-de-recusa--e8).
+Tipagem estrita do adaptador HTTP sem erros/avisos. Reabrir a ferramenta para
+carregar a atualização; executáveis antigos precisam de reconstrução.
+
 As regras puras de entrada, datas, XML e seleção da empresa ficam em
 `src/pedidos.py`. Esse módulo não depende do portal nem da interface do Sisplan,
 o que permite testar as regras sem executar a automação.
@@ -337,3 +345,10 @@ A revisão posterior da interface e as propostas de refatoração estão em
 Os seis achados foram corrigidos após autorização. A nova organização do código,
 o contexto por lote e as evidências de 156 testes estão em
 [`docs/refatoracao-2026-10-15.md`](docs/refatoracao-2026-10-15.md).
+
+
+## Estatísticas no Hub Nunes
+
+As inclusões são registradas após a confirmação no Sisplan; retomadas de inclusão incerta só contam após confirmação e sem duplicar. Já existentes e pedidos com falha são contados por pedido em cada lote. Retomar impressão ou reimprimir não cria outra inclusão.
+
+O registro funciona na interface web e no console, mesmo com o hub fechado. O módulo `metricas_nunes.py` é distribuído a partir do Hub Nunes; seu README documenta armazenamento, recuperação, filtros e exportação. Feche e reabra esta ferramenta após atualizar. O histórico começa com esta versão e não importa operações anteriores. Falhas na estatística não repetem nem interrompem operações concluídas; uma fila local recupera gravações transitórias e falhas de persistência são registradas no log. Antes de rodar a suíte completa, use um terminal exclusivo de testes e configure NUNES_METRICAS_DADOS para uma pasta temporária; o README do Hub Nunes contém o comando de isolamento.

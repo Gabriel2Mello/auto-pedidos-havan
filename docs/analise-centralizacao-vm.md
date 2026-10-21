@@ -13,7 +13,7 @@ a análise; não representam autorização para implantar compartilhamentos ou G
 
 ## O que as fontes permitem afirmar
 
-O [inventário de infraestrutura](C:/Users/ADM07/Desktop/Mello/python/estrutura-nunes/estrutura-nunes/area-nunes/infraestrutura.md) documenta:
+O [inventário de infraestrutura](C:/Users/ADM07/Projetos/Nunes/estrutura-nunes/area-nunes/infraestrutura.md) documenta:
 
 - HOST01 hospedando DC01, TS01 e POWERBI; a ficha histórica informa 32 GB de RAM no host.
 - DC01 com Active Directory, arquivos, impressão e compartilhamentos DFS.
@@ -23,7 +23,7 @@ O [inventário de infraestrutura](C:/Users/ADM07/Desktop/Mello/python/estrutura-
 
 Portanto, existem recursos documentados que podem ser reaproveitados; não há evidência suficiente para aprovar outra VM, escolher em qual servidor hospedar um serviço ou dimensionar CPU, memória e disco. A associação do banco Sisplan a um servidor físico também não deve ser presumida.
 
-Os registros de [automações](C:/Users/ADM07/Desktop/Mello/python/estrutura-nunes/estrutura-nunes/area-nunes/automacoes.md) conservam uma inspeção anterior do Havan. Nesta análise, o comportamento atual foi conferido no código deste repositório, que já possui persistência de filas, logs com rotação e confirmação de itens. As limitações históricas desses registros não foram tratadas como descrição da versão atual.
+Os registros de [automações](C:/Users/ADM07/Projetos/Nunes/estrutura-nunes/area-nunes/automacoes.md) conservam uma inspeção anterior do Havan. Nesta análise, o comportamento atual foi conferido no código deste repositório, que já possui persistência de filas, logs com rotação e confirmação de itens. As limitações históricas desses registros não foram tratadas como descrição da versão atual.
 
 ## O limite técnico da execução remota
 
@@ -137,9 +137,9 @@ compatível com a execução local e a centralização somente das configuraçõ
 Foi feita leitura do código e da documentação do contas-receber, sem executar
 o financeiro nem alterar aquele projeto.
 
-No [inicializador do financeiro](C:/Users/ADM07/Desktop/Mello/python/contas-receber/nunes-contas-receber/financeiro.py),
+No [inicializador do financeiro](C:/Users/ADM07/Projetos/Nunes/nunes-contas-receber/financeiro.py),
 Python cria um servidor e abre o navegador. A
-[implementação da interface](C:/Users/ADM07/Desktop/Mello/python/contas-receber/nunes-contas-receber/src/interface_financeiro.py)
+[implementação da interface](C:/Users/ADM07/Projetos/Nunes/nunes-contas-receber/src/interface_financeiro.py)
 usa `ThreadingHTTPServer` em `127.0.0.1`, porta dinâmica, token por execução e
 checagens de Host/Origin nas APIs. As operações executam em uma thread de
 trabalho, com bloqueio de operação simultânea e acompanhamento do andamento.
@@ -149,7 +149,7 @@ código consultado, não uma nova homologação funcional.
 
 Portanto, a interface existente é web local: usar navegador não significa
 hospedagem central nem acesso por outros computadores. A
-[análise de servidor do financeiro](C:/Users/ADM07/Desktop/Mello/python/contas-receber/nunes-contas-receber/docs/viabilidade-servidor.md)
+[análise de servidor do financeiro](C:/Users/ADM07/Projetos/Nunes/nunes-contas-receber/docs/viabilidade-servidor.md)
 também distingue o modo local da implantação central ainda proposta.
 
 Para o Havan, a recomendação é usar o mesmo modelo de interação:
