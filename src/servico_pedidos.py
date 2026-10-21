@@ -4,6 +4,9 @@ from contextlib import ExitStack, nullcontext
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Callable
 from pathlib import Path
+from uuid import uuid4
+
+from metricas_nunes import registrar_evento
 
 from cloudscraper import create_scraper
 from pywinauto import WindowSpecification
@@ -115,6 +118,7 @@ def processar_pedidos(
 ) -> ResumoExecucao:
     contexto = contexto or ContextoExecucao(Configuracao.carregar())
     resumo = ResumoExecucao(dict.fromkeys(numero_pedidos, 'aguardando'))
+    execucao_metricas = uuid4().hex
     try:
         with usar_configuracao(contexto.configuracao), (nullcontext(historico) if historico is not None else EstadoPedidos()) as estado:
             if modo in ('normal', 'reiniciar'):
@@ -149,10 +153,16 @@ def processar_pedidos(
                                 existentes_iniciais = banco.consultar_pedidos(numero_pedidos)
                             encontrados = existentes_iniciais.get(pedido, []) if primeira_tentativa else None
                             processar_um_pedido(pedido, modo, banco, estado, resumo, recursos, encontrados)
+                            if resumo.situacoes.get(pedido) == 'existente':
+                                registrar_evento('pedido_existente', f'{execucao_metricas}:{pedido}', pedido,
+                                                 execucao=execucao_metricas)
                             if ao_progresso is not None:
                                 ao_progresso(pedido, indice, len(resumo.situacoes))
                             break
                         except BaseException as error:
+                            if isinstance(error, Exception):
+                                registrar_evento('pedido_falhou', f'{execucao_metricas}:{pedido}', pedido,
+                                                 execucao=execucao_metricas)
                             registrar_falha(pedido, error, estado, resumo)
                             logger.exception('O processamento do pedido %s foi pausado.', pedido)
                             recursos.sisplan = None
@@ -248,6 +258,8 @@ def retomar_impressao(
         confirmado = banco.confirmar_gravacao(pedido, numero)
     if registro is None or registro.etapa in (*ETAPAS_INICIAIS, *INCLUSOES_INCERTAS, 'existente'):
         historico.salvar(EstadoPedido(pedido, confirmado.numero, 'importado', confirmado.empresa))
+    if registro is not None and registro.etapa in INCLUSOES_INCERTAS:
+        registrar_inclusao(pedido, confirmado)
     resumo.retomados.add(pedido)
     if parar is not None and parar():
         resumo.situacoes[pedido] = 'impressao_pendente'
@@ -265,6 +277,12 @@ def enviar_impressao(
             f'A impressão do pedido {pedido} não foi concluída com segurança. '
             'Confira a impressora. O pedido está salvo para retomar ou reimprimir.'
         )
+
+
+def registrar_inclusao(pedido: str, confirmado: PedidoExistente) -> None:
+    empresa = 'MATRIZ' if confirmado.empresa == 1 else 'FILIAL'
+    registrar_evento('pedido_inserido', f'{confirmado.empresa}:{confirmado.numero}:{pedido}',
+                     pedido, empresa=empresa)
 
 
 def importar_novo(
@@ -347,6 +365,7 @@ def importar_novo(
     confirmado = banco.confirmar_gravacao(pedido, resultado.numero, itens_esperados=itens_esperados)
     historico.salvar(EstadoPedido(pedido, confirmado.numero, 'importado', confirmado.empresa))
     resumo.importados.add(pedido)
+    registrar_inclusao(pedido, confirmado)
     logger.info('Gravação confirmada: %s / interno %s.', pedido, confirmado.numero)
     recursos.contexto.integracoes.notificar(resultado.operacao, pedido, confirmado.numero)
     if recursos.parada_solicitada():
