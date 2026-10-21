@@ -29,8 +29,10 @@ EVENTOS = {
     'op_enviada': ('impressao-ops', 'Envios de OP por setor'),
     'documento_baixado': ('cofre-nfe', 'Documentos baixados'),
     'duplicata_consultada': ('financeiro', 'Duplicatas consultadas'),
+    'arquivo_transferido': ('find-move-nfe', 'Arquivos buscados e movidos'),
+    'fluxo_alterado': ('alteracao-fluxo', 'Alterações de fluxo confirmadas'),
 }
-NOMES = {'pedidos-havan': 'Pedidos Havan', 'impressao-ops': 'Impressão de OPs', 'cofre-nfe': 'Cofre NF-e', 'financeiro': 'Contas Receber'}
+NOMES = {'pedidos-havan': 'Pedidos Havan', 'impressao-ops': 'Impressão de OPs', 'cofre-nfe': 'Cofre NF-e', 'financeiro': 'Contas Receber', 'find-move-nfe': 'Busca e Move Notas', 'alteracao-fluxo': 'Atualiza Fluxo'}
 logger = logging.getLogger(__name__)
 
 
@@ -144,8 +146,15 @@ def _inserir(conexao: sqlite3.Connection, evento: Evento) -> None:
                         'empresa=excluded.empresa, setor=excluded.setor, tipo=excluded.tipo', registro)
 
 
+def _instante_metricas(valor: object) -> DataHora:
+    if not isinstance(valor, DataHora) or valor.tzinfo is None or valor.utcoffset() is None:
+        raise ValueError('Informe um instante de métricas com fuso explícito.')
+    return valor.astimezone(timezone.utc)
+
+
 def registrar_evento(evento: str, identidade: str, referencia: str, *, empresa: str = '',
-                     setor: str = '', tipo: str = '', execucao: str = EXECUCAO) -> bool:
+                     setor: str = '', tipo: str = '', execucao: str = EXECUCAO,
+                     ocorrido_em: DataHora | None = None) -> bool:
     """True significa aceito no banco ou na fila durável de recuperação.
 
     A identidade é da entrega, não da tentativa. Para ocorrências por lote,
@@ -153,12 +162,13 @@ def registrar_evento(evento: str, identidade: str, referencia: str, *, empresa: 
     """
     if evento not in EVENTOS or not identidade:
         raise ValueError('Evento de métricas inválido.')
-    agora = datetime.now(timezone.utc)
+    agora = _instante_metricas(ocorrido_em if ocorrido_em is not None else datetime.now(timezone.utc))
     registro: Evento = {
         'id': sha256(json.dumps([evento, identidade], ensure_ascii=False).encode()).hexdigest(),
         'evento': evento, 'ocorrido_em': agora.isoformat(), 'dia': agora.astimezone(FUSO).date().isoformat(),
         'execucao': execucao, 'referencia': referencia, 'empresa': empresa, 'setor': setor, 'tipo': tipo,
     }
+    registro = _validar_evento(registro)
     try:
         pasta = pasta_metricas()
     except (OSError, RuntimeError):
