@@ -17,6 +17,7 @@ from src.erros import (SessaoPortalExpiradaError)
 
 class MenuTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.enterContext(patch('sincronizar_estatisticas.ler_configuracao', return_value=None))
         patch_relogio = patch('src.pedidos.datetime', wraps=datetime)
         relogio = patch_relogio.start()
         self.addCleanup(patch_relogio.stop)

@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 venv/
 venv32/
+.local/
 
 # Artefatos gerados pela aplicação e pelo empacotamento
 *.log

@@ -3,6 +3,7 @@
 import argparse
 import sys
 from time import perf_counter
+from sincronizar_estatisticas import Sincronizador
 
 from src.banco import BancoSisplanError
 from src.config import diretorio_aplicacao
@@ -18,6 +19,11 @@ logger = get_logger(__name__)
 
 
 def main() -> int:
+    with Sincronizador(aplicacao='pedidos-havan', relatar=logger.info):
+        return executar_console_pedidos()
+
+
+def executar_console_pedidos() -> int:
     try:
         setup_logging()
     except (OSError, ValueError) as error:

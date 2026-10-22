@@ -1,7 +1,9 @@
 """Abre Pedidos Havan no navegador do próprio computador."""
 
 import sys
+import logging
 from integracao_hub import IntegracaoLocal, executar_interface
+from sincronizar_estatisticas import Sincronizador
 
 
 def informar_falha(mensagem: str) -> None:
@@ -13,6 +15,11 @@ def informar_falha(mensagem: str) -> None:
 
 
 def main(publicacao: IntegracaoLocal) -> int:
+    with Sincronizador(aplicacao='pedidos-havan', relatar=logging.getLogger(__name__).info):
+        return executar_painel(publicacao)
+
+
+def executar_painel(publicacao: IntegracaoLocal) -> int:
     try:
         from src.controlador import EstadoInterface
         from src.interface_web import criar_servidor

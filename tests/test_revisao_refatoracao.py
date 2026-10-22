@@ -40,6 +40,9 @@ from tests.fixtures import xml_pedido
 
 
 class RegressaoRevisaoTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.enterContext(patch('sincronizar_estatisticas.ler_configuracao', return_value=None))
+
     def test_encerramento_apos_historico_corrompido_ocupado_ou_pasta_ausente(self):
         for caso in ('corrompido', 'ocupado', 'pasta_ausente'):
             with self.subTest(caso=caso), tempfile.TemporaryDirectory() as pasta, ExitStack() as pilha:
