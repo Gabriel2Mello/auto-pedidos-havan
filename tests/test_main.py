@@ -19,6 +19,25 @@ from src.erros import SessaoPortalExpiradaError, NumeroInternoForaSequenciaError
 
 
 class FluxoPrevalidacaoTests(unittest.TestCase):
+    def test_download_pendente_bloqueia_portal_e_inclusao_antes_da_retomada(self) -> None:
+        self.preparar()
+        with EstadoPedidos(self.estado_path) as historico:
+            historico.adicionar_pedidos(['2026-12345'])
+        (self.pasta / '.nunes-download-interrompido').mkdir()
+        with self.assertRaises(RuntimeError) as erro:
+            main.processar_pedidos(['2026-12345'])
+        self.assertIn('recuperação pendente', str(erro.exception))
+        self.login.assert_not_called()
+        self.baixar.assert_not_called()
+        self.assert_sem_interface()
+        with EstadoPedidos(self.estado_path) as historico:
+            registro = historico.obter('2026-12345')
+            assert registro is not None
+            self.assertEqual(registro.etapa, 'para_baixar')
+        self.assertEqual(main.opcoes_seguras(main.DownloadPendenteError('pendente'), registro), (False, True))
+        incerto = EstadoPedido('2026-12345', '', 'importacao_iniciada')
+        self.assertEqual(main.opcoes_seguras(main.DownloadPendenteError('pendente'), incerto), (False, False))
+
     def test_parar_depois_do_download_preserva_arquivos_sem_iniciar_inclusao(self) -> None:
         self.preparar()
         parada = Event()

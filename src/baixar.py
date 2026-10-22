@@ -16,6 +16,8 @@ from src.config import (
     CONTENT_TYPE,
 )
 from src.arquivos import (caminho_pdf, caminho_xml, extrair_xml, salvar_pedido_txt)
+from src.filas import validar_arquivos_baixados
+from src.gravacao_download import DownloadPendenteError, publicar_download, verificar_download_pendente
 from src.erros import (SessaoPortalExpiradaError)
 
 if TYPE_CHECKING:
@@ -81,10 +83,14 @@ def processar_unico(
         return pedido, False, 'Número de pedido muito curto'
 
     try:
+        verificar_download_pendente(caminho_pdf(pedido).parent)
         pdf, xml = baixar_arquivos(scraper, pedido)
         salvar_arquivos(pdf, xml, pedido)
         return pedido, True, None
 
+    except DownloadPendenteError:
+        logger.exception('Pedido %s: recuperação local pendente; não repetir o download.', pedido)
+        raise
     except SessaoPortalExpiradaError:
         logger.warning('Pedido %s: sessão do portal expirada; aguardando decisão do operador.', pedido)
         raise
@@ -183,15 +189,8 @@ def links_pedido(html_content: str, pedido: str) -> tuple[str, str]:
 
 
 def salvar_arquivos(pdf: bytes, xml: bytes, pedido: str) -> None:
-    arquivos = {
-        caminho_pdf(pedido): pdf,
-        caminho_xml(pedido): xml,
-    }
-
-    for path, data in arquivos.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        path.write_bytes(data)
+    validar_arquivos_baixados(pdf, xml, pedido)
+    publicar_download(caminho_pdf(pedido), caminho_xml(pedido), pdf, xml)
 
 
 def exibir_resumo(resultados: dict[str, bool]) -> None:

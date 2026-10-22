@@ -16,6 +16,7 @@ from src.banco import BancoSisplan, BancoSisplanError, GravacaoNaoConfirmadaErro
 from src.config import Configuracao, usar_configuracao, validar_configuracao
 from src.estado import EstadoError, EstadoPedido, EstadoPedidos
 from src.filas import conferir_arquivos_baixados
+from src.gravacao_download import DownloadPendenteError
 from src.handle_app import inicia_app
 from src.importar import ResultadoImportacao, importar_pedido, notificar_operacao_confirmada
 from src.imprimir import processar_impressao
@@ -101,6 +102,8 @@ def opcoes_seguras(erro: Exception, registro: EstadoPedido | None) -> tuple[bool
         return False, False
     if registro is not None and registro.etapa in INCLUSOES_INCERTAS:
         return False, False
+    if isinstance(erro, DownloadPendenteError):
+        return False, True
     if isinstance(erro, BancoSisplanError):
         return True, False
     if isinstance(erro, SessaoPortalExpiradaError):
@@ -305,7 +308,8 @@ def importar_novo(
                           + ', '.join(outras_inclusoes))
     logger.debug('Pedido %s: etapa salva=%s.', pedido, registro.etapa)
     logger.info('Conferindo arquivos e produtos do pedido %s.', pedido)
-    if registro.etapa in ('baixado', 'sem_cadastro') and not conferir_arquivos_baixados(pedido):
+    arquivos_validos = conferir_arquivos_baixados(pedido)
+    if registro.etapa in ('baixado', 'sem_cadastro') and not arquivos_validos:
         registro = replace(registro, etapa='para_baixar', erro='Arquivos locais precisam ser baixados novamente.')
         historico.salvar(registro)
         raise PedidoRejeitadoError(

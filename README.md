@@ -304,6 +304,11 @@ ao reabrir. A tentativa começa apenas quando o operador a solicita.
 
 ## 🪵 Gerenciamento de Logs e Arquivos de Saída
 
+Os downloads agora são validados e preparados antes de substituir PDF/XML.
+Falhas capturadas tentam restaurar os arquivos anteriores; uma interrupção
+incompleta bloqueia a retomada e informa a pasta preservada. Procedimento,
+limites e atualização em [Gravação e recuperação dos downloads](docs/downloads.md).
+
 O robô gera saídas em tempo de execução localizados na pasta raiz do script:
 
 * **`auto-pedidos.log`:** Preserva as execuções anteriores e registra um identificador para cada execução, em nível `DEBUG`. Rotaciona ao atingir 5 MiB e mantém cinco arquivos anteriores (`.log.1` até `.log.5`). O console exibe mensagens em nível `INFO`.

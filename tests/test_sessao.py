@@ -7,6 +7,9 @@ from src.erros import (SessaoPortalExpiradaError)
 
 
 class SessaoTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.enterContext(patch('src.baixar.verificar_download_pendente'))
+
     def test_download_sem_console_no_pythonw_preserva_resultado_e_checkpoint(self) -> None:
         for sucesso in (True, False):
             with self.subTest(sucesso=sucesso):
