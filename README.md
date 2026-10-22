@@ -49,6 +49,14 @@ disponível. A centralização das configurações é uma entrega futura.
 
 ---
 
+## Diagnóstico de abertura
+
+O painel registra as etapas em `logs/pedidos-havan-abertura.log`, na pasta de
+presença da sessão Nunes. A prontidão do histórico é registrada separadamente
+da criação do worker/servidor; responder à saúde não comprova que o histórico
+terminou de carregar. Reabra a aplicação para carregar a mudança.
+Resultados e limites: [Tempos por etapa](../nunes-hub/TEMPOS_ABERTURA.md).
+
 ## 📋 Pré-requisitos de Infraestrutura
 
 O ambiente de execução precisa das seguintes ferramentas instaladas no Windows:
@@ -365,7 +373,55 @@ As inclusões são registradas após a confirmação no Sisplan; retomadas de in
 O registro funciona na interface web e no console, mesmo com o hub fechado. O módulo `metricas_nunes.py` é distribuído a partir do Hub Nunes; seu README documenta armazenamento, recuperação, filtros e exportação. Feche e reabra esta ferramenta após atualizar. O histórico começa com esta versão e não importa operações anteriores. Falhas na estatística não repetem nem interrompem operações concluídas; uma fila local recupera gravações transitórias e falhas de persistência são registradas no log. Antes de rodar a suíte completa, use um terminal exclusivo de testes e configure NUNES_METRICAS_DADOS para uma pasta temporária; o README do Hub Nunes contém o comando de isolamento.
 
 
+## Sincronização com a central local
+
+`havan.py` e `main.py` sincronizam as métricas persistidas de pedidos inseridos,
+já existentes e falhas por lote. O histórico local anterior ao vínculo também
+é enviado. A identidade e o instante original são preservados; reenvios da
+mesma métrica não aumentam a contagem. Retomar impressão ou reimprimir continua
+sem criar outra inclusão. As estatísticas não executam operações de negócio.
+
+Com a central já preparada, execute na pasta `nunes-estatisticas`, uma vez:
+
+```powershell
+.\.venv\Scripts\python.exe central.py vincular --automacao '..\auto-pedidos-havan'
+```
+
+O vínculo privado fica em `.local/central.json` desta instalação. O comando
+recusa sobrescrever um vínculo existente. Reinicie a central atualizada e reabra
+Pedidos Havan e Hub; preserve as bases, identidade e vínculos já existentes.
+Executáveis anteriores precisam ser reconstruídos para incluir os dois módulos
+de estatísticas e o contrato de métricas. A entrada Python funciona sem importar
+Hub, central ou repositórios irmãos. Uma instalação sem vínculo não faz envios.
+
+Há tentativa ao abrir, a cada cinco segundos e ao encerrar. O fechamento espera
+até 2,5 segundos pelo sincronizador. Sem central ou sem confirmação válida, a
+pendência fica preservada para outra abertura. O banco e a fila local são lidos
+sem remover eventos. As confirmações ficam em `sincronizacao-pedidos-havan.sqlite3`
+na pasta das métricas, associadas à identidade da central e à assinatura do evento.
+
+Para consultar ou enviar pendências sem executar a automação, na pasta Havan:
+
+```powershell
+.\.venv\Scripts\python.exe sincronizar_estatisticas.py --aplicacao pedidos-havan --resumo
+.\.venv\Scripts\python.exe sincronizar_estatisticas.py --aplicacao pedidos-havan
+```
+
+No Hub, **Resultados → Central local → Pedidos Havan** mostra inseridos,
+existentes e falhas separadamente, além das pendências locais. A soma é de
+registros, não de pedidos únicos; os filtros do relatório local não se aplicam
+a esse resumo. Limites e recuperação estão no
+[contrato da central](../nunes-estatisticas/CONTRATO.md).
+
+Validação de 22/10/2026: 218 testes Python e seis JavaScript do Havan aprovados,
+incluindo oito novos testes da central com processos e bancos temporários.
+As suítes dos seis projetos envolvidos somaram 852 Python e 71 JavaScript.
+Tipagem dos módulos Havan alterados e completa do Financeiro sem erros ou avisos.
+Nenhum pedido real, impressão, portal ou notificação foi executado nos testes.
+Homologação operacional pendente após reiniciar a central e reabrir as interfaces.
+
 ## Recuperação de avisos — E9, 21/10/2026
+
 
 Por decisão do responsável em 21/10, o aviso genérico continua cancelando a
 inclusão, mas deixa de comprovar duplicidade sozinho. A automação aguarda o

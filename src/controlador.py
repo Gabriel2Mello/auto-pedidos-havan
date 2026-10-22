@@ -12,6 +12,7 @@ from threading import Event, RLock, Thread, get_ident
 from time import monotonic
 from typing import Callable, Protocol
 from uuid import uuid4
+from integracao_hub import MedidorAbertura
 
 from src.erros import BancoSisplanError, ConfiguracaoError, EstadoEmUsoError
 from src.config import diretorio_aplicacao
@@ -69,7 +70,9 @@ class MensagensInterface(logging.Handler):
 
 class EstadoInterface:
     def __init__(self, caminho: Path | None = None, *, executor: Executor = executar_fluxo,
-                 codigo_execucao: str = '', arquivo_log: Path | None = None) -> None:
+                 codigo_execucao: str = '', arquivo_log: Path | None = None,
+                 medidor_abertura: MedidorAbertura | None = None) -> None:
+        self.medidor_abertura = medidor_abertura
         self.caminho = caminho
         self.executor = executor
         self.codigo_execucao = codigo_execucao
@@ -278,6 +281,8 @@ class EstadoInterface:
     def _executar(self) -> None:
         handler = MensagensInterface(self)
         try:
+            if self.medidor_abertura is not None:
+                self.medidor_abertura.marcar('historico_iniciado')
             limite = monotonic() + TEMPO_LIBERAR_HISTORICO
             while not self.parada.is_set():
                 try:
@@ -290,6 +295,8 @@ class EstadoInterface:
                             self.fase = 'PRONTO'
                             self.mensagem = 'Tudo pronto. Insira pedidos ou retome as pendências.'
                         logging.getLogger().addHandler(handler)
+                        if self.medidor_abertura is not None:
+                            self.medidor_abertura.marcar('historico_pronto')
                         self.pronto.set()
                         while (trabalho := self.comandos.get()) is not None:
                             self._processar(trabalho)
