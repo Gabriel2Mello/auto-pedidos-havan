@@ -5,7 +5,7 @@ const {randomUUID} = require('node:crypto');
 const {test} = require('node:test');
 const vm = require('node:vm');
 
-function painel() {
+function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false}={}) {
   const elementos = new Map(), eventos = new Map(), criados = [];
   class Elemento {
     constructor() { this.texto=''; this.escritas=0; this.value=''; this.checked=false; this.children=[]; this.atributos={}; }
@@ -24,12 +24,18 @@ function painel() {
   obter('filtro').value='todos';
   const contexto = vm.createContext({
     document: {
+      get cookie() { if(falhaCookie)throw Error('Cookies indisponíveis');return cookie; },
+      set cookie(valor) { if(falhaCookie)throw Error('Cookies indisponíveis');cookie=valor; },
       getElementById: obter, querySelector: () => ({content:'token-local'}),
       querySelectorAll: seletor => seletor==='[data-reimportar]'?criados.filter(e=>'data-reimportar' in e.atributos):[], documentElement: {dataset:{}},
       createElement: () => {const e=new Elemento();criados.push(e);return e;}, createDocumentFragment: () => new Elemento(),
     },
     crypto: {randomUUID}, AbortController,
-    localStorage: {getItem: () => 'claro'},
+    localStorage: {
+      getItem: () => {if(falhaStorage)throw Error('Storage indisponível');return temaSalvo;},
+      setItem: (_chave, valor) => {if(falhaStorage)throw Error('Storage indisponível');temaSalvo=valor;},
+    },
+    matchMedia: () => {throw Error('O tema não depende do sistema operacional');},
     window: {addEventListener: (nome, executar) => eventos.set(nome, executar)},
     fetch: () => new Promise(() => {}), setTimeout: () => 0,
   });
@@ -60,6 +66,37 @@ test('andamento ocioso ou em falha não redesenha mensagens idênticas', () => {
   p.estado.mensagem='Situação alterada.';
   p.renderizar(p.estado);
   assert.equal(p.obter('status').textContent, 'Situação alterada.');
+});
+
+test('tema escuro padrão e preferências válidas são recuperados sem consultar o sistema', () => {
+  for(const [salvo, esperado] of [[null,'escuro'],['invalido','escuro'],['claro','claro'],['escuro','escuro']]){
+    const p=painel({temaSalvo:salvo});
+    assert.equal(p.contexto.document.documentElement.dataset.tema, esperado);
+    assert.equal(p.obter('tema').textContent, esperado==='escuro'?'Tema claro':'Tema escuro');
+    if(salvo===esperado)assert.match(p.contexto.document.cookie, new RegExp(`^tema-pedidos-havan=${esperado};`));
+  }
+});
+
+test('alternância salva a preferência e cookie restaura o tema com storage de outra porta', () => {
+  const p=painel();
+  p.obter('tema').onclick();
+  assert.equal(p.contexto.document.documentElement.dataset.tema, 'claro');
+  assert.equal(p.contexto.localStorage.getItem('tema-pedidos-havan'), 'claro');
+  assert.equal(p.contexto.document.cookie, 'tema-pedidos-havan=claro; Max-Age=31536000; Path=/; SameSite=Strict');
+  const reaberto=painel({cookie:p.contexto.document.cookie});
+  assert.equal(reaberto.contexto.document.documentElement.dataset.tema, 'claro');
+  assert.equal(painel({cookie:p.contexto.document.cookie, temaSalvo:'escuro'}).contexto.document.documentElement.dataset.tema, 'claro');
+  assert.equal(painel({cookie:'tema-pedidos-havan=claro=invalido', temaSalvo:'escuro'}).contexto.document.documentElement.dataset.tema, 'escuro');
+  reaberto.obter('tema').onclick();
+  assert.equal(reaberto.contexto.localStorage.getItem('tema-pedidos-havan'), 'escuro');
+});
+
+test('armazenamentos indisponíveis mantêm tema escuro inicial e alternância funcional', () => {
+  const p=painel({falhaStorage:true, falhaCookie:true});
+  assert.equal(p.contexto.document.documentElement.dataset.tema, 'escuro');
+  p.obter('tema').onclick();
+  assert.equal(p.contexto.document.documentElement.dataset.tema, 'claro');
+  assert.equal(p.obter('tema').atributos['aria-label'], 'Usar tema escuro');
 });
 
 test('recuperar conexão com estado idêntico reabilita o início', async () => {

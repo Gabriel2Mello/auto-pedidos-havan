@@ -10,6 +10,8 @@ O operador pode usar **Abrir Pedidos Havan.cmd**, ou o atalho com o mesmo nome,
 para abrir o painel local. Ele oferece Inserir, Retomar e Reimprimir, as quatro
 filas, busca por pedido/número interno, andamento, decisões após erro e acesso
 ao diagnóstico. Tem temas claro/escuro, assinatura g2mello e ícone Nunes violeta.
+O tema inicial é escuro; a escolha manual fica salva no mesmo navegador,
+inclusive quando uma nova abertura usa outra porta local.
 
 A instalação pelo código precisa de Python **3.13 de 32 bits** com as dependências
 em `.venv` ou `venv32`. O atalho procura primeiro `Pedidos Havan.exe` na mesma
