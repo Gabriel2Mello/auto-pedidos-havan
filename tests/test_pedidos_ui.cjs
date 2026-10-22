@@ -12,7 +12,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     set textContent(valor) { this.texto=valor; this.escritas++; }
     get textContent() { return this.texto; }
     setAttribute(nome, valor) { this.atributos[nome]=valor; }
-    addEventListener() {}
+    addEventListener(nome,acao) { if(nome==='click')this.onclick=acao; }
     append(...filhos) { this.children.push(...filhos); }
     replaceChildren(...filhos) { this.children=filhos; this.escritas++; }
     focus() {}
@@ -27,7 +27,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
       get cookie() { if(falhaCookie)throw Error('Cookies indisponíveis');return cookie; },
       set cookie(valor) { if(falhaCookie)throw Error('Cookies indisponíveis');cookie=valor; },
       getElementById: obter, querySelector: () => ({content:'token-local'}),
-      querySelectorAll: seletor => seletor==='[data-reimportar]'?criados.filter(e=>'data-reimportar' in e.atributos):[], documentElement: {dataset:{}},
+      querySelectorAll: seletor => seletor==='[data-reimportar]'?criados.filter(e=>'data-reimportar' in e.atributos):[], documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
       createElement: () => {const e=new Elemento();criados.push(e);return e;}, createDocumentFragment: () => new Elemento(),
     },
     crypto: {randomUUID}, AbortController,
@@ -39,6 +39,8 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     window: {addEventListener: (nome, executar) => eventos.set(nome, executar)},
     fetch: () => new Promise(() => {}), setTimeout: () => 0,
   });
+  obter('tema').tagName='BUTTON';
+  vm.runInContext(readFileSync(join(__dirname, '../src/nunes-tema.js'), 'utf8'), contexto);
   vm.runInContext(readFileSync(join(__dirname, '../src/pedidos.js'), 'utf8'), contexto);
   const estado = {
     fase:'PRONTO', mensagem:'Tudo pronto.', ocupada:false, encerrando:false,
@@ -82,7 +84,7 @@ test('alternância salva a preferência e cookie restaura o tema com storage de 
   p.obter('tema').onclick();
   assert.equal(p.contexto.document.documentElement.dataset.tema, 'claro');
   assert.equal(p.contexto.localStorage.getItem('tema-pedidos-havan'), 'claro');
-  assert.equal(p.contexto.document.cookie, 'tema-pedidos-havan=claro; Max-Age=31536000; Path=/; SameSite=Strict');
+  assert.equal(p.contexto.document.cookie, 'tema-pedidos-havan=claro; Path=/; Max-Age=31536000; SameSite=Strict');
   const reaberto=painel({cookie:p.contexto.document.cookie});
   assert.equal(reaberto.contexto.document.documentElement.dataset.tema, 'claro');
   assert.equal(painel({cookie:p.contexto.document.cookie, temaSalvo:'escuro'}).contexto.document.documentElement.dataset.tema, 'claro');
@@ -96,7 +98,7 @@ test('armazenamentos indisponíveis mantêm tema escuro inicial e alternância f
   assert.equal(p.contexto.document.documentElement.dataset.tema, 'escuro');
   p.obter('tema').onclick();
   assert.equal(p.contexto.document.documentElement.dataset.tema, 'claro');
-  assert.equal(p.obter('tema').atributos['aria-label'], 'Usar tema escuro');
+  assert.equal(p.obter('tema').atributos['aria-label'], 'Ativar tema escuro');
 });
 
 test('recuperar conexão com estado idêntico reabilita o início', async () => {

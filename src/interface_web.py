@@ -141,6 +141,7 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                 '/': ('src/pedidos.html', 'text/html; charset=utf-8'),
                 '/pedidos.css': ('src/pedidos.css', 'text/css; charset=utf-8'),
                 '/pedidos.js': ('src/pedidos.js', 'text/javascript; charset=utf-8'),
+                '/nunes-tema.js': ('src/nunes-tema.js', 'text/javascript; charset=utf-8'),
                 '/icons/icone.svg': ('icons/icone.svg', 'image/svg+xml'),
                 '/favicon.ico': ('icons/icone.ico', 'image/x-icon'),
                 '/icons/icone-192.png': ('icons/icone-192.png', 'image/png'),

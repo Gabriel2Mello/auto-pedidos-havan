@@ -357,7 +357,7 @@ class ApiTests(BaseInterface):
         self.assertIn(b'Gabriel2Mello', html)
         self.assertIn(b'assinatura-ll', html)
         self.assertIn("script-src 'self'", headers['Content-Security-Policy'])
-        for caminho in ('/pedidos.js', '/pedidos.css', '/icons/icone.svg', '/favicon.ico', '/icons/icone-192.png'):
+        for caminho in ('/pedidos.js', '/nunes-tema.js', '/pedidos.css', '/icons/icone.svg', '/favicon.ico', '/icons/icone-192.png'):
             self.assertEqual(self.requisitar(caminho, token=False)[0], 200)
         self.assertEqual(self.requisitar('/../config.toml')[0], 404)
         self.assertEqual(self.requisitar('/icons/../../config.toml')[0], 404)

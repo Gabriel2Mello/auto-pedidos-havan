@@ -129,19 +129,7 @@ el('copiar-suporte').onclick=async()=>{
   try{await navigator.clipboard.writeText(texto);el('copiar-suporte').textContent='Diagnóstico copiado';setTimeout(()=>el('copiar-suporte').textContent='Copiar diagnóstico',2200);}
   catch(_){mensagem('Não consegui copiar. Informe ao suporte o código de execução exibido abaixo.');}
 };
-function aplicarTema(tema){document.documentElement.dataset.tema=tema;el('tema').textContent=tema==='escuro'?'Tema claro':'Tema escuro';el('tema').setAttribute('aria-label',tema==='escuro'?'Usar tema claro':'Usar tema escuro');}
-function salvarTema(tema){
-  try{document.cookie=`tema-pedidos-havan=${tema}; Max-Age=31536000; Path=/; SameSite=Strict`;}catch(_){/* O tema continua ativo nesta aba. */}
-  try{localStorage.setItem('tema-pedidos-havan',tema);}catch(_){/* O cookie preserva a preferência quando disponível. */}
-}
-let temaSalvo;
-try{temaSalvo=document.cookie?.split(';').map(item=>item.trim()).find(item=>item.startsWith('tema-pedidos-havan='))?.slice('tema-pedidos-havan='.length);}catch(_){/* Tentar a preferência local anterior. */}
-if(!['claro','escuro'].includes(temaSalvo)){
-  try{temaSalvo=localStorage.getItem('tema-pedidos-havan');}catch(_){/* Usar o padrão escuro. */}
-}
-aplicarTema(['claro','escuro'].includes(temaSalvo)?temaSalvo:'escuro');
-if(['claro','escuro'].includes(temaSalvo))salvarTema(temaSalvo);
-el('tema').onclick=()=>{const tema=document.documentElement.dataset.tema==='escuro'?'claro':'escuro';aplicarTema(tema);salvarTema(tema);};
+window.NunesTema.iniciar({controle:el('tema'),chave:'tema-pedidos-havan',cookie:true});
 function pararPresenca(){presenca?.abort();}
 async function acompanhar(){
   if(encerrado||saindo)return;presenca=new AbortController();
