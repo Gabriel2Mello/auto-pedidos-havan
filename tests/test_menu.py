@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import main
 from src.banco import BancoSisplanError
 from src.estado import EstadoPedido, EstadoPedidos
+from src.resumo import ResumoExecucao
 from src.menu import escolher_operacao, perguntar_apos_erro
 from src.prevalidacao import PedidoRejeitadoError
 from src.erros import (SessaoPortalExpiradaError)
@@ -80,7 +81,7 @@ class MenuTests(unittest.TestCase):
         with patch('main.setup_logging', side_effect=PermissionError('Acesso negado')), \
              patch('main.EstadoPedidos') as estado, patch('builtins.input', return_value='') as entrada, \
              redirect_stdout(saida):
-            main.main()
+            self.assertEqual(main.main(), 1)
         estado.assert_not_called()
         entrada.assert_called_once()
         self.assertIn('PermissionError', saida.getvalue())
@@ -99,6 +100,7 @@ class MenuTests(unittest.TestCase):
         def executar(pedidos, modo, historico, ao_erro):
             self.assertEqual(historico.pendentes(), pedidos)
             self.assertEqual(modo, 'normal')
+            return ResumoExecucao(dict.fromkeys(pedidos, 'existente'))
         with patch('main.EstadoPedidos', side_effect=lambda: EstadoPedidos(self.caminho)), \
              patch('main.processar_pedidos', side_effect=executar) as processar, \
              patch('sys.argv', ['main.py']), \
@@ -119,3 +121,14 @@ class MenuTests(unittest.TestCase):
         processar.assert_called_once()
         with EstadoPedidos(self.caminho) as historico:
             self.assertEqual(historico.pendentes(), ['2026-12345'])
+
+    def test_console_retorna_falha_para_pedidos_pendentes_e_zero_para_concluidos(self) -> None:
+        for situacao, esperado in (('existente', 0), ('impressao_enviada', 0),
+                                  ('rejeitado', 1), ('gravacao_pendente', 1),
+                                  ('impressao_incerta', 1), ('aguardando', 1)):
+            with self.subTest(situacao=situacao), patch('main.setup_logging'), \
+                    patch('main.set_app_id'), patch('main.EstadoPedidos'), \
+                    patch('main.processar_pedidos', return_value=ResumoExecucao({'2026-12345': situacao})), \
+                    patch('sys.argv', ['main.py', '--reimprimir', '12345']), \
+                    patch('builtins.input', return_value=''):
+                self.assertEqual(main.main(), esperado)

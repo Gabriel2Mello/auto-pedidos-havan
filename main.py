@@ -17,7 +17,7 @@ from src.windows import set_app_id
 logger = get_logger(__name__)
 
 
-def main() -> None:
+def main() -> int:
     try:
         setup_logging()
     except (OSError, ValueError) as error:
@@ -28,7 +28,7 @@ def main() -> None:
             input('Pressione Enter para fechar...')
         except (EOFError, KeyboardInterrupt):
             pass
-        return
+        return 1
     parser = argparse.ArgumentParser(description='Automação de pedidos Havan')
     modos = parser.add_mutually_exclusive_group()
     modos.add_argument('--retomar', action='store_true', help='Retoma a fila pendente.')
@@ -50,6 +50,7 @@ def main() -> None:
         parser.error(str(erro))
     if sys.platform == 'win32':
         set_app_id()
+    codigo = 0
     try:
         with EstadoPedidos() as historico:
             while True:
@@ -60,7 +61,9 @@ def main() -> None:
                 while True:
                     inicio = perf_counter()
                     try:
-                        processar_pedidos(pedidos, modo, historico=historico, ao_erro=perguntar_apos_erro)
+                        resumo = processar_pedidos(pedidos, modo, historico=historico, ao_erro=perguntar_apos_erro)
+                        if any(situacao not in ('existente', 'impressao_enviada') for situacao in resumo.situacoes.values()):
+                            codigo = 1
                         break
                     except Exception as error:
                         logger.exception('Falha ao iniciar o processamento; modo=%s pedidos=%s.', modo, pedidos)
@@ -69,18 +72,21 @@ def main() -> None:
                             isinstance(error, BancoSisplanError), False,
                         )
                         if decisao != 'repetir':
+                            codigo = 1
                             break
                     finally:
                         logger.info('Tempo desta tentativa: %.2f segundos.', perf_counter() - inicio)
                 if modo_cli is not None:
                     break
     except (EstadoError, KeyboardInterrupt) as error:
+        codigo = 130 if isinstance(error, KeyboardInterrupt) else 1
         logger.exception('Execução encerrada sem iniciar novas ações: %s', error)
         print('O programa foi encerrado. As etapas já salvas serão preservadas.')
         if isinstance(error, EstadoError):
             input('Avise o responsável e envie auto-pedidos.log. Pressione Enter para fechar...')
     if modo_cli is not None:
         input('Pressione Enter para fechar...')
+    return codigo
 
 
 if __name__ == '__main__':

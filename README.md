@@ -219,6 +219,11 @@ preservando a fila existente. Erros do histórico registram a causa original,
 o caminho e os códigos SQLite disponíveis. Se o arquivo de log não puder ser
 aberto na inicialização, o programa orienta o operador e aguarda Enter antes
 de fechar, sem iniciar o processamento.
+O console retorna código 1 nessa falha, em erros de histórico ou quando um
+lote termina com pedidos rejeitados, falhos ou pendentes. O código é acumulado
+na sessão: 0 indica todos os lotes sem falhas ou pendências, com pedidos
+existentes ou impressão enviada (ou nenhum trabalho); interrupção capturada retorna 130. O código não
+confirma impressão física e não autoriza repetir inclusões ou envios incertos.
 
 As buscas por diálogos são restritas ao processo do Sisplan. O tratamento de
 “Aviso” conserva a barreira de cancelamento. Desde a E9, a retirada da fila
