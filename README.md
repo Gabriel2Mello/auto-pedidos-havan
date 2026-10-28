@@ -396,7 +396,9 @@ Executáveis anteriores precisam ser reconstruídos para incluir os dois módulo
 de estatísticas e o contrato de métricas. A entrada Python funciona sem importar
 Hub, central ou repositórios irmãos. Uma instalação sem vínculo não faz envios.
 
-Há tentativa ao abrir, a cada cinco segundos e ao encerrar. O fechamento espera
+Há tentativa ao abrir e ao encerrar. A espera entre ciclos é de cinco segundos,
+subindo gradualmente até 30 segundos somente sem atividade nem pendências;
+atividade ou falha retomam cinco segundos. O fechamento espera
 até 2,5 segundos pelo sincronizador. Sem central ou sem confirmação válida, a
 pendência fica preservada para outra abertura. O banco e a fila local são lidos
 sem remover eventos. As confirmações ficam em `sincronizacao-pedidos-havan.sqlite3`
