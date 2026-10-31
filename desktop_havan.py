@@ -18,6 +18,7 @@ RECURSOS = Path(__file__).resolve().parent
 
 NOME = 'Pedidos Havan'
 APP_ID = 'Nunes.PedidosHavan.Desktop.1'
+TEMPO_CONFIRMAR_PREFERENCIAS = 10
 
 
 class SemRedirecionamento(HTTPRedirectHandler):
@@ -121,17 +122,20 @@ class Janela:
             terminou.set()
 
         try:
+            limite = time.monotonic() + TEMPO_CONFIRMAR_PREFERENCIAS
             janela.evaluate_js('salvamentoTema', callback=salvo)
             while not terminou.wait(.1):
                 if self.fechada.is_set():
                     raise RuntimeError('A janela fechou antes de confirmar as preferências.')
+                if time.monotonic() >= limite:
+                    raise TimeoutError('O WebView não confirmou as preferências no prazo.')
             if respostas != [True]:
                 janela.set_title(self.nome + ' · Confira a falha ao salvar o tema')
                 return
             self.servidor.encerrar(confirmado=True)
         except Exception:
             logging.exception('Falha ao salvar preferências antes de encerrar')
-            janela.set_title(self.nome + ' · Não foi possível confirmar as preferências')
+            janela.set_title(self.nome + ' · Falha ao confirmar preferências; tente encerrar novamente')
         finally:
             self.salvando = False
 

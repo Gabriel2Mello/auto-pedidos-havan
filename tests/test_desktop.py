@@ -97,6 +97,37 @@ class TestCiclo(BaseInterface):
         janela.salvar_e_encerrar(nativa)
         servidor.encerrar.assert_called_once_with(confirmado=True)
 
+    def test_callback_ausente_libera_nova_tentativa_sem_encerrar_e_ignora_retorno_tardio(self):
+        servidor = Mock(fechando=False)
+        janela = desktop.Janela(servidor)
+        nativa = Mock()
+        callbacks = []
+        nativa.evaluate_js.side_effect = lambda script, callback: callbacks.append(callback)
+        janela.salvando = True
+        thread = Thread(target=janela.salvar_e_encerrar, args=(nativa,), daemon=True)
+        with patch('desktop_havan.TEMPO_CONFIRMAR_PREFERENCIAS', 0), \
+             self.assertLogs(level='ERROR') as logs:
+            try:
+                thread.start()
+                thread.join(2)
+                self.assertFalse(thread.is_alive(), 'A espera pelo callback não terminou')
+            finally:
+                if thread.is_alive():
+                    janela.fechada.set()
+                    thread.join(2)
+        self.assertIn('TimeoutError', '\n'.join(logs.output))
+        self.assertFalse(janela.salvando)
+        servidor.encerrar.assert_not_called()
+        self.assertIn('tente encerrar novamente', nativa.set_title.call_args.args[0])
+        callbacks[0](True)
+        servidor.encerrar.assert_not_called()
+        nativa.create_confirmation_dialog.return_value = False
+        self.assertFalse(janela.fechar(nativa))
+        nativa.create_confirmation_dialog.assert_called_once()
+        nativa.evaluate_js.side_effect = lambda script, callback: callback(True)
+        janela.salvar_e_encerrar(nativa)
+        servidor.encerrar.assert_called_once_with(confirmado=True)
+
 class TestApiDesktop(BaseInterface):
     def test_ativacao_http_e_tema_sao_autenticados(self):
         from http.client import HTTPConnection

@@ -48,6 +48,11 @@ auxiliar termina no processo, mantendo a exclusividade até a saída. Parada pel
 Hub segue a mesma coordenação. Fechar a janela não comprova término do processo.
 Perder presença da página não encerra o desktop. O modo web mantém suas regras.
 
+A espera pelo callback de confirmação do tema tem limite de dez segundos.
+Sem retorno, a falha aparece no título e no log, a janela permanece aberta e
+uma nova tentativa de encerrar fica disponível. Um callback tardio da tentativa
+anterior não encerra a aplicação.
+
 Tema e geometria ficam em `%LOCALAPPDATA%\Nunes\PedidosHavan`. O override
 `HAVAN_DESKTOP_DADOS` é usado pela demonstração e pelos testes. Os dados operacionais
 permanecem nos destinos anteriores. O log pode ser acessado na pasta da aplicação;
