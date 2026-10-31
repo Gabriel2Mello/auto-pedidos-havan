@@ -75,6 +75,41 @@ class TestMetricasIntegracao(unittest.TestCase):
             self.assertEqual(self.resumo.situacoes[self.pedido], 'impressao_enviada')
             self.banco.confirmar_gravacao.assert_called_once()
 
+    def test_reimprimir_aviso_pendente_nao_exige_xml_nem_conta_nova_inclusao(self):
+        self.banco.consultar_pedidos.return_value = {self.pedido: [PedidoExistente('100', 2)]}
+        for preservar_itens in (False, True):
+            with self.subTest(preservar_itens=preservar_itens), \
+                 EstadoPedidos(self.raiz / f'estado-aviso-{preservar_itens}.sqlite3') as historico, \
+                 patch('src.servico_pedidos.validar_pedido_baixado') as validar, \
+                 patch('src.servico_pedidos.importar_novo') as importar, \
+                 patch('src.servico_pedidos.enviar_impressao') as imprimir:
+                historico.salvar(EstadoPedido(self.pedido, '', 'aviso_pendente'))
+                if preservar_itens:
+                    historico.salvar_itens_esperados(self.pedido, [ItemEsperado('P1', 'C1', 'T1', Decimal(1))])
+                self.banco.confirmar_gravacao.reset_mock()
+                servico.processar_um_pedido(self.pedido, 'reimprimir', self.banco,
+                                           historico, self.resumo, self.recursos)
+                self.banco.confirmar_gravacao.assert_called_once_with(self.pedido, '100')
+                self.assertEqual(self.totais()['pedido_inserido'], 0)
+                self.assertEqual(historico.obter(self.pedido).etapa, 'importado')
+                validar.assert_not_called()
+                importar.assert_not_called()
+                imprimir.assert_called_once_with(self.pedido, '100', historico, self.resumo,
+                                                 forcar=True, integracoes=self.integracoes)
+
+    def test_reimprimir_aviso_sem_confirmacao_preserva_bloqueio_e_nao_conta_inclusao(self):
+        self.banco.consultar_pedidos.return_value = {self.pedido: [PedidoExistente('100', 2)]}
+        self.banco.confirmar_gravacao.side_effect = GravacaoNaoConfirmadaError('Gravação não confirmada')
+        with EstadoPedidos(self.raiz / 'estado.sqlite3') as historico, \
+             patch('src.servico_pedidos.enviar_impressao') as imprimir:
+            historico.salvar(EstadoPedido(self.pedido, '', 'aviso_pendente'))
+            with self.assertRaises(GravacaoNaoConfirmadaError):
+                servico.processar_um_pedido(self.pedido, 'reimprimir', self.banco,
+                                           historico, self.resumo, self.recursos)
+            self.assertEqual(historico.inclusoes_incertas(), [self.pedido])
+            self.assertEqual(self.totais()['pedido_inserido'], 0)
+            imprimir.assert_not_called()
+
     def test_existentes_e_falhas_por_lote_nao_aumentam_inseridos(self):
         banco = MagicMock()
         banco.__enter__.return_value = self.banco

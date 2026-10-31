@@ -258,7 +258,10 @@ def retomar_impressao(
     registro = historico.obter(pedido)
     if registro is not None and registro.numero and registro.numero != numero:
         raise EstadoError('O número interno diverge do histórico. Avise o responsável.')
-    if registro is not None and registro.etapa in INCLUSOES_INCERTAS:
+    # Aviso pendente vem de uma inclusão cancelada: confirmar a existência para
+    # reimprimir não comprova uma nova inclusão feita por esta automação.
+    inclusao_incerta = registro is not None and registro.etapa in ('importacao_iniciada', 'gravacao_pendente')
+    if inclusao_incerta:
         itens = historico.obter_itens_esperados(pedido)
         if not itens:
             # Migração de uma inclusão pendente criada antes desta versão.
@@ -269,7 +272,7 @@ def retomar_impressao(
         confirmado = banco.confirmar_gravacao(pedido, numero)
     if registro is None or registro.etapa in (*ETAPAS_INICIAIS, *INCLUSOES_INCERTAS, 'existente'):
         historico.salvar(EstadoPedido(pedido, confirmado.numero, 'importado', confirmado.empresa))
-    if registro is not None and registro.etapa in INCLUSOES_INCERTAS:
+    if inclusao_incerta:
         registrar_inclusao(pedido, confirmado)
     resumo.retomados.add(pedido)
     if parar is not None and parar():

@@ -449,6 +449,10 @@ outras inclusões. O painel identifica **Aviso: conferir existência no banco**.
 Ao abrir o histórico, registros antigos `existente` sem número interno voltam
 a `aviso_pendente`, preservando os dados e eventual diagnóstico anterior.
 
+Uma reimpressão solicitada nesse estado também exige gravação única confirmada
+no banco e não gera métrica de nova inclusão nem exige reconstruir os itens
+do XML da inclusão cancelada.
+
 Use **Retomar** para consultar novamente. Se encontrar uma correspondência
 única, a pendência termina sem inclusão, impressão ou métrica de nova inclusão.
 Sem confirmação, continua bloqueada para análise com o responsável. Nem
