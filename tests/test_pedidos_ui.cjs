@@ -310,3 +310,42 @@ test('falha de transporte no início não permite reenvio até obter o estado',a
   assert.equal(vm.runInContext('inicioIncerto',p.contexto),true);
   assert.equal(p.obter('conferir').disabled,true);assert.equal(p.obter('iniciar').disabled,true);
 });
+
+test('novo lote recolhe preparação uma vez e mantém estados acessíveis ao terminar',()=>{
+  const p=painel();p.renderizar(p.estado);
+  p.obter('preparacao').open=true;
+  p.obter('pedidos').value='12345';
+  const s={...p.estado,execucao:'lote-1',fase:'EXECUTANDO',ocupada:true,total:1,indice:1,pedido:'2026-12345',lote:['2026-12345'],mensagem:'Processando pedido 1 de 1: 2026-12345.'};
+  p.renderizar(s);
+  assert.equal(p.obter('preparacao').open,false);
+  assert.equal(p.obter('pedidos').value,'12345');
+  assert.equal(p.obter('detalhes-processamento').hidden,false);
+  assert.equal(p.obter('detalhes-processamento').open,false);
+  assert.doesNotMatch(p.obter('status').textContent,/2026-12345/);
+  p.obter('preparacao').open=true;
+  p.renderizar({...s,mensagem:'Nova etapa'});
+  assert.equal(p.obter('preparacao').open,true);
+  p.obter('preparacao').open=false;
+  p.renderizar({...s,ocupada:false,fase:'CONCLUIDO',resumo:{importacoes_confirmadas:1},resultados_lote:{'2026-12345':'impressao_enviada'}});
+  assert.equal(p.obter('preparacao').open,false);
+  assert.equal(p.obter('detalhes-processamento').hidden,true);
+  assert.equal(p.obter('detalhes-resultado').hidden,false);
+  assert.equal(p.obter('detalhes-resultado').open,false);
+  assert.equal(p.obter('orientacao').hidden,true);
+  assert.equal(p.obter('titulo-andamento').textContent,'Resultado do último lote');
+  vm.runInContext("mudarModo('retomar')",p.contexto);
+  assert.equal(p.obter('preparacao').open,true);
+});
+
+test('pausa conserva decisão visível e falhas conservam mensagem sem depender dos detalhes',()=>{
+  const p=painel();
+  p.renderizar({...p.estado,execucao:'lote',fase:'PAUSADO',ocupada:true,total:1,erro:{id:'erro',pedido:'2026-12345',mensagem:'Gravação incerta',repetir:false,pular:false}});
+  assert.equal(p.obter('aviso-erro').hidden,false);
+  assert.equal(p.obter('detalhes-processamento').hidden,true);
+  assert.equal(p.obter('repetir').hidden,true);
+  assert.equal(p.obter('pular').hidden,true);
+  assert.equal(p.obter('erro-mensagem').textContent,'Gravação incerta');
+  p.renderizar({...p.estado,fase:'FALHA',mensagem:'Histórico indisponível'});
+  assert.equal(p.obter('status').textContent,'Histórico indisponível');
+  assert.equal(p.obter('detalhes-processamento').hidden,true);
+});

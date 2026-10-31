@@ -32,8 +32,9 @@
   </header>
   <p id="conexao" class="aviso conexao" role="alert" hidden></p>
   <div class="principal">
-    <section class="preparacao" aria-labelledby="titulo-entrada">
-      <h2 id="titulo-entrada">Preparar lote</h2>
+    <details id="preparacao" class="preparacao" open>
+      <summary id="titulo-entrada">Preparar lote</summary>
+      <div class="conteudo-preparacao">
       <div class="modos" role="group" aria-label="Operação">
         <button type="button" data-modo="normal" aria-pressed="true">Inserir</button>
         <button type="button" data-modo="retomar" aria-pressed="false">Retomar <span id="n-pendentes">—</span></button>
@@ -48,7 +49,7 @@
         <form id="formulario">
           <div id="campo-pedidos">
             <label for="pedidos">Números dos pedidos Havan</label>
-            <div class="campo-lista"><textarea id="pedidos" rows="8" maxlength="12000" placeholder="109335&#10;109336&#10;2026-109337" aria-describedby="dica-pedidos contagem-pedidos validacao-pedidos" spellcheck="false" required></textarea><span id="contagem-pedidos" class="contagem" role="status" aria-live="polite" aria-atomic="true">Contagem: 0</span></div>
+            <div class="campo-lista"><textarea id="pedidos" rows="6" maxlength="12000" placeholder="109335&#10;109336&#10;2026-109337" aria-describedby="dica-pedidos contagem-pedidos validacao-pedidos" spellcheck="false" required></textarea><span id="contagem-pedidos" class="contagem" role="status" aria-live="polite" aria-atomic="true">Contagem: 0</span></div>
             <p id="dica-pedidos" class="dica">Separe por vírgula ou linha. Sem o ano, será utilizado o ano atual.</p>
             <p id="validacao-pedidos" class="dica" role="status"></p>
           </div>
@@ -66,25 +67,28 @@
           <div class="acoes enviar"><button type="button" id="iniciar" class="botao-principal" disabled>Inserir e processar</button><button type="button" id="editar">Voltar à lista</button></div>
         </div>
       </section>
-      <p id="mensagem-acao" class="mensagem-acao" role="alert"></p>
-    </section>
+      </div>
+    </details>
     <aside class="acompanhamento" aria-labelledby="titulo-andamento">
       <div class="titulo-secao"><h2 id="titulo-andamento">Andamento do lote</h2><span id="fase" class="etiqueta">Iniciando</span></div>
       <p id="status" class="status" role="status">Carregando os pedidos salvos…</p>
+      <details id="detalhes-processamento" class="detalhes-processamento" hidden><summary>Detalhes do processamento</summary>
       <div id="identificacao" class="pedido-atual"><span id="pedido-atual" class="dica">As etapas concluídas ficam preservadas para retomar.</span><strong id="numero-atual">—</strong><span id="etapa-atual" class="dica"></span></div>
       <div id="area-progresso" hidden><progress id="progresso" value="0" max="1" aria-label="Posição no lote; não representa sucesso de todos os pedidos"></progress><p id="posicao" class="dica"></p></div>
-      <div id="indicadores" class="indicadores" hidden><div><strong id="total-lote">0</strong><span>Pedidos no lote</span></div><div><strong id="pendentes-lote">0</strong><span>Pendentes no histórico</span></div><div><strong id="atencao-lote">0</strong><span>Exigem atenção</span></div></div>
+      </details>
+      <div id="indicadores" class="indicadores" hidden><div><strong id="total-lote">0</strong><span>Pedidos no lote</span></div><div><strong id="pendentes-lote">0</strong><span>Pendentes no lote</span></div><div><strong id="atencao-lote">0</strong><span>Exigem atenção</span></div></div>
       <p id="orientacao" class="orientacao">O Sisplan deve estar aberto na tela 1002 — Pedido por Grade.</p>
       <button type="button" id="parar" hidden>Parar após a etapa atual</button>
       <section id="aviso-erro" class="aviso" hidden aria-labelledby="titulo-erro">
         <h3 id="titulo-erro" tabindex="-1">É preciso conferir este pedido</h3><p id="erro-pedido"></p><p id="erro-mensagem"></p><p id="erro-seguranca" class="dica"></p>
         <div class="acoes"><button type="button" id="repetir" class="botao-principal">Tentar novamente</button><button type="button" id="pular">Deixar pendente e continuar</button><button type="button" id="parar-erro">Parar e preservar os pedidos</button></div>
       </section>
-      <p id="resumo" class="resumo" hidden></p>
+      <details id="detalhes-resultado" class="detalhes-processamento" hidden><summary>Resumo da execução</summary><p id="resumo" class="resumo" hidden></p></details>
     </aside>
   </div>
+  <p id="mensagem-acao" class="mensagem-acao" role="alert"></p>
   <section class="historico" aria-labelledby="titulo-historico">
-    <div class="titulo-secao"><h2 id="titulo-historico">Pedidos</h2><div class="modos escopos" role="group" aria-label="Pedidos exibidos"><button id="escopo-lote" type="button" aria-pressed="false">Lote atual</button><button id="escopo-todos" type="button" aria-pressed="true">Todos os pedidos salvos</button></div></div>
+    <div class="titulo-secao"><h2 id="titulo-historico">Conferir estados dos pedidos</h2><div class="modos escopos" role="group" aria-label="Pedidos exibidos"><button id="escopo-lote" type="button" aria-pressed="false">Lote atual</button><button id="escopo-todos" type="button" aria-pressed="true">Todos os pedidos salvos</button></div></div>
     <p id="alcance" class="dica">Filas do histórico completo.</p>
     <div class="filas" role="group" aria-label="Filtrar por situação">
       <button type="button" data-fila="para_baixar"><span>A baixar</span><strong id="n-para_baixar">—</strong></button>

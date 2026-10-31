@@ -54,6 +54,16 @@ também precisa dos arquivos HTML/CSS/JS e ícones no pacote de distribuição.
 6. Use **Parar processamento** para preservar as pendências e continuar no
    painel, ou **Encerrar** para finalizar o aplicativo.
 
+A interface prioriza a conferência dos estados antes e depois do processamento,
+pois o Sisplan precisa ficar em primeiro plano durante a importação. Ao iniciar
+um lote, **Preparar lote** é recolhido; clique no título para expandir novamente.
+A escolha manual de expandir é preservada nas atualizações daquele lote. O painel
+mostra contagens compactas e mantém a lista de estados salvos acessível. Detalhes
+do processamento e o resumo da execução ficam em seções expansíveis; avisos que
+exigem decisão permanecem visíveis. Ao terminar, o último pedido deixa de ocupar
+o destaque do painel. A preparação conserva a lista digitada e a conferência
+obrigatória antes de uma nova execução.
+
 Os cartões filtram o histórico; a busca aceita número Havan ou número interno.
 O histórico permanece salvo depois que as pendências terminam. “Enviado para
 impressão” mantém o significado existente: retorno de sucesso do SumatraPDF,

@@ -84,6 +84,7 @@ async function api(caminho, dados) {
 function mensagem(texto) { el('mensagem-acao').textContent=texto; }
 function mudarModo(novo) {
   if (enviando || estado?.ocupada) return;
+  el('preparacao').open=true;
   modo=novo; mensagem(''); el('confirmar-copia').checked=false;
   invalidarConferencia();abrirAba('pedidos');
   document.querySelectorAll('[data-modo]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modo===modo)));
@@ -158,11 +159,19 @@ function renderizar(s) {
   estado=s; encerrado=s.fase==='ENCERRADO';
   if(anoAnterior!==s.ano){contarPedidos();el('dica-pedidos').textContent=`Separe por vírgula ou linha. Sem o ano, será utilizado ${s.ano}.`;}
   if(conferencia&&(s.revisao!==conferencia.revisao||s.ocupada))invalidarConferencia('A situação mudou. Confira novamente os pedidos antes de iniciar.');
-  if(s.execucao&&s.execucao!==ultimoLote){ultimoLote=s.execucao;escopo='lote';pagina=0;el('filtro').value='todos';}
+  if(s.execucao&&s.execucao!==ultimoLote){
+    ultimoLote=s.execucao;escopo='lote';pagina=0;el('filtro').value='todos';
+    const preparacao=el('preparacao');
+    if(document.activeElement&&preparacao.contains(document.activeElement))el('titulo-entrada').focus();
+    preparacao.open=false;el('detalhes-processamento').open=false;el('detalhes-resultado').open=false;
+  }
   el('escopo-lote').setAttribute('aria-pressed',String(escopo==='lote'));el('escopo-todos').setAttribute('aria-pressed',String(escopo==='todos'));
   el('n-pendentes').textContent=s.fase==='INICIANDO'||s.bloqueado&&!s.pedidos.length?'—':s.pendentes;
-  el('titulo-andamento').textContent=!s.ocupada&&s.execucao?'Último lote':'Andamento do lote';
-  el('fase').textContent=fases[s.fase]||s.fase;el('status').textContent=s.mensagem;
+  el('titulo-andamento').textContent=s.ocupada?'Situação do lote':s.execucao?'Resultado do último lote':'Situação dos pedidos';
+  el('fase').textContent=fases[s.fase]||s.fase;
+  el('status').textContent=s.fase==='EXECUTANDO'?'Processamento em curso. As etapas ficam salvas para conferência.':s.mensagem;
+  el('detalhes-processamento').hidden=!s.ocupada||!s.total||Boolean(s.erro);
+  el('identificacao').hidden=!s.pedido;
   el('codigo').textContent=s.codigo_execucao||'—';
   el('pedido-atual').textContent=s.pedido?`Pedido ${s.indice} de ${s.total}`:'As etapas concluídas ficam preservadas para retomar.';
   el('numero-atual').textContent=s.pedido||'Aguardando lote';
@@ -175,9 +184,12 @@ function renderizar(s) {
   el('posicao').textContent=s.ocupada?`Pedido ${s.indice} de ${s.total}. Etapas e pendências ficam salvas.`:`${resultadosConhecidos} de ${s.total} pedido(s) com resultado nesta execução; confira as pendências.`;
   el('progresso').max=Math.max(1,s.total);el('progresso').value=s.ocupada?Math.max(0,s.indice-1):resultadosConhecidos;
   el('orientacao').textContent=s.ocupada?'Durante a inclusão, aguarde o robô terminar antes de usar o teclado, o mouse ou a tela do Sisplan.':'O Sisplan deve estar aberto na tela 1002 — Pedido por Grade.';
-  const resumo=s.resumo??{};el('resumo').hidden=!Object.keys(resumo).length;
+  el('orientacao').hidden=!s.ocupada&&Boolean(s.execucao);
+  const resumo=s.resumo??{};el('resumo').hidden=s.ocupada||!Object.keys(resumo).length;
+  el('detalhes-resultado').hidden=el('resumo').hidden;
   const pendenciasResultado=Object.entries(s.resultados_lote??{}).filter(([,v])=>!['existente','impressao_enviada'].includes(v)).length;
   if(s.fase==='CONCLUIDO'&&pendenciasResultado){el('fase').textContent='Finalizado com pendências';el('status').textContent='Processamento finalizado com pendências. Confira o resultado de cada pedido.';}
+  if(s.fase==='CONCLUIDO'&&!pendenciasResultado)el('status').textContent='Processamento finalizado. Confira abaixo os estados salvos e os resultados por pedido.';
   el('fase').className='etiqueta'+(s.erro||['FALHA','INTERROMPIDO'].includes(s.fase)||pendenciasResultado&&s.fase==='CONCLUIDO'?' atencao':'');
   el('resumo').textContent=`Resultado desta execução\nImportações confirmadas: ${resumo.importacoes_confirmadas??0} · Já existentes: ${resumo.existente??0}\nImpressões enviadas: ${resumo.impressao_enviada??0} · Não processados: ${resumo.aguardando??0}\nAguardando cadastro de produto: ${resumo.sem_cadastro??0} · Outras pendências: ${Math.max(0,pendenciasResultado-(resumo.aguardando??0)-(resumo.sem_cadastro??0))}`;
   el('aviso-erro').hidden=!s.erro;
