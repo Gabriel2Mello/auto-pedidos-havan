@@ -316,6 +316,11 @@ continua pendente. A situação é preservada ao fechar o programa; pendências 
 salvas como Baixado com motivo de produto sem cadastro também são identificadas
 ao reabrir. A tentativa começa apenas quando o operador a solicita.
 
+Se a falta de cadastro for detectada durante a inclusão no Sisplan, o robô
+confirma o cancelamento e a restauração do número anterior antes de liberar
+outra tentativa ou o próximo pedido. Sem essa confirmação, preserva a inclusão
+como incerta e exige conferência pelo responsável.
+
 ## 🪵 Gerenciamento de Logs e Arquivos de Saída
 
 Os downloads agora são validados e preparados antes de substituir PDF/XML.

@@ -64,6 +64,51 @@ class ImportacaoTests(unittest.TestCase):
                 self.numero_atual = self.numero_anterior
         self.enviar.side_effect = enviar
 
+    def test_sem_cadastro_so_retorna_e_notifica_apos_confirmar_cancelamento(self) -> None:
+        self.simular_numeros(['11250'])
+        checkpoint = MagicMock()
+        eventos = []
+        def conferir(timeout, intervalo, condicao):
+            self.assertTrue(condicao())
+            eventos.append('cancelamento_confirmado')
+        with patch('src.importar.handle_produto_sem_cadastro', return_value=True), \
+             patch('src.importar.wait_until', side_effect=conferir), \
+             patch('src.importar.enviar_alerta_teams', side_effect=lambda *args: eventos.append('alerta')):
+            resultado = importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+        self.assertEqual(resultado.situacao, 'sem_cadastro')
+        self.assertEqual(self.numero_atual, self.numero_anterior)
+        self.args[1].wait.assert_called_once_with('ready', timeout=5)
+        self.assertEqual(eventos, ['cancelamento_confirmado', 'alerta'])
+        self.assertNotIn(ATALHOS['gravar'], self.teclas())
+        checkpoint.assert_not_called()
+
+    def test_sem_cadastro_nao_libera_cancelamento_sem_janela_pronta_ou_numero_restaurado(self) -> None:
+        for falha in ('janela', 'numero'):
+            with self.subTest(falha=falha):
+                self.enviar.reset_mock()
+                self.simular_numeros(['11250'])
+                enviar_original = self.enviar.side_effect
+                def enviar(tecla, *args):
+                    if tecla != ATALHOS['desistir']:
+                        enviar_original(tecla, *args)
+                self.enviar.side_effect = enviar
+                condicoes = []
+                def conferir(timeout, intervalo, condicao):
+                    condicoes.append(condicao())
+                    raise TimeoutError('Número anterior não restaurado')
+                checkpoint = MagicMock()
+                with patch('src.importar.handle_produto_sem_cadastro', return_value=True), \
+                     patch.object(self.args[1], 'wait', side_effect=RuntimeError('Indisponível') if falha == 'janela' else None), \
+                     patch('src.importar.wait_until', side_effect=conferir), \
+                     patch('src.importar.enviar_alerta_teams') as alerta:
+                    with self.assertRaisesRegex(SisplanError, 'confirmar o cancelamento.*produto sem cadastro'):
+                        importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+                self.assertEqual(self.teclas().count(ATALHOS['incluir']), 1)
+                self.assertEqual(condicoes, [] if falha == 'janela' else [False])
+                self.assertNotIn(ATALHOS['gravar'], self.teclas())
+                checkpoint.assert_not_called()
+                alerta.assert_not_called()
+
     def teclas(self) -> list[str]:
         return [chamada.args[0] for chamada in self.enviar.call_args_list]
 

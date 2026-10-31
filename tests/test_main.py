@@ -15,7 +15,7 @@ from src.importar import ResultadoImportacao
 from src.prevalidacao import PedidoRejeitadoError
 from tests.fixtures import xml_pedido
 from src.pedidos import ItemEsperado
-from src.erros import SessaoPortalExpiradaError, NumeroInternoForaSequenciaError, ProdutoSemCadastroError
+from src.erros import SessaoPortalExpiradaError, NumeroInternoForaSequenciaError, ProdutoSemCadastroError, SisplanError
 
 
 class FluxoPrevalidacaoTests(unittest.TestCase):
@@ -200,6 +200,24 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         self.assertEqual(resumo.situacoes['2026-12345'], 'existente')
         self.baixar.assert_not_called()
         self.assert_sem_interface()
+
+    def test_cancelamento_sem_cadastro_incerto_bloqueia_repetir_e_proximo_pedido(self) -> None:
+        self.preparar('2026-12345')
+        self.preparar('2026-67890')
+        self.importar.side_effect = SisplanError('Não foi possível confirmar o cancelamento após produto sem cadastro.')
+        decisoes = []
+        def ao_erro(pedido, erro, repetir, pular):
+            decisoes.append((pedido, repetir, pular))
+            return 'pular'
+        main.processar_pedidos(['2026-12345', '2026-67890'], ao_erro=ao_erro)
+        self.assertEqual(decisoes, [('2026-12345', False, False)])
+        self.importar.assert_called_once()
+        self.banco.confirmar_gravacao.assert_not_called()
+        self.imprimir.assert_not_called()
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.obter('2026-12345').etapa, 'importacao_iniciada')
+            self.assertEqual(historico.obter('2026-67890').etapa, 'para_baixar')
+            self.assertEqual(historico.inclusoes_incertas(), ['2026-12345'])
 
     def test_sem_cadastro_com_arquivos_ausentes_permite_baixar_de_novo(self) -> None:
         self.preparar()

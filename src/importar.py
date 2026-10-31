@@ -75,15 +75,19 @@ def importar_pedido(
                 pedido, pedido_grade, aba_pedido, grid, campos, antes_gravar,
                 referencia_numero=referencia_numero,
             )
-            if resultado.situacao == 'duplicado':
+            if resultado.situacao in ('duplicado', 'sem_cadastro'):
                 try:
                     pedido_grade.wait('ready', timeout=5)
                     wait_until(5, 0.2, lambda: cast(str, campos['numero'].window_text()).strip() == numero_anterior)
                 except Exception as erro:
+                    motivo = ('o aviso' if resultado.situacao == 'duplicado'
+                              else 'o bloqueio de produto sem cadastro')
                     raise SisplanError(
-                        'Não foi possível confirmar o cancelamento após o aviso. '
+                        f'Não foi possível confirmar o cancelamento após {motivo}. '
                         'Confira a tela do Sisplan antes de continuar.'
                     ) from erro
+                if resultado.situacao == 'sem_cadastro':
+                    enviar_alerta_teams(pedido, '', 'PRODUTO SEM CADASTRO')
             return resultado
         except _NumeroInternoSuspeitoError as error:
             logger.warning('Pedido %s, tentativa %s: %s Cancelando inclusão.', pedido, tentativa + 1, error)
@@ -161,7 +165,6 @@ def _importar_uma_tentativa(
         if sem_cadastro:
             send_keys_sleep(ATALHOS['desistir'], 0.2)
             send_keys_sleep(ATALHOS['sim'])
-            enviar_alerta_teams(pedido, '', 'PRODUTO SEM CADASTRO')
 
             return ResultadoImportacao('', 'sem_cadastro')
 
