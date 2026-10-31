@@ -12,7 +12,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     set textContent(valor) { this.texto=valor; this.escritas++; }
     get textContent() { return this.texto; }
     setAttribute(nome, valor) { this.atributos[nome]=valor; }
-    addEventListener(nome,acao) { if(nome==='click')this.onclick=acao; }
+    addEventListener(nome,acao) { this.listeners??={}; (this.listeners[nome]??=[]).push(acao); if(nome==='click')this.onclick=(...args)=>this.listeners.click.forEach(fn=>fn(...args)); }
     append(...filhos) { this.children.push(...filhos); }
     replaceChildren(...filhos) { this.children=filhos; this.escritas++; }
     focus() {}
@@ -47,10 +47,11 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     bloqueado:false, execucao:'', indice:0, total:0, pedido:'', pendentes:0,
     filas:{para_baixar:0, baixados:0, importados:0, enviados:0},
     pedidos:[], mensagens:[], resumo:{}, erro:null,
+    lote:[], resultados_lote:{}, revisao:0, ano:2026,
   };
   const renderizar = dados => {
     contexto.dadosTeste=dados;
-    vm.runInContext('renderizar(dadosTeste)', contexto);
+    vm.runInContext('conectado=true; renderizar(dadosTeste)', contexto);
   };
   return {contexto, elementos, eventos, estado, renderizar, obter};
 }
@@ -103,13 +104,15 @@ test('armazenamentos indisponíveis mantêm tema escuro inicial e alternância f
 
 test('recuperar conexão com estado idêntico reabilita o início', async () => {
   const p = painel();
+  p.obter('pedidos').value='12345';
   p.renderizar(p.estado);
   p.contexto.fetch=async () => { throw Error('sem conexão'); };
   await vm.runInContext('atualizar()', p.contexto);
   assert.equal(p.obter('iniciar').disabled, true);
   p.contexto.fetch=async () => ({ok:true, json:async () => p.estado});
   await vm.runInContext('atualizar()', p.contexto);
-  assert.equal(p.obter('iniciar').disabled, false);
+  assert.equal(p.obter('iniciar').disabled, true);
+  assert.equal(p.obter('conferir').disabled, false);
   assert.equal(p.obter('conexao').hidden, true);
 });
 
@@ -154,7 +157,7 @@ test('Encerrar já confirmado dispensa uma segunda confirmação ao fechar a aba
   assert.equal(avisos, 0);
 });
 
-test('filtro de produto sem cadastro permite importar novamente apenas o pedido escolhido', async () => {
+test('importar novamente confere somente o pedido escolhido antes de permitir execução', async () => {
   const p=painel(), chamadas=[];
   p.estado.pedidos=[
     {pedido:'2026-12345',numero:'',etapa:'sem_cadastro',fila:'baixados',rotulo:'Produto sem cadastro',erro:'Barra 0123456789012',pendente:true},
@@ -171,18 +174,91 @@ test('filtro de produto sem cadastro permite importar novamente apenas o pedido 
   assert.equal(botao.disabled,false);
   p.contexto.fetch=async (url,opcoes)=>{
     chamadas.push({url,opcoes});
-    return {ok:true,json:async()=>url==='/api/estado'?p.estado:{ok:true}};
+    return {ok:true,json:async()=>url==='/api/estado'?p.estado:url==='/api/conferir'?{id:'conferencia-1',revisao:0,pedidos:[{pedido:'2026-12345',salvo:p.estado.pedidos[0]}]}:{ok:true}};
   };
   await botao.onclick();
   const dados=JSON.parse(chamadas[0].opcoes.body);
-  assert.equal(chamadas[0].url,'/api/iniciar');
+  assert.equal(chamadas[0].url,'/api/conferir');
   assert.equal(dados.modo,'normal');
   assert.equal(dados.pedidos,'2026-12345');
-  assert.ok(dados.solicitacao);
+  assert.equal(chamadas.length,1);
+  assert.equal(p.obter('iniciar').disabled,false);
+  await p.obter('iniciar').onclick();
+  assert.equal(chamadas[1].url,'/api/iniciar');
+  assert.equal(JSON.parse(chamadas[1].opcoes.body).conferencia,'conferencia-1');
   p.renderizar({...p.estado,fase:'EXECUTANDO',ocupada:true});
   assert.equal(botao.disabled,true);
   await botao.onclick();
-  assert.equal(chamadas.length,2);
+  assert.equal(chamadas.length,3);
   p.renderizar(p.estado);
   assert.equal(botao.disabled,false);
+});
+
+test('contador normaliza ano, elimina repetições e informa inválidos sem aceitar separadores diferentes',()=>{
+  const p=painel();p.renderizar(p.estado);
+  p.obter('pedidos').value='12345,2026-12345\n2025-12345\r\nerrado,12345 67890;99999';
+  const a=vm.runInContext('contarPedidos()',p.contexto);
+  assert.deepEqual(Array.from(a.pedidos),['2026-12345','2025-12345']);
+  assert.equal(a.repetidos,1);assert.equal(a.invalidos.length,2);
+  assert.equal(p.obter('contagem-pedidos').textContent,'Contagem: 2');
+  assert.equal(p.obter('pedidos').atributos['aria-invalid'],'true');
+});
+
+test('editar a entrada invalida a conferência e mantém o conteúdo',async()=>{
+  const p=painel();p.renderizar(p.estado);p.obter('pedidos').value='12345';
+  p.contexto.fetch=async()=>({ok:true,json:async()=>({id:'c',revisao:0,pedidos:[{pedido:'2026-12345',salvo:null}]})});
+  await vm.runInContext('conferirPedidos()',p.contexto);
+  assert.equal(p.obter('iniciar').disabled,false);
+  p.obter('pedidos').value='12345,67890';
+  p.obter('pedidos').listeners.input[0]();
+  assert.equal(p.obter('iniciar').disabled,true);
+  assert.equal(p.obter('contagem-pedidos').textContent,'Contagem: 2');
+  assert.equal(vm.runInContext('conferencia',p.contexto),null);
+});
+
+test('reimpressão exige conferência e confirmação de outra cópia',async()=>{
+  const p=painel();p.renderizar(p.estado);p.obter('pedidos').value='12345';
+  vm.runInContext("mudarModo('reimprimir')",p.contexto);
+  p.contexto.fetch=async()=>({ok:true,json:async()=>({id:'c',revisao:0,pedidos:[{pedido:'2026-12345',salvo:null}]})});
+  await vm.runInContext('conferirPedidos()',p.contexto);
+  assert.equal(p.obter('iniciar').disabled,true);
+  p.obter('confirmar-copia').checked=true;p.obter('confirmar-copia').listeners.change[0]();
+  assert.equal(p.obter('iniciar').disabled,false);
+  vm.runInContext("mudarModo('normal')",p.contexto);
+  assert.equal(p.obter('confirmar-copia').checked,false);
+  assert.equal(p.obter('iniciar').disabled,true);
+});
+
+test('lote e histórico possuem contagens separadas e finalização não esconde pendências',()=>{
+  const p=painel();
+  p.estado.pedidos=[{pedido:'2026-12345',numero:'',etapa:'sem_cadastro',rotulo:'Produto sem cadastro',pendente:true,fila:'baixados',erro:'Corrigir cadastro'},
+    {pedido:'2026-67890',numero:'123',etapa:'impressao_enviada',rotulo:'Enviado',pendente:false,fila:'enviados',erro:''}];
+  Object.assign(p.estado,{execucao:'lote',lote:['2026-12345'],fase:'CONCLUIDO',resultados_lote:{'2026-12345':'sem_cadastro'}});
+  p.renderizar(p.estado);
+  assert.equal(p.obter('n-enviados').textContent,0);
+  assert.equal(p.obter('n-atencao').textContent,1);
+  assert.equal(p.obter('fase').textContent,'Finalizado com pendências');
+  p.obter('escopo-todos').onclick();
+  assert.equal(p.obter('n-enviados').textContent,1);
+});
+
+test('perda de conexão conserva dados, bloqueia ações e invalida a revisão anterior',async()=>{
+  const p=painel();p.renderizar(p.estado);p.obter('pedidos').value='12345';
+  p.contexto.fetch=async()=>({ok:true,json:async()=>({id:'c',revisao:0,pedidos:[{pedido:'2026-12345',salvo:null}]})});
+  await vm.runInContext('conferirPedidos()',p.contexto);
+  p.contexto.fetch=async()=>{throw Error('rede');};
+  await vm.runInContext('atualizar()',p.contexto);
+  assert.equal(p.obter('pedidos').value,'12345');assert.equal(p.obter('conferir').disabled,true);
+  assert.equal(p.obter('iniciar').disabled,true);assert.match(p.obter('conexao').textContent,/últimos dados/);
+  assert.equal(vm.runInContext('conferencia',p.contexto),null);
+});
+
+test('falha de transporte no início não permite reenvio até obter o estado',async()=>{
+  const p=painel();p.renderizar(p.estado);p.obter('pedidos').value='12345';
+  p.contexto.fetch=async()=>({ok:true,json:async()=>({id:'c',revisao:0,pedidos:[{pedido:'2026-12345',salvo:null}]})});
+  await vm.runInContext('conferirPedidos()',p.contexto);
+  p.contexto.fetch=async()=>{throw Error('resposta perdida');};
+  await p.obter('iniciar').onclick();
+  assert.equal(vm.runInContext('inicioIncerto',p.contexto),true);
+  assert.equal(p.obter('conferir').disabled,true);assert.equal(p.obter('iniciar').disabled,true);
 });

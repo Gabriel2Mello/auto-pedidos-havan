@@ -1,74 +1,101 @@
 <!doctype html>
-<html lang="pt-BR" data-tema="escuro">
+<html lang="pt-BR" data-tema="__TEMA__">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="havan-token" content="__TOKEN__">
+  <meta name="havan-desktop" content="__DESKTOP__"><meta name="havan-tema" content="__TEMA__"><meta name="havan-demo" content="__DEMO__">
   <title>Pedidos Havan · Nunes</title>
-  <link rel="icon" href="/icons/icone.svg" type="image/svg+xml">
-  <link rel="alternate icon" href="/favicon.ico">
+  <link rel="icon" href="/icons/icone.svg" type="image/svg+xml"><link rel="alternate icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/icons/icone-192.png">
   <link rel="stylesheet" href="/pedidos.css">
-  <script src="/nunes-tema.js"></script>
-<script src="/pedidos.js" defer></script>
+  <script src="/nunes-tema.js"></script><script src="/pedidos.js" defer></script><script src="/rolagem.js" defer></script>
 </head>
 <body>
 <main>
   <header class="cabecalho">
-    <div class="marca"><img src="/icons/icone.svg" width="48" height="48" alt=""><div><p class="sobretitulo">NUNES · AUTOMAÇÕES</p><h1>Pedidos Havan</h1><p class="muted">Do pedido ao Sisplan, com o andamento sempre salvo.</p></div></div>
-    <div class="acoes"><button id="tema" type="button">Tema claro</button><button id="encerrar" type="button">Encerrar</button></div>
+    <div class="marca"><img src="/icons/icone.svg" width="32" height="32" alt="" draggable="false"><h1>Pedidos Havan <span>· Nunes</span></h1></div>
+    <div class="controles-cabecalho">
+      <button id="tema" class="botao-icone" type="button" aria-label="Ativar tema claro" title="Alternar tema">Tema claro</button>
+      <details id="demo-configuracoes" class="configuracoes" hidden>
+        <summary class="botao-icone" title="Configurações da demonstração" aria-label="Configurações da demonstração"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></summary>
+        <div class="menu-configuracoes" tabindex="0" role="region" aria-label="Demonstração">
+          <h2>Demonstração · dados temporários</h2>
+          <p class="dica">Nenhum acesso ao Sisplan, portal ou impressora.</p>
+          <button id="demo-exemplo" type="button">Preencher exemplo</button>
+        </div>
+      </details>
+    </div>
   </header>
-
+  <p id="conexao" class="aviso conexao" role="alert" hidden></p>
   <div class="principal">
-    <section class="cartao entrada" aria-labelledby="titulo-entrada">
-      <div class="titulo-secao"><h2 id="titulo-entrada">Processar pedidos</h2><span class="etiqueta">Um pedido por vez</span></div>
-      <div class="modos" role="group" aria-label="Escolha o que deseja fazer">
+    <section class="preparacao" aria-labelledby="titulo-entrada">
+      <h2 id="titulo-entrada">Preparar lote</h2>
+      <div class="modos" role="group" aria-label="Operação">
         <button type="button" data-modo="normal" aria-pressed="true">Inserir</button>
-        <button type="button" data-modo="retomar" aria-pressed="false">Retomar <span id="n-pendentes">0</span></button>
+        <button type="button" data-modo="retomar" aria-pressed="false">Retomar <span id="n-pendentes">—</span></button>
         <button type="button" data-modo="reimprimir" aria-pressed="false">Reimprimir</button>
       </div>
-      <form id="formulario">
-        <p id="ajuda-modo" class="muted">Informe os pedidos. Os que já estão no Sisplan serão identificados antes de incluir.</p>
-        <div id="campo-pedidos"><label for="pedidos">Números dos pedidos Havan</label><textarea id="pedidos" rows="3" maxlength="12000" placeholder="109335, 109336&#10;2026-109337" aria-describedby="dica-pedidos" required></textarea><p id="dica-pedidos" class="dica">Separe por vírgula ou coloque um pedido por linha. Sem o ano, será utilizado o ano atual.</p></div>
-        <label id="confirmacao-reimpressao" class="confirmacao" hidden><input id="confirmar-copia" type="checkbox"><span>Conferi a impressão anterior e quero enviar outra cópia.</span></label>
-        <div class="acoes enviar"><button type="submit" id="iniciar" class="botao-principal" disabled>Inserir e processar</button><button type="button" id="parar" hidden>Parar processamento</button></div>
-        <p id="mensagem-acao" class="mensagem-acao" role="alert"></p>
-      </form>
+      <p id="ajuda-modo" class="dica">Insira vários pedidos. O processamento ocorre um por vez.</p>
+      <div class="abas" role="tablist" aria-label="Preparação do lote">
+        <button id="aba-pedidos" type="button" role="tab" aria-selected="true" aria-controls="painel-pedidos" tabindex="0">Pedidos</button>
+        <button id="aba-conferencia" type="button" role="tab" aria-selected="false" aria-controls="painel-conferencia" tabindex="-1">Conferência</button>
+      </div>
+      <section id="painel-pedidos" role="tabpanel" aria-labelledby="aba-pedidos">
+        <form id="formulario">
+          <div id="campo-pedidos">
+            <label for="pedidos">Números dos pedidos Havan</label>
+            <div class="campo-lista"><textarea id="pedidos" rows="8" maxlength="12000" placeholder="109335&#10;109336&#10;2026-109337" aria-describedby="dica-pedidos contagem-pedidos validacao-pedidos" spellcheck="false" required></textarea><span id="contagem-pedidos" class="contagem" role="status" aria-live="polite" aria-atomic="true">Contagem: 0</span></div>
+            <p id="dica-pedidos" class="dica">Separe por vírgula ou linha. Sem o ano, será utilizado o ano atual.</p>
+            <p id="validacao-pedidos" class="dica" role="status"></p>
+          </div>
+          <div id="retomada" class="orientacao" hidden>Confira as pendências e suas etapas salvas antes de continuar. Inclusões e impressões incertas conservam suas proteções.</div>
+          <div class="acoes enviar"><button type="submit" id="conferir" class="botao-principal" disabled>Conferir pedidos</button><button type="button" id="limpar">Limpar lista</button></div>
+        </form>
+      </section>
+      <section id="painel-conferencia" role="tabpanel" aria-labelledby="aba-conferencia" hidden>
+        <p id="conferencia-vazia" class="vazio">Confira os pedidos para revisar o lote antes de iniciar.</p>
+        <div id="conferencia-conteudo" hidden>
+          <p id="resumo-conferencia" class="status-curto" role="status"></p>
+          <p class="dica">Revisão da lista e do histórico local. A existência no Sisplan e os arquivos serão verificados durante o processamento.</p>
+          <div class="rolagem-conferencia" tabindex="0" role="region" aria-label="Pedidos conferidos"><table class="tabela-conferencia"><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Histórico / próxima ação</th></tr></thead><tbody id="itens-conferencia"></tbody></table></div>
+          <label id="confirmacao-reimpressao" class="confirmacao" hidden><input id="confirmar-copia" type="checkbox"><span>Conferi a impressão anterior e quero enviar outra cópia.</span></label>
+          <div class="acoes enviar"><button type="button" id="iniciar" class="botao-principal" disabled>Inserir e processar</button><button type="button" id="editar">Voltar à lista</button></div>
+        </div>
+      </section>
+      <p id="mensagem-acao" class="mensagem-acao" role="alert"></p>
     </section>
-
-    <section class="cartao andamento" aria-labelledby="titulo-andamento">
-      <div class="titulo-secao"><h2 id="titulo-andamento">Andamento</h2><span id="fase" class="etiqueta">Iniciando</span></div>
+    <aside class="acompanhamento" aria-labelledby="titulo-andamento">
+      <div class="titulo-secao"><h2 id="titulo-andamento">Andamento do lote</h2><span id="fase" class="etiqueta">Iniciando</span></div>
       <p id="status" class="status" role="status">Carregando os pedidos salvos…</p>
-      <p id="pedido-atual" class="muted">As etapas concluídas ficam preservadas para retomar.</p>
-      <progress id="progresso" value="0" max="1" aria-label="Andamento do lote"></progress>
-      <p id="orientacao" class="dica">O Sisplan deve estar aberto na tela 1002 — Pedido por Grade.</p>
-      <div id="resumo" class="resumo" hidden></div>
-    </section>
+      <div id="identificacao" class="pedido-atual"><span id="pedido-atual" class="dica">As etapas concluídas ficam preservadas para retomar.</span><strong id="numero-atual">—</strong><span id="etapa-atual" class="dica"></span></div>
+      <div id="area-progresso" hidden><progress id="progresso" value="0" max="1" aria-label="Posição no lote; não representa sucesso de todos os pedidos"></progress><p id="posicao" class="dica"></p></div>
+      <div id="indicadores" class="indicadores" hidden><div><strong id="total-lote">0</strong><span>Pedidos no lote</span></div><div><strong id="pendentes-lote">0</strong><span>Pendentes no histórico</span></div><div><strong id="atencao-lote">0</strong><span>Exigem atenção</span></div></div>
+      <p id="orientacao" class="orientacao">O Sisplan deve estar aberto na tela 1002 — Pedido por Grade.</p>
+      <button type="button" id="parar" hidden>Parar após a etapa atual</button>
+      <section id="aviso-erro" class="aviso" hidden aria-labelledby="titulo-erro">
+        <h3 id="titulo-erro" tabindex="-1">É preciso conferir este pedido</h3><p id="erro-pedido"></p><p id="erro-mensagem"></p><p id="erro-seguranca" class="dica"></p>
+        <div class="acoes"><button type="button" id="repetir" class="botao-principal">Tentar novamente</button><button type="button" id="pular">Deixar pendente e continuar</button><button type="button" id="parar-erro">Parar e preservar os pedidos</button></div>
+      </section>
+      <p id="resumo" class="resumo" hidden></p>
+    </aside>
   </div>
-
-  <section class="filas" aria-label="Filas de pedidos">
-    <button class="fila" type="button" data-fila="para_baixar"><span class="marcador"></span><span>A baixar</span><strong id="n-para_baixar">0</strong><small>Aguardando os arquivos</small></button>
-    <button class="fila" type="button" data-fila="baixados"><span class="marcador"></span><span>Baixados</span><strong id="n-baixados">0</strong><small>Preparação e inclusão</small></button>
-    <button class="fila" type="button" data-fila="importados"><span class="marcador"></span><span>No Sisplan</span><strong id="n-importados">0</strong><small>Pedidos identificados no sistema</small></button>
-    <button class="fila" type="button" data-fila="enviados"><span class="marcador"></span><span>Enviados para impressão</span><strong id="n-enviados">0</strong><small>Confira o papel na impressora</small></button>
+  <section class="historico" aria-labelledby="titulo-historico">
+    <div class="titulo-secao"><h2 id="titulo-historico">Pedidos</h2><div class="modos escopos" role="group" aria-label="Pedidos exibidos"><button id="escopo-lote" type="button" aria-pressed="false">Lote atual</button><button id="escopo-todos" type="button" aria-pressed="true">Todos os pedidos salvos</button></div></div>
+    <p id="alcance" class="dica">Filas do histórico completo.</p>
+    <div class="filas" role="group" aria-label="Filtrar por situação">
+      <button type="button" data-fila="para_baixar"><span>A baixar</span><strong id="n-para_baixar">—</strong></button>
+      <button type="button" data-fila="baixados"><span>Baixados</span><strong id="n-baixados">—</strong></button>
+      <button type="button" data-fila="importados"><span>No Sisplan</span><strong id="n-importados">—</strong></button>
+      <button type="button" data-fila="enviados"><span>Enviados para impressão</span><strong id="n-enviados">—</strong></button>
+      <button type="button" data-fila="atencao" class="fila-atencao"><span>Exigem atenção</span><strong id="n-atencao">—</strong></button>
+    </div>
+    <div class="filtros"><label class="sr-only" for="busca">Buscar pedido ou número Sisplan</label><input id="busca" type="search" placeholder="Buscar pedido ou nº Sisplan"><label class="sr-only" for="filtro">Filtrar pedidos</label><select id="filtro"><option value="todos">Todas as situações</option><option value="pendentes">Somente pendentes</option><option value="atencao">Exigem atenção</option><option value="sem_cadastro">Produto sem cadastro</option><option value="para_baixar">A baixar</option><option value="baixados">Baixados</option><option value="importados">No Sisplan</option><option value="enviados">Enviados para impressão</option></select></div>
+    <p class="dica ajuda-historico">“Exigem atenção” inclui pedidos das outras filas. Envio para impressão não comprova a saída do papel.</p>
+    <div class="rolagem-historico" tabindex="0" role="region" aria-label="Situações dos pedidos"><table class="tabela-historico"><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Nº Sisplan</th><th scope="col">Situação salva</th><th scope="col">Observação / ação</th></tr></thead><tbody id="linhas"><tr><td colspan="4" class="vazio">Carregando os pedidos…</td></tr></tbody></table></div>
+    <div class="paginacao"><span id="quantidade" class="dica">Aguardando histórico</span><div class="acoes"><button id="anterior" type="button" disabled>Anterior</button><button id="proxima" type="button" disabled>Próxima</button></div></div>
   </section>
-
-  <section id="aviso-erro" class="aviso" hidden aria-labelledby="titulo-erro">
-    <p class="sobretitulo">PROCESSAMENTO PAUSADO</p><h2 id="titulo-erro" tabindex="-1">É preciso conferir este pedido</h2>
-    <p id="erro-pedido"></p><p id="erro-mensagem"></p>
-    <p id="erro-seguranca" class="dica"></p>
-    <div class="acoes"><button type="button" id="repetir" class="botao-principal">Tentar novamente</button><button type="button" id="pular">Deixar pendente e continuar</button><button type="button" id="parar-erro">Parar e preservar os pedidos</button></div>
-  </section>
-
-  <section class="cartao historico" aria-labelledby="titulo-historico">
-    <div class="titulo-secao"><div><h2 id="titulo-historico">Pedidos salvos</h2><p class="dica">Após cadastrar os produtos pendentes, use Importar novamente no pedido ou Retomar.</p></div><div class="filtros"><label class="sr-only" for="busca">Buscar pedido ou número Sisplan</label><input id="busca" type="search" placeholder="Buscar pedido ou nº Sisplan"><label class="sr-only" for="filtro">Filtrar pedidos</label><select id="filtro"><option value="todos">Todos os pedidos</option><option value="pendentes">Somente pendentes</option><option value="sem_cadastro">Produto sem cadastro</option><option value="para_baixar">A baixar</option><option value="baixados">Baixados</option><option value="importados">No Sisplan</option><option value="enviados">Enviados para impressão</option></select></div></div>
-    <div class="tabela"><table><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Nº Sisplan</th><th scope="col">Situação</th><th scope="col">Observação</th></tr></thead><tbody id="linhas"><tr><td colspan="4" class="vazio">Carregando os pedidos…</td></tr></tbody></table></div>
-    <div class="paginacao"><span id="quantidade" class="dica">Nenhum pedido carregado</span><div class="acoes"><button id="anterior" type="button" disabled>Anterior</button><button id="proxima" type="button" disabled>Próxima</button></div></div>
-  </section>
-
-  <section class="suporte" aria-label="Informações de suporte"><details><summary>Atividade desta execução</summary><ol id="atividade"></ol></details><div class="acoes"><span class="dica">Código de execução: <strong id="codigo">—</strong></span><button id="copiar-suporte" type="button">Copiar diagnóstico</button><button id="baixar-log" type="button">Baixar log</button></div></section>
-  <p id="conexao" class="conexao" role="status" hidden></p>
+  <section class="suporte" aria-label="Informações de suporte"><details><summary>Atividade e diagnóstico</summary><ol id="atividade" tabindex="0" aria-label="Atividade desta execução"></ol><div class="acoes"><span class="dica">Código de execução: <strong id="codigo">—</strong></span><button id="copiar-suporte" type="button">Copiar diagnóstico</button><button id="baixar-log" type="button">Baixar log</button></div></details></section>
 </main>
-<footer class="assinatura">Desenvolvido por <a href="https://github.com/Gabriel2Mello" target="_blank" rel="noopener noreferrer" aria-label="g2mello — perfil no GitHub">g2me<span class="assinatura-ll"><span>l</span><span>l</span></span>o</a></footer>
+<footer class="rodape"><p class="assinatura">Desenvolvido por <a href="https://github.com/Gabriel2Mello" target="_blank" rel="noopener noreferrer" aria-label="g2mello — perfil no GitHub">g2me<span class="assinatura-ll"><span>l</span><span>l</span></span>o</a></p><button id="encerrar" type="button">Encerrar<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M9 12h12m-5-5 5 5-5 5"/></svg></button></footer>
 </body>
 </html>

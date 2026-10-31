@@ -176,3 +176,86 @@ que use o ERP. A trava permanece enquanto o encerramento aguarda o executor.
 Outra aba conectada mantém o servidor aberto; fechar a última segue a parada
 segura já descrita. Executáveis antigos precisam ser reconstruídos para
 incorporar essa integração; os atalhos Python usam os fontes atualizados.
+
+## Adaptação de layout e conferência — 31/10/2026
+
+O painel mantém sua identidade violeta, com cabeçalho compacto, preparação à
+esquerda, acompanhamento à direita e histórico em largura completa. Em telas
+estreitas, as áreas são empilhadas e cada pedido conserva seus rótulos. O rodapé
+tem divisória em toda a largura, assinatura alinhada ao conteúdo e Encerrar.
+As regiões de lista, conferência, histórico e atividade usam rolagem sobreposta,
+sem reservar espaço. `src/rolagem.js` é uma adaptação local da Impressão de OPs;
+os ícones `tema-lua.svg` e `tema-lua-sol.svg` foram copiados daquela referência,
+com hashes conferidos. A aplicação continua independente e no navegador.
+
+### Preparar, conferir e executar
+
+1. Escolha Inserir, Retomar ou Reimprimir. Cole os pedidos separados por vírgula
+   ou linha. O contador mostra pedidos válidos únicos, completando o ano conforme
+   o servidor. Repetições e inválidos são informados separadamente; nenhum item
+   inválido é descartado silenciosamente para permitir execução parcial.
+2. Use **Conferir pedidos**. A aba Conferência mostra o número normalizado,
+   a situação no histórico local e a próxima ação prevista. Não consulta banco,
+   portal ou arquivos de negócio, não cadastra pedidos e não autoriza inclusão
+   incerta. “Não consta no histórico local” não significa ausência no Sisplan.
+3. Revise e use Inserir e processar, Retomar pendências ou Reimprimir pedidos.
+   Reimpressão continua exigindo a confirmação de outra cópia. Importar novamente
+   prepara e confere apenas aquele pedido, sem iniciar automaticamente.
+4. Alterar entrada/modo, mudar o histórico ou iniciar outra execução invalida a
+   conferência. Uma execução nova sempre exige uma revisão nova. A consulta ao
+   Sisplan e todas as proteções do executor continuam ocorrendo no processamento.
+
+A API autenticada acrescenta `POST /api/conferir` (`modo`, `pedidos`) e retorna
+`id`, `revisao`, `modo` e a lista normalizada com o snapshot `salvo` de cada pedido.
+`POST /api/iniciar` agora exige `conferencia` com esse identificador, além dos
+campos anteriores. O servidor compara modo, pedidos e revisão sob a mesma trava
+do início; rejeita revisões ausentes, alteradas, antigas e consumidas com 409.
+Conferências ficam somente em memória, limitadas às 20 mais recentes. Não se
+reutilizam após reiniciar a aplicação. Host, token, Origin, limite do corpo,
+solicitações idempotentes e regras de encerramento foram preservados.
+
+### Andamento e histórico
+
+A tela distingue o estado da execução e o último estado salvo do pedido. Cada
+salvamento confirmado atualiza o snapshot do painel na thread dona do SQLite;
+o observador não altera a ordem nem o significado das operações de negócio.
+A barra indica avanço pelo lote, não quantidade de inclusões ou impressões
+bem-sucedidas. Finalização com pendências tem rótulo próprio e resumo por resultado.
+Durante pausa ou interrupção, a posição conhecida é preservada.
+
+**Lote atual** contém os pedidos da última execução desta sessão, inclusive
+reimpressões ainda sem registro local. **Todos os pedidos salvos** conserva o
+histórico persistido. Filas e filtro Exigem atenção usam o escopo selecionado;
+atenção é uma visão sobreposta, não uma quinta etapa somável às outras. No lote,
+a observação também informa o resultado desta execução, distinguindo-o da etapa
+salva anteriormente. A composição e os resultados do último lote são mantidos
+no processo, disponíveis após recarregar a página, mas não são um novo histórico
+persistente de execuções. As etapas dos pedidos continuam no SQLite existente.
+
+Perda de conexão conserva campos e últimos dados, mostra atualização interrompida,
+bloqueia novos inícios e invalida a conferência. Resposta de início perdida não
+provoca reenvio automático; a tela precisa recuperar o estado antes de permitir
+nova conferência. Nenhum teste visual deve usar pedidos ou integrações reais.
+
+### Prévia isolada
+
+`python -B -m tests.preview_pedidos` abre somente um servidor local com SQLite
+em diretório temporário e executor sintético, sem portal, Sisplan, banco externo,
+impressora ou publicação no Hub. O endereço é escrito no terminal. Números
+terminados em 003 simulam produto sem cadastro e 004 simulam uma pausa; os demais
+percorrem etapas fictícias. Use Encerrar para finalizar e remover os dados
+temporários. Esse utilitário não faz parte da abertura operacional.
+
+Validação desta adaptação: suíte Python de 226 casos executada; o único teste
+que ainda iniciava sem conferência foi adaptado ao novo contrato e passou na
+reexecução dirigida de 45 casos (incluindo uma nova regressão HTTP). Foram
+aprovados os 15 testes JavaScript e a regressão específica de retomada após o
+ajuste do total inicial. Sintaxe de JavaScript e revisão de whitespace aprovadas.
+Na prévia isolada Chromium, foram conferidos os dois temas, conferência de 65
+pedidos, pausa com decisão, finalização com pendências, abas e rolagem por teclado,
+limites de 320, 352, 1280 e 1920 px e estabilidade do campo com/sem excedente
+(602 px nos dois casos). Sem transbordamento horizontal nas larguras verificadas.
+Zoom nativo de 200%, escala Windows de 125%, toque e alto contraste ainda precisam
+de homologação no posto; o controle de zoom do navegador de teste não aplicou a
+mudança. Nenhum pedido real foi consultado, incluído ou impresso. Executável não
+foi gerado; reabra a aplicação pelos fontes para carregar a atualização.

@@ -4,10 +4,14 @@ Este é um robô de automação de processos (RPA) desenvolvido em Python para o
 
 ---
 
-## Interface no navegador
+## Interface desktop e navegador
 
 O operador pode usar **Abrir Pedidos Havan.cmd**, ou o atalho com o mesmo nome,
-para abrir o painel local. Ele oferece Inserir, Retomar e Reimprimir, as quatro
+para abrir a janela desktop local. O [guia desktop](DESKTOP.md) descreve o ambiente
+e o comando **testar interface.cmd**, que abre uma demonstração isolada.
+O modo navegador continua disponível por `havan.py --web`.
+ Ele oferece Inserir, Retomar e Reimprimir, com contador
+de pedidos únicos e conferência local obrigatória antes de iniciar. Mantém as quatro
 filas, busca por pedido/número interno, andamento, decisões após erro e acesso
 ao diagnóstico. Tem temas claro/escuro, assinatura g2mello e ícone Nunes violeta.
 O tema inicial é escuro; a escolha manual fica salva no mesmo navegador,

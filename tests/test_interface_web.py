@@ -65,6 +65,7 @@ class BaseInterface(unittest.TestCase):
     def iniciar(self, **extras) -> None:
         dados = {'modo': 'normal', 'pedidos': '2026-12345, 2026-67890', 'solicitacao': 'pedido-1'}
         dados.update(extras)
+        dados['conferencia'] = self.estado.conferir(dados)['id']
         self.estado.iniciar(dados)
 
 
@@ -249,6 +250,19 @@ class InterfaceTests(BaseInterface):
 
 
 class ApiTests(BaseInterface):
+    def test_conferencia_exige_autorizacao_e_inicio_exige_revisao(self):
+        dados = {'modo': 'normal', 'pedidos': '2026-12345', 'solicitacao': 'revisao-api'}
+        for campos in ({'token': False}, {'origem': 'https://outro.example'}, {'host': 'outro.example'}):
+            self.requisitar_recusa('/api/conferir', dados, status_esperado=403, **campos)
+        self.assertEqual(self.requisitar('/api/iniciar', dados)[0], 409)
+        status, _, resposta = self.requisitar('/api/conferir', dados)
+        self.assertEqual(status, 200)
+        self.assertEqual(self.chamadas, [])
+        self.assertEqual(self.estado.situacao()['pedidos'], [])
+        dados['conferencia'] = json.loads(resposta)['id']
+        self.assertEqual(self.requisitar('/api/iniciar', dados)[0], 200)
+        self.assertTrue(self.executado.wait(2))
+
     def setUp(self) -> None:
         super().setUp()
         self.servidor, self.token = criar_servidor(self.estado)
@@ -301,6 +315,7 @@ class ApiTests(BaseInterface):
                 with self.subTest(campos=campos):
                     self.requisitar_recusa('/api/iniciar', dados, status_esperado=403, **campos)
             self.requisitar_recusa('/api/iniciar', corpo='x' * 65536)
+        dados['conferencia'] = json.loads(self.requisitar('/api/conferir', dados)[2])['id']
         self.assertEqual(self.requisitar('/api/iniciar', dados)[0], 200)
         self.assertTrue(self.executado.wait(2))
         self.assertEqual(len(self.chamadas), 1)
@@ -347,6 +362,7 @@ class ApiTests(BaseInterface):
         self.assertEqual(self.requisitar('/api/estado', host='outro.example')[0], 403)
         dados = {'modo':'normal','pedidos':'12345','solicitacao':'api-1'}
         self.requisitar_recusa('/api/iniciar', dados, status_esperado=403, origem='https://outro.example')
+        dados['conferencia'] = json.loads(self.requisitar('/api/conferir', dados)[2])['id']
         self.assertEqual(self.requisitar('/api/iniciar', dados)[0], 200)
         self.assertTrue(self.executado.wait(2))
 
@@ -357,7 +373,7 @@ class ApiTests(BaseInterface):
         self.assertIn(b'Gabriel2Mello', html)
         self.assertIn(b'assinatura-ll', html)
         self.assertIn("script-src 'self'", headers['Content-Security-Policy'])
-        for caminho in ('/pedidos.js', '/nunes-tema.js', '/pedidos.css', '/icons/icone.svg', '/favicon.ico', '/icons/icone-192.png'):
+        for caminho in ('/pedidos.js', '/nunes-tema.js', '/pedidos.css', '/rolagem.js', '/icons/tema-lua.svg', '/icons/tema-lua-sol.svg', '/icons/icone.svg', '/favicon.ico', '/icons/icone-192.png'):
             self.assertEqual(self.requisitar(caminho, token=False)[0], 200)
         self.assertEqual(self.requisitar('/../config.toml')[0], 404)
         self.assertEqual(self.requisitar('/icons/../../config.toml')[0], 404)
@@ -465,3 +481,82 @@ class ApiTests(BaseInterface):
         self.assertTrue(self.estado.finalizado.wait(3))
         with EstadoPedidos(self.caminho) as historico:
             self.assertEqual(historico.obter('2026-12345').etapa, 'gravacao_pendente')
+
+class ConferenciaTests(BaseInterface):
+    def dados(self, **extras):
+        dados = {'modo': 'normal', 'pedidos': '12345,2026-12345\n67890', 'solicitacao': 'conferido'}
+        dados.update(extras)
+        return dados
+
+    def test_conferencia_normaliza_sem_persistir_ou_executar(self):
+        dados = self.dados(pedidos='2026-12345,2026-12345\n2026-67890')
+        conferencia = self.estado.conferir(dados)
+        self.assertEqual([p['pedido'] for p in conferencia['pedidos']], ['2026-12345', '2026-67890'])
+        self.assertTrue(all(p['salvo'] is None for p in conferencia['pedidos']))
+        self.assertEqual(self.estado.situacao()['pedidos'], [])
+        self.assertEqual(self.chamadas, [])
+        dados['conferencia'] = conferencia['id']
+        self.estado.iniciar(dados)
+        self.assertTrue(self.executado.wait(2))
+        self.assertEqual(self.estado.situacao()['lote'], ['2026-12345', '2026-67890'])
+
+    def test_recusa_sem_conferencia_lista_alterada_modo_alterado_e_reuso(self):
+        dados = self.dados()
+        with self.assertRaises(ConflitoInterface):
+            self.estado.iniciar(dados)
+        dados['conferencia'] = self.estado.conferir(dados)['id']
+        for alteracao in ({'pedidos': '99999'}, {'modo': 'reimprimir', 'confirmado': True}):
+            with self.assertRaises(ConflitoInterface):
+                self.estado.iniciar(dados | alteracao)
+        self.assertEqual(self.chamadas, [])
+        self.estado.iniciar(dados)
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        with self.assertRaises(ConflitoInterface):
+            self.estado.iniciar(dados | {'solicitacao': 'segunda'})
+        self.assertEqual(len(self.chamadas), 1)
+
+    def test_outro_lote_invalida_todas_as_conferencias(self):
+        dados = self.dados()
+        antiga = self.estado.conferir(dados)['id']
+        self.iniciar()
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        with self.assertRaises(ConflitoInterface):
+            self.estado.iniciar(dados | {'conferencia': antiga})
+
+    def test_etapa_salva_aparece_antes_de_terminar_o_pedido(self):
+        def executar(pedidos, modo, *, historico, **kwargs):
+            historico.salvar(EstadoPedido(pedidos[0], '321', 'gravacao_pendente'))
+            self.executado.set()
+            self.liberar.wait(3)
+            return ResumoExecucao({pedidos[0]: 'gravacao_pendente'})
+        self.executor = executar
+        self.iniciar()
+        self.assertTrue(self.executado.wait(2))
+        s = self.estado.situacao()
+        self.assertEqual(s['fase'], 'EXECUTANDO')
+        self.assertEqual(next(p for p in s['pedidos'] if p['pedido'] == '2026-12345')['etapa'], 'gravacao_pendente')
+        self.assertGreater(s['revisao'], 0)
+
+    def test_retomada_confere_mesma_ordem_do_executor_e_preserva_resultado(self):
+        def executar(pedidos, modo, *, historico, **kwargs):
+            historico.salvar(EstadoPedido(pedidos[0], '', 'sem_cadastro', erro='Cadastro sintético'))
+            return ResumoExecucao({pedidos[0]: 'sem_cadastro'})
+        self.executor = executar
+        self.iniciar()
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        dados = self.dados(modo='retomar', pedidos='', solicitacao='retomada')
+        conferencia = self.estado.conferir(dados)
+        self.assertEqual([p['pedido'] for p in conferencia['pedidos']], ['2026-12345', '2026-67890'])
+        self.assertEqual(conferencia['pedidos'][0]['salvo']['etapa'], 'sem_cadastro')
+        dados['conferencia'] = conferencia['id']
+        self.estado.iniciar(dados)
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        self.assertEqual(self.chamadas[-1][0][0], ['2026-12345', '2026-67890'])
+        self.assertEqual(self.estado.situacao()['resultados_lote'], {'2026-12345': 'sem_cadastro', '2026-67890': 'aguardando'})
+
+    def test_lista_invalida_nao_cria_conferencia(self):
+        for entrada in ('12345,errado', '12345 67890', '12345;67890', ''):
+            with self.subTest(entrada=entrada), self.assertRaises(ValueError):
+                self.estado.conferir(self.dados(pedidos=entrada))
+        self.assertEqual(len(self.estado.conferencias), 0)
+        self.assertEqual(self.chamadas, [])

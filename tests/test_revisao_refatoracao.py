@@ -249,8 +249,15 @@ class RegressaoRevisaoTests(unittest.TestCase):
             conn = HTTPConnection('127.0.0.1', servidor.server_port, timeout=3)
             try:
                 origem = f'http://127.0.0.1:{servidor.server_port}'
-                conn.request('POST', '/api/iniciar', body=json.dumps({'modo':'normal','pedidos':pedido,'solicitacao':'integracao-ficticia'}),
-                             headers={'Authorization':'Bearer '+token,'Origin':origem,'Content-Type':'application/json'})
+                headers = {'Authorization':'Bearer '+token,'Origin':origem,'Content-Type':'application/json'}
+                dados = {'modo':'normal','pedidos':pedido,'solicitacao':'integracao-ficticia'}
+                conn.request('POST', '/api/conferir', body=json.dumps(dados), headers=headers)
+                resposta = conn.getresponse()
+                self.assertEqual(resposta.status, 200)
+                dados['conferencia'] = json.loads(resposta.read())['id']
+                banco.consultar_pedidos.assert_not_called()
+                inclusao.assert_not_called(); impressao.assert_not_called()
+                conn.request('POST', '/api/iniciar', body=json.dumps(dados), headers=headers)
                 self.assertEqual(conn.getresponse().status, 200)
                 limite = monotonic() + 3
                 while estado.fase == 'EXECUTANDO' and monotonic() < limite:

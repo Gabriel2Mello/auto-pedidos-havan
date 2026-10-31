@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from types import TracebackType
-from typing import IO, Sequence
+from typing import IO, Callable, Sequence
 
 from src.config import diretorio_aplicacao
 from src.logs import get_logger
@@ -32,8 +32,9 @@ class EstadoPedido:
 
 
 class EstadoPedidos:
-    def __init__(self, caminho: Path | None = None) -> None:
+    def __init__(self, caminho: Path | None = None, *, ao_alterar: Callable[[], None] | None = None) -> None:
         self.caminho = caminho or diretorio_aplicacao() / 'estado-pedidos.sqlite3'
+        self.ao_alterar = ao_alterar
         self._conexao: sqlite3.Connection | None = None
         self._trava: IO[bytes] | None = None
 
@@ -172,6 +173,8 @@ class EstadoPedidos:
             raise EstadoError('Não foi possível salvar a etapa do pedido. Execução interrompida.') from None
         logger.debug('Histórico atualizado: pedido=%s etapa=%s numero=%s erro=%s',
                      estado.pedido, estado.etapa, estado.numero, estado.erro)
+        if self.ao_alterar is not None:
+            self.ao_alterar()
 
     def adicionar_pedidos(self, pedidos: Sequence[str]) -> None:
         """Persiste a lista inteira numa transação, preservando etapas já existentes."""

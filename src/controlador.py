@@ -6,6 +6,7 @@ import logging
 from collections import Counter, deque
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from queue import Queue
 from threading import Event, RLock, Thread, get_ident
@@ -88,6 +89,11 @@ class EstadoInterface:
         self.filas: dict[str, int] = dict.fromkeys(('para_baixar', 'baixados', 'importados', 'enviados'), 0)
         self.pedidos: list[dict[str, object]] = []
         self.resumo: dict[str, int] = {}
+        self.lote: list[str] = []
+        self.resultados_lote: dict[str, str] = {}
+        self.pendentes_ordenados: list[str] = []
+        self.revisao = 0
+        self.conferencias: deque[tuple[str, str, list[str], int]] = deque(maxlen=20)
         self.erro: dict[str, object] | None = None
         self.decisao: DecisaoErro | None = None
         self.encerrando = self.bloqueado = False
@@ -115,6 +121,8 @@ class EstadoInterface:
                 'pendentes': sum(p['etapa'] not in ETAPAS_FINAIS for p in self.pedidos),
                 'erro': self.erro, 'resumo': self.resumo, 'mensagens': list(self.mensagens),
                 'codigo_execucao': self.codigo_execucao,
+                'lote': self.lote, 'resultados_lote': self.resultados_lote,
+                'revisao': self.revisao, 'ano': datetime.now().year,
             })
 
     def _atualizar(self) -> None:
@@ -126,7 +134,29 @@ class EstadoInterface:
                     'erro': redigir(p.erro)[:1000]}
                    for p in self._historico.listar()]
         with self.trava:
+            if pedidos != self.pedidos:
+                self.revisao += 1
+            self.pendentes_ordenados = self._historico.pendentes()
             self.filas, self.pedidos = filas, pedidos
+
+    def conferir(self, dados: dict[str, object]) -> dict[str, object]:
+        """Revisa somente entrada e snapshot local, sem consultar integrações."""
+        modo, entrada = dados.get('modo'), dados.get('pedidos', '')
+        if modo not in ('normal', 'retomar', 'reimprimir') or not isinstance(entrada, str):
+            raise ValueError('Informe o modo e a lista de pedidos.')
+        pedidos = analisar_entrada_pedidos(entrada, permitir_vazio=modo == 'retomar')
+        with self.trava:
+            if self.ocupada or self.bloqueado or self.encerrando or self.finalizado.is_set():
+                raise ConflitoInterface('Aguarde a liberação do processamento para conferir o lote.')
+            if modo == 'retomar':
+                pedidos = list(self.pendentes_ordenados)
+            if not pedidos:
+                raise ValueError('Não há pedidos pendentes para retomar.')
+            identificador = uuid4().hex
+            self.conferencias.append((identificador, str(modo), pedidos, self.revisao))
+            historico = {str(p['pedido']): p for p in self.pedidos}
+            return deepcopy({'id': identificador, 'revisao': self.revisao, 'modo': modo,
+                             'pedidos': [{'pedido': p, 'salvo': historico.get(p)} for p in pedidos]})
 
     def iniciar(self, dados: dict[str, object]) -> None:
         modo = dados.get('modo')
@@ -144,12 +174,20 @@ class EstadoInterface:
                 raise ConflitoInterface('Já existe uma operação em andamento ou o programa precisa ser reaberto.')
             if solicitacao in self.solicitacoes:
                 raise ConflitoInterface('Esta solicitação já foi recebida. Confira o andamento na tela.')
+            lista = self.pendentes_ordenados if modo == 'retomar' else pedidos
+            conferido = (dados.get('conferencia'), modo, lista, self.revisao)
+            if conferido not in self.conferencias:
+                raise ConflitoInterface('Confira novamente o lote antes de iniciar. A lista ou o histórico pode ter mudado.')
+            self.conferencias.clear()
             self.solicitacoes.append(solicitacao)
             self.execucao = uuid4().hex
             self.parada.clear()
             self.erro = None
             self.resumo = {}
-            self.pedido, self.indice, self.total = '', 0, len(pedidos)
+            self.lote = list(lista)
+            self.resultados_lote = dict.fromkeys(lista, 'aguardando')
+            self.mensagens.clear()
+            self.pedido, self.indice, self.total = '', 0, len(lista)
             self.fase = 'EXECUTANDO'
             self.mensagem = 'Preservando a lista de pedidos…'
             self.comandos.put(trabalho)
@@ -254,6 +292,7 @@ class EstadoInterface:
                     self._atualizar()
                     with self.trava:
                         self.resumo = dict(Counter(resumo.situacoes.values()))
+                        self.resultados_lote.update(resumo.situacoes)
                         self.resumo['importacoes_confirmadas'] = len(resumo.importados)
                         if not self.encerrando:
                             self.fase = 'INTERROMPIDO' if self.parada.is_set() else 'CONCLUIDO'
@@ -286,7 +325,7 @@ class EstadoInterface:
             limite = monotonic() + TEMPO_LIBERAR_HISTORICO
             while not self.parada.is_set():
                 try:
-                    with EstadoPedidos(self.caminho) as historico:
+                    with EstadoPedidos(self.caminho, ao_alterar=self._atualizar) as historico:
                         self._historico = historico
                         self._atualizar()
                         with self.trava:

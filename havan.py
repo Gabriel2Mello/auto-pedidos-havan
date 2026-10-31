@@ -15,14 +15,19 @@ def informar_falha(mensagem: str) -> None:
         print(mensagem, file=sys.stderr)
 
 
-def main(publicacao: IntegracaoLocal) -> int:
+def main(publicacao: IntegracaoLocal, *, desktop=False) -> int:
     with MedidorAbertura('pedidos-havan') as medidor, ExitStack() as recursos:
         with medidor.etapa('sincronizacao'):
-            _ = recursos.enter_context(Sincronizador(aplicacao='pedidos-havan', relatar=logging.getLogger(__name__).info))
-        return executar_painel(publicacao, medidor)
+            sincronizador = recursos.enter_context(Sincronizador(aplicacao='pedidos-havan', relatar=logging.getLogger(__name__).info))
+        try:
+            return executar_painel(publicacao, medidor, desktop=desktop)
+        finally:
+            recursos.close()
+            if sincronizador.worker is not None:
+                sincronizador.worker.join()
 
 
-def executar_painel(publicacao: IntegracaoLocal, medidor: MedidorAbertura | None = None) -> int:
+def executar_painel(publicacao: IntegracaoLocal, medidor: MedidorAbertura | None = None, *, desktop=False) -> int:
     medidor = medidor or MedidorAbertura('pedidos-havan')
     try:
         with medidor.etapa('importacoes'):
@@ -50,14 +55,20 @@ def executar_painel(publicacao: IntegracaoLocal, medidor: MedidorAbertura | None
     servidor = None
     try:
         with medidor.etapa('servidor_local'):
-            servidor, _ = criar_servidor(estado)
+            servidor, _ = criar_servidor(estado, modo_desktop=desktop)
         url = f'http://127.0.0.1:{servidor.server_port}'
         get_logger(__name__).info('Interface local iniciada: %s', url)
         servidor_ativo = servidor
         with medidor.etapa('publicacao'):
-            publicacao.publicar(servidor, estado.encerrar,
+            if desktop:
+                publicacao.registro['desktop'] = 1
+            publicacao.publicar(servidor, servidor.encerrar,
                 lambda: {'encerrando': estado.encerrando, 'paginas': len(servidor_ativo.paginas)})
-        servidor.serve_forever()
+        if desktop:
+            from desktop_havan import executar
+            executar(servidor)
+        else:
+            servidor.serve_forever()
     except KeyboardInterrupt:
         pass
     except Exception as erro:
@@ -75,4 +86,11 @@ def executar_painel(publicacao: IntegracaoLocal, medidor: MedidorAbertura | None
 
 
 if __name__ == '__main__':
-    raise SystemExit(executar_interface('pedidos-havan', 'Pedidos Havan', True, main))
+    if '--demo' in sys.argv:
+        from demonstracao import main as demonstrar
+        raise SystemExit(demonstrar())
+    if '--web' in sys.argv:
+        sys.argv.remove('--web')
+        raise SystemExit(executar_interface('pedidos-havan', 'Pedidos Havan', True, main))
+    from desktop_havan import iniciar
+    raise SystemExit(iniciar())

@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 class ServidorInterface(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, handler: type[BaseHTTPRequestHandler], estado: EstadoInterface) -> None:
+    def __init__(self, handler: type[BaseHTTPRequestHandler], estado: EstadoInterface, modo_desktop=False) -> None:
         super().__init__(('127.0.0.1', 0), handler)
         self.estado = estado
         self.paginas: dict[str, Event] = {}
@@ -31,15 +31,27 @@ class ServidorInterface(ThreadingHTTPServer):
         self.fechamento_solicitado = False
         self.sem_paginas_desde = monotonic()
         self.parar_presenca = Event()
-        self.fechando = False
+        self.modo_desktop = modo_desktop
+        self.desktop = None
+        self._parando_http = False
+
+    @property
+    def fechando(self):
+        return self.estado.encerrando
+
+    def encerrar(self, *, confirmado=False):
+        if self.desktop is not None and not confirmado:
+            self.desktop.solicitar_encerramento()
+        else:
+            self.estado.encerrar()
 
     def service_actions(self) -> None:
         with self.estado.trava:
             limite = 1 if self.fechamento_solicitado else 5 if self.teve_pagina else 120
-            if not self.paginas and monotonic() - self.sem_paginas_desde >= limite:
+            if not self.modo_desktop and not self.paginas and monotonic() - self.sem_paginas_desde >= limite:
                 self.estado.encerrar()
-            if self.estado.finalizado.is_set() and self.estado.encerrando and not self.fechando:
-                self.fechando = True
+            if self.estado.finalizado.is_set() and self.estado.encerrando and not self._parando_http:
+                self._parando_http = True
                 Thread(target=self.shutdown, daemon=True).start()
 
     def fechar_pagina(self, pagina: str, *, solicitado: bool = False) -> None:
@@ -63,7 +75,7 @@ class ServidorInterface(ThreadingHTTPServer):
         super().server_close()
 
 
-def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
+def criar_servidor(estado: EstadoInterface, *, modo_desktop=False) -> tuple[ServidorInterface, str]:
     token = token_urlsafe(32)
     raiz = diretorio_aplicacao()
 
@@ -134,6 +146,10 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                         servidor.fechar_pagina(pagina)
 
         def do_GET(self) -> None:
+            if urlsplit(self.path).path == '/desktop/ativar':
+                from desktop_havan import atender_ativacao
+                atender_ativacao(self)
+                return
             if atender_integracao(self):
                 return
             caminho = urlsplit(self.path).path
@@ -141,8 +157,11 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                 '/': ('src/pedidos.html', 'text/html; charset=utf-8'),
                 '/pedidos.css': ('src/pedidos.css', 'text/css; charset=utf-8'),
                 '/pedidos.js': ('src/pedidos.js', 'text/javascript; charset=utf-8'),
+                '/rolagem.js': ('src/rolagem.js', 'text/javascript; charset=utf-8'),
                 '/nunes-tema.js': ('src/nunes-tema.js', 'text/javascript; charset=utf-8'),
                 '/icons/icone.svg': ('icons/icone.svg', 'image/svg+xml'),
+                '/icons/tema-lua.svg': ('icons/tema-lua.svg', 'image/svg+xml'),
+                '/icons/tema-lua-sol.svg': ('icons/tema-lua-sol.svg', 'image/svg+xml'),
                 '/favicon.ico': ('icons/icone.ico', 'image/x-icon'),
                 '/icons/icone-192.png': ('icons/icone-192.png', 'image/png'),
                 '/icons/icone-512.png': ('icons/icone-512.png', 'image/png'),
@@ -157,6 +176,10 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                                 servidor.sem_paginas_desde = monotonic()
                                 servidor.fechamento_solicitado = False
                         conteudo = conteudo.replace(b'__TOKEN__', token.encode('ascii'))
+                        from desktop_preferencias import ler_tema
+                        conteudo = conteudo.replace(b'__DESKTOP__', b'1' if servidor.modo_desktop else b'0')
+                        conteudo = conteudo.replace(b'__TEMA__', (ler_tema() if servidor.modo_desktop else 'escuro').encode('ascii'))
+                        conteudo = conteudo.replace(b'__DEMO__', b'1' if getattr(servidor, 'demonstracao', False) else b'0')
                     self.responder(200, conteudo, tipo)
                 elif not self.autorizado():
                     self.json_resposta(403, {'erro': 'Acesso não autorizado.'})
@@ -173,6 +196,11 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                 self.json_resposta(500, {'erro': 'Não consegui abrir esse recurso. Avise o responsável.'})
 
         def do_POST(self) -> None:
+            if urlsplit(self.path).path == '/desktop/ativar':
+                self.connection.settimeout(5)
+                from desktop_havan import atender_ativacao
+                atender_ativacao(self)
+                return
             if atender_integracao(self):
                 return
             if not self.autorizado():
@@ -195,14 +223,20 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                     raise ValueError('Solicitação inválida.')
                 dados = cast(dict[str, object], objeto)
                 caminho = urlsplit(self.path).path
-                if caminho == '/api/iniciar':
+                if caminho == '/api/conferir':
+                    self.json_resposta(200, estado.conferir(dados))
+                    return
+                elif caminho == '/api/iniciar':
                     estado.iniciar(dados)
                 elif caminho == '/api/decidir':
                     estado.decidir(dados)
                 elif caminho == '/api/parar':
                     estado.parar(dados.get('execucao'))
                 elif caminho == '/api/encerrar':
-                    estado.encerrar()
+                    servidor.encerrar()
+                elif caminho == '/api/tema' and servidor.modo_desktop:
+                    from desktop_preferencias import salvar_tema
+                    salvar_tema(dados.get('tema'))
                 elif caminho == '/api/fechar':
                     servidor.fechar_pagina(self.headers.get('X-Havan-Pagina', ''), solicitado=True)
                 else:
@@ -218,5 +252,5 @@ def criar_servidor(estado: EstadoInterface) -> tuple[ServidorInterface, str]:
                 logger.exception('Falha ao atender uma ação da interface.')
                 self.json_resposta(500, {'erro': 'Não foi possível concluir. Envie o log ao responsável.'})
 
-    servidor = ServidorInterface(Manipulador, estado)
+    servidor = ServidorInterface(Manipulador, estado, modo_desktop)
     return servidor, token

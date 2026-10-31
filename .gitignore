@@ -18,3 +18,5 @@ auto-pedidos.log.*
 estado-pedidos.sqlite3*
 estado-pedidos.lock
 Abrir Pedidos Havan.lnk
+
+.venv-desktop/
