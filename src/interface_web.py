@@ -185,6 +185,9 @@ def criar_servidor(estado: EstadoInterface, *, modo_desktop=False) -> tuple[Serv
                     self.json_resposta(403, {'erro': 'Acesso não autorizado.'})
                 elif caminho == '/api/estado':
                     self.json_resposta(200, estado.situacao())
+                elif caminho == '/api/demo/cenarios' and getattr(servidor, 'demonstracao', False):
+                    from demonstracao import cenarios_interface
+                    self.json_resposta(200, cenarios_interface())
                 elif caminho == '/api/presenca':
                     self.acompanhar()
                 elif caminho == '/api/log':

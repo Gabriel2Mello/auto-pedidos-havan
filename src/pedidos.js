@@ -9,6 +9,7 @@ const fases = {INICIANDO:'Iniciando',PRONTO:'Pronto',EXECUTANDO:'Em andamento',P
 let modo='normal', estado=null, enviando=false, encerrado=false, encerramentoPedido=false, pagina=0, erroVisivel='', tabelaAnterior='', atividadeAnterior='', presenca=null;
 let estadoAnterior='', saindo=false;
 let conferencia=null, escopo='todos', conectado=false, inicioIncerto=false, ultimoLote='';
+let cenariosDemo=[];
 const etapasAtencao=['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'];
 const exigeAtencao=p=>Boolean(p.erro)||etapasAtencao.includes(p.etapa)||['falhou','rejeitado','gravacao_pendente','impressao_incerta','impressao_pendente','sem_cadastro'].includes(p.resultado);
 function rotuloResultado(valor){
@@ -106,6 +107,7 @@ function atualizarBotoes() {
   el('parar').hidden=!estado?.ocupada||['INICIANDO','ENCERRANDO','PARANDO'].includes(estado?.fase);
   el('parar').disabled=enviando||!conectado; el('encerrar').disabled=encerrado||enviando||estado?.encerrando;
   ['repetir','pular','parar-erro'].forEach(id=>el(id).disabled=enviando||!conectado);
+  if(demonstracao){el('demo-cenario').disabled=bloqueado||!cenariosDemo.length;el('demo-exemplo').disabled=bloqueado||!cenariosDemo.length;}
 }
 function pedidosDoEscopo(){
   const lista=estado?.pedidos??[];
@@ -265,7 +267,21 @@ if(demonstracao){
   document.addEventListener('pointerdown',e=>{if(!menu.contains(e.target))menu.open=false;});
   document.addEventListener('focusin',e=>{if(!menu.contains(e.target))menu.open=false;});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&menu.open){menu.open=false;menu.querySelector('summary').focus();}});
-  el('demo-exemplo').onclick=()=>{if(inicioBloqueado())return;mudarModo('normal');el('pedidos').value='999002\n999003\n999004\n999005';contarPedidos();atualizarBotoes();menu.open=false;el('pedidos').focus();};
+  const descrever=()=>{const c=cenariosDemo.find(c=>c.id===el('demo-cenario').value);if(c)el('demo-descricao').textContent=c.orientacao;};
+  el('demo-cenario').addEventListener('change',descrever);
+  el('demo-exemplo').onclick=()=>{
+    if(inicioBloqueado())return;
+    const c=cenariosDemo.find(c=>c.id===el('demo-cenario').value);if(!c)return;
+    mudarModo(c.modo);el('pedidos').value=c.entrada;contarPedidos();atualizarBotoes();
+    menu.open=false;el('pedidos').focus();
+  };
+  (async()=>{
+    try{
+      cenariosDemo=await api('/api/demo/cenarios');
+      const opcoes=cenariosDemo.map(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nome;return o;});
+      el('demo-cenario').replaceChildren(...opcoes);el('demo-cenario').value='geral';descrever();atualizarBotoes();
+    }catch(_){el('demo-descricao').textContent='Não foi possível carregar os cenários. Reabra a demonstração.';}
+  })();
 }
 el('tema').addEventListener('click',()=>{document.documentElement.dataset.temaAnimado='1';});
 function pararPresenca(){presenca?.abort();}

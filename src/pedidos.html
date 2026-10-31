@@ -21,7 +21,11 @@
         <div class="menu-configuracoes" tabindex="0" role="region" aria-label="Demonstração">
           <h2>Demonstração · dados temporários</h2>
           <p class="dica">Nenhum acesso ao Sisplan, portal ou impressora.</p>
-          <button id="demo-exemplo" type="button">Preencher exemplo</button>
+          <label for="demo-cenario">Cenário para testar</label>
+          <select id="demo-cenario" aria-describedby="demo-descricao" disabled></select>
+          <p id="demo-descricao" class="dica">Carregando os cenários…</p>
+          <button id="demo-exemplo" type="button" disabled>Preparar cenário</button>
+          <p class="dica">Preparar só preenche a lista. Confira e inicie para executar. Os cenários compartilham o histórico; reabra a demonstração para começar do zero.</p>
         </div>
       </details>
     </div>

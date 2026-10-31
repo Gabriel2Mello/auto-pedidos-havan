@@ -17,5 +17,6 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 #painel-conferencia>.vazio{padding:12px 0;text-align:left}
 
 /* Conteúdo recolhido abre diretamente no tema atual. */
+.menu-configuracoes select{width:100%;min-width:0;min-height:44px;padding:8px}
 [hidden],[hidden] *,details:not([open])>*:not(summary),details:not([open])>*:not(summary) *{transition:none!important}
 .controles-cabecalho{display:flex;align-items:center;gap:8px;flex-shrink:0}.configuracoes{position:relative}.configuracoes summary{list-style:none;cursor:pointer;border:1px solid var(--borda);border-radius:7px;background:var(--cartao);min-height:44px}.configuracoes summary::-webkit-details-marker{display:none}.configuracoes summary:hover{background:var(--suave);border-color:var(--marca)}.configuracoes:not([open]) .menu-configuracoes{display:none}.menu-configuracoes{position:absolute;right:0;top:calc(100% + 8px);z-index:30;width:320px;max-width:calc(100dvi - 24px);max-height:calc(100dvh - 100px);overflow:auto;padding:16px;border:1px solid var(--borda);border-radius:8px;background:var(--cartao);color:var(--texto);box-shadow:0 4px 16px #0002}.menu-configuracoes h2{font-size:16px}.menu-configuracoes p{margin:8px 0 14px}.menu-configuracoes,.menu-configuracoes *{transition:none!important}

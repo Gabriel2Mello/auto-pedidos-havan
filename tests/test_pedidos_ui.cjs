@@ -5,7 +5,7 @@ const {randomUUID} = require('node:crypto');
 const {test} = require('node:test');
 const vm = require('node:vm');
 
-function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false}={}) {
+function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=false, demonstracao=false, cenarios=null}={}) {
   const elementos = new Map(), eventos = new Map(), criados = [];
   class Elemento {
     constructor() { this.texto=''; this.escritas=0; this.value=''; this.checked=false; this.children=[]; this.atributos={}; }
@@ -26,7 +26,8 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     document: {
       get cookie() { if(falhaCookie)throw Error('Cookies indisponíveis');return cookie; },
       set cookie(valor) { if(falhaCookie)throw Error('Cookies indisponíveis');cookie=valor; },
-      getElementById: obter, querySelector: () => ({content:'token-local'}),
+      getElementById: obter, querySelector: seletor => ({content:seletor==='meta[name="havan-demo"]'&&demonstracao?'1':'token-local'}),
+      addEventListener: () => {},
       querySelectorAll: seletor => seletor==='[data-reimportar]'?criados.filter(e=>'data-reimportar' in e.atributos):[], documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
       createElement: () => {const e=new Elemento();criados.push(e);return e;}, createDocumentFragment: () => new Elemento(),
     },
@@ -37,7 +38,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     },
     matchMedia: () => {throw Error('O tema não depende do sistema operacional');},
     window: {addEventListener: (nome, executar) => eventos.set(nome, executar)},
-    fetch: () => new Promise(() => {}), setTimeout: () => 0,
+    fetch: url => url==='/api/demo/cenarios'&&cenarios?Promise.resolve({ok:true,json:async()=>cenarios}):new Promise(() => {}), setTimeout: () => 0,
   });
   obter('tema').tagName='BUTTON';
   vm.runInContext(readFileSync(join(__dirname, '../src/nunes-tema.js'), 'utf8'), contexto);
@@ -55,6 +56,53 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
   };
   return {contexto, elementos, eventos, estado, renderizar, obter};
 }
+
+test('preparar cenário mantém roteiro no menu e preenche lista sem conferir nem executar', async () => {
+  const c={id:'geral',nome:'Lote misto',modo:'normal',entrada:'999002\n999003',orientacao:'Deixe o cadastro pendente.'};
+  const p=painel({demonstracao:true,cenarios:[c]});
+  p.renderizar(p.estado);
+  await new Promise(setImmediate);
+  const chamadas=[];
+  p.contexto.fetch=(...args)=>{chamadas.push(args);throw Error('Preparar não deve acessar a API');};
+  p.obter('demo-exemplo').onclick();
+  assert.equal(p.obter('demo-cenario').disabled,false);
+  assert.equal(p.obter('pedidos').value,c.entrada);
+  assert.equal(p.obter('contagem-pedidos').textContent,'Contagem: 2');
+  assert.equal(p.obter('demo-descricao').textContent,c.orientacao);
+  assert.equal(p.elementos.has('demo-roteiro'),false);
+  assert.equal(p.obter('demo-configuracoes').open,false);
+  assert.equal(p.obter('iniciar').disabled,true);
+  assert.equal(vm.runInContext('conferencia',p.contexto),null);
+  assert.equal(chamadas.length,0);
+});
+
+test('cenários de entrada e reimpressão preservam validação e confirmação obrigatórias', async () => {
+  const cenarios=[{id:'geral',nome:'Entrada',modo:'normal',entrada:'999002\n999002\nINVALIDO',orientacao:'Corrija a entrada.'},
+    {id:'reimprimir',nome:'Reimpressão',modo:'reimprimir',entrada:'999001',orientacao:'Confirme outra cópia.'}];
+  const p=painel({demonstracao:true,cenarios});p.renderizar(p.estado);await new Promise(setImmediate);
+  p.obter('demo-exemplo').onclick();
+  assert.equal(p.obter('conferir').disabled,true);
+  assert.match(p.obter('validacao-pedidos').textContent,/repetição/);
+  assert.match(p.obter('validacao-pedidos').textContent,/INV[AÁ]LIDO|INVALIDO/);
+  p.obter('confirmar-copia').checked=true;
+  p.obter('demo-cenario').value='reimprimir';p.obter('demo-exemplo').onclick();
+  assert.equal(vm.runInContext('modo',p.contexto),'reimprimir');
+  assert.equal(p.obter('confirmar-copia').checked,false);
+  assert.equal(p.obter('iniciar').disabled,true);
+  assert.equal(p.obter('conferir').disabled,false);
+});
+
+test('cenários não substituem a lista durante execução ou perda de conexão', async () => {
+  const p=painel({demonstracao:true,cenarios:[{id:'geral',nome:'Geral',modo:'normal',entrada:'999002',orientacao:'Execute.'}]});
+  p.renderizar(p.estado);await new Promise(setImmediate);
+  p.obter('pedidos').value='12345';
+  p.renderizar({...p.estado,fase:'EXECUTANDO',ocupada:true});
+  p.obter('demo-exemplo').onclick();
+  assert.equal(p.obter('pedidos').value,'12345');assert.equal(p.obter('demo-exemplo').disabled,true);
+  p.renderizar(p.estado);
+  vm.runInContext('conectado=false;atualizarBotoes()',p.contexto);p.obter('demo-exemplo').onclick();
+  assert.equal(p.obter('pedidos').value,'12345');assert.equal(p.obter('demo-cenario').disabled,true);
+});
 
 test('andamento ocioso ou em falha não redesenha mensagens idênticas', () => {
   const p = painel();
