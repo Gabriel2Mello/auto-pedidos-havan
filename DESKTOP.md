@@ -11,8 +11,9 @@ navegador. `main.py` continua sendo a entrada de console.
   log, tema e geometria temporários. Pode ser usada junto da aplicação normal.
 - Na demonstração, abra o ícone **Configurações da demonstração**, ao lado do tema,
   escolha um dos 16 cenários e clique em **Preparar cenário**. Isso apenas preenche
-  a lista e seleciona a operação; **Conferir pedidos** e **Iniciar** continuam
-  obrigatórios. O roteiro e o resultado esperado ficam apenas no menu de
+  a lista e seleciona a operação; **Baixar e conferir** e **Importar aptos**
+  são ações separadas. Em Reimprimir, a revisão e a confirmação de cópia continuam
+  obrigatórias. O roteiro e o resultado esperado ficam apenas no menu de
   configurações, junto do cenário selecionado.
 
 A demonstração não cria `IntegracaoLocal`, não reserva Sisplan, não inicia
@@ -21,41 +22,31 @@ removidos após a saída. O executor operacional não é chamado nesse modo.
 
 ## Roteiros da demonstração
 
-Os cenários exercitam entrada, decisão, recuperação e segurança das filas. As
-etapas são persistidas no SQLite temporário; Inserir, Retomar e Reimprimir têm
-comportamentos diferentes. A contagem de importações no resumo também é simulada,
-sem registrar métricas operacionais. Os pedidos sem ano usam o ano vigente.
+Os cenários exercitam o fluxo **preparar → conferir estados → importar aptos**
+com SQLite temporário. Preparar cenário no menu só preenche a lista. Baixar e
+conferir não importa; só o botão Importar aptos faz a inclusão sintética.
 
-| Cenário | O que conferir |
-| --- | --- |
-| Lote com sucesso e pendências | Deixe cadastro e download pendentes, confira o resumo e retome depois. |
-| Entrada inválida e repetida | A contagem remove repetições; uma entrada inválida bloqueia Conferir. Editar a lista invalida uma conferência anterior. |
-| Pedido já existente | Inserir identifica o existente sem outra inclusão ou impressão. |
-| Produto sem cadastro | Deixe pendente e continue; filtre Produto sem cadastro e use Importar novamente para simular o cadastro corrigido. |
-| Falha de download | Teste repetir, deixar pendente e parar. A próxima tentativa solicitada simula a recuperação. |
-| Sessão expirada do portal | Reconectar e continuar ou parar; pular fica bloqueado. |
-| Banco indisponível | Falha antes da inclusão; tentar novamente simula a rede recuperada, sem liberar o próximo pedido durante a pausa. |
-| Retomar de etapas diferentes | A primeira execução prepara um Baixado e um No Sisplan. Retomar inclui apenas o primeiro e imprime os dois. |
-| Reimpressão com confirmação | A conferência não envia nada. Outra cópia exige confirmação e não aumenta importações. |
-| Impressão pendente recuperável | Falha antes do envio; repetir ou retomar imprime sem incluir novamente. |
-| Impressão incerta | Retomar conserva o bloqueio. Só Reimprimir, com confirmação explícita, envia outra cópia. |
-| Gravação incerta | Repetir e pular ficam bloqueados. Pare e retome para simular a confirmação, sem reinclusão. |
-| Aviso pendente | Retomar confirma existência e não imprime. Reimprimir continua sendo uma operação explícita, sem nova inclusão. |
-| Cancelamento não confirmado | A inclusão fica incerta e bloqueia novas inclusões, mesmo após Retomar. |
-| Lista longa, filtros e paginação | Confira 60 pedidos, execute e teste duas páginas, busca, filtros, escopos e rolagem. |
-| Parar e encerrar durante o lote | Pare durante uma etapa, confira o ponto seguro e retome. Teste cancelar e confirmar a saída, inclusive numa pausa. |
+- **Lote misto:** separa dois aptos, um EAN sem cadastro e um download falho.
+  Importe os aptos e confira que as pendências permanecem na lista.
+- **Cadastro/download:** use a ação na linha para corrigir a pendência; a
+  revalidação de cadastro não baixa nem importa. Importe após a liberação.
+- **Existente/lista longa:** existentes não são baixados nem importados. Os 60
+  pedidos permitem conferir paginação, filtros, busca e rolagem.
+- **Banco/portal:** a consulta interrompida pede decisão e não vira “sem cadastro”.
+- **Impressão pendente:** prepare e importe primeiro; depois recupere a impressão
+  pela linha sem nova inclusão. Impressão incerta exige confirmação de outra cópia.
+- **Gravação/aviso incerto:** prepare e importe primeiro. Pare na pausa e use
+  Conferir gravação no Sisplan; a ação não reinclui o pedido.
+- **Cancelamento incerto:** permanece bloqueado mesmo após conferir gravação.
+  Teste por último e reabra a demonstração para limpar o bloqueio sintético.
+- **Entrada/parada:** confira repetição, inválidos, parada segura e preservação
+  das etapas. Reimpressão continua exigindo revisão e confirmação explícita.
 
-Os roteiros compartilham o histórico da janela aberta. Depois que um pedido
-terminou, Inserir reconhece o resultado anterior; selecionar novamente o cenário
-não apaga a fila. **Feche e reabra `testar interface.cmd` para começar do zero.**
-Teste o cancelamento não confirmado por último, pois ele preserva um bloqueio
-intencional até o fechamento da demonstração.
-
-Temas, foco por teclado, menu fechado por Escape/foco externo, janela normal e
-maximizada, largura estreita e zoom também fazem parte da conferência visual.
-Compare a conferência curta com a lista longa: a barra deve sobrepor a borda sem
-alterar a largura do conteúdo ou criar faixa vazia. Nenhum desses roteiros
-comprova a temporização das janelas do Sisplan nem impressão física.
+Os cenários compartilham o histórico da janela. Reabrir **testar interface.cmd**
+começa uma demonstração vazia de execuções anteriores. Os testes também verificam
+teclado, menu por Escape/foco externo, temas, janela normal/maximizada/estreita,
+listas curtas/longas e zoom. A rolagem deve sobrepor a borda sem reservar espaço.
+Nenhum cenário valida temporização do Sisplan real nem saída física do papel.
 
 ## Ambiente
 

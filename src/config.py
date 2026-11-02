@@ -112,7 +112,7 @@ class Configuracao:
         registrar_segredos(config.senha_portal, config.teams_webhook_url)
         return config
 
-    def validar(self, apenas_impressao: bool = False) -> None:
+    def validar(self, apenas_impressao: bool = False, *, somente_preparacao: bool = False) -> None:
         erros: list[str] = []
 
         if self.erro_leitura:
@@ -121,11 +121,11 @@ class Configuracao:
             erros.append('tolerancia_numero_interno deve ser um inteiro positivo')
         if not apenas_impressao and (str(self.unrar_tool) == '.' or not self.unrar_tool.is_file()):
             erros.append('unrar_tool arquivo inválido')
-        if str(self.sumatra) == '.' or not self.sumatra.is_file():
+        if not somente_preparacao and (str(self.sumatra) == '.' or not self.sumatra.is_file()):
             erros.append('sumatra arquivo inválido')
         if str(self.pasta_pedidos) == '.':
             erros.append('pasta_pedidos não foi configurada')
-        if not self.impressora:
+        if not somente_preparacao and not self.impressora:
             erros.append('nome da impressora não foi configurado')
         if str(self.banco_config) == '.' or not self.banco_config.is_file():
             erros.append('banco_config arquivo de conexão inválido')
@@ -165,8 +165,8 @@ TEAMS_WEBHOOK_URL = CONFIG.teams_webhook_url
 CLIENTE_HAVAN = '00022'
 
 
-def validar_configuracao(apenas_impressao: bool = False) -> None:
-    configuracao_atual().validar(apenas_impressao=apenas_impressao)
+def validar_configuracao(apenas_impressao: bool = False, *, somente_preparacao: bool = False) -> None:
+    configuracao_atual().validar(apenas_impressao=apenas_impressao, somente_preparacao=somente_preparacao)
 
 
 ORIGIN = 'https://cliente.havan.com.br'

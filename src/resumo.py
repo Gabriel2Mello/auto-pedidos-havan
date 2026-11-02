@@ -15,6 +15,7 @@ class ResumoExecucao:
     def exibir(self) -> None:
         contagem = Counter(self.situacoes.values())
         logger.info_split('RESUMO FINAL — %s pedido(s)', len(self.situacoes))
+        logger.info('Prontos para importar: %s', contagem['pronto_importar'])
         logger.info('Já existentes: %s', contagem['existente'])
         logger.info('Importações confirmadas nesta execução: %s', len(self.importados))
         logger.info('Pedidos retomados para impressão: %s', len(self.retomados))

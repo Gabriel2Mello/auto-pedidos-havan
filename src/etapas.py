@@ -2,23 +2,23 @@
 from typing import Literal
 
 Etapa = Literal[
-    'para_baixar', 'baixado', 'sem_cadastro', 'importacao_iniciada', 'gravacao_pendente', 'aviso_pendente',
+    'para_baixar', 'baixado', 'pronto_importar', 'sem_cadastro', 'importacao_iniciada', 'gravacao_pendente', 'aviso_pendente',
     'importado', 'pdf_pronto', 'impressao_pendente', 'impressao_iniciada',
     'impressao_incerta', 'impressao_enviada', 'existente',
 ]
 ETAPAS = (
-    'para_baixar', 'baixado', 'sem_cadastro', 'importacao_iniciada', 'gravacao_pendente', 'aviso_pendente',
+    'para_baixar', 'baixado', 'pronto_importar', 'sem_cadastro', 'importacao_iniciada', 'gravacao_pendente', 'aviso_pendente',
     'importado', 'pdf_pronto', 'impressao_pendente', 'impressao_iniciada',
     'impressao_incerta', 'impressao_enviada', 'existente',
 )
 
 ETAPAS_FINAIS = ('impressao_enviada', 'existente')
 INCLUSOES_INCERTAS = ('importacao_iniciada', 'gravacao_pendente', 'aviso_pendente')
-ETAPAS_INICIAIS = ('para_baixar', 'baixado', 'sem_cadastro')
+ETAPAS_INICIAIS = ('para_baixar', 'baixado', 'pronto_importar', 'sem_cadastro')
 
 ROTULOS: dict[str, str] = {
     'para_baixar': 'A baixar', 'baixado': 'Baixado',
-    'sem_cadastro': 'Produto sem cadastro',
+    'sem_cadastro': 'Produto sem cadastro', 'pronto_importar': 'Pronto para importar',
     'importacao_iniciada': 'Conferir inclusão', 'gravacao_pendente': 'Gravação não confirmada',
     'aviso_pendente': 'Aviso: conferir existência no banco',
     'importado': 'Importação confirmada', 'pdf_pronto': 'PDF pronto',
@@ -33,6 +33,6 @@ def fila_da_etapa(etapa: str) -> str:
         raise ValueError('Etapa desconhecida: ' + etapa)
     if etapa == 'para_baixar':
         return 'para_baixar'
-    if etapa in ('baixado', 'sem_cadastro', *INCLUSOES_INCERTAS):
+    if etapa in ('baixado', 'pronto_importar', 'sem_cadastro', *INCLUSOES_INCERTAS):
         return 'baixados'
     return 'enviados' if etapa == 'impressao_enviada' else 'importados'

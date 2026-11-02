@@ -1,0 +1,80 @@
+"""Barreiras entre preparação, conferência e importação explícita."""
+import unittest
+from unittest.mock import Mock
+from tests import test_main
+from src import servico_pedidos as servico
+from src.estado import EstadoPedido, EstadoPedidos
+from src.banco import BancoSisplanError, PedidoExistente
+
+class FluxoEtapasTests(unittest.TestCase):
+    setUp = test_main.FluxoPrevalidacaoTests.setUp
+    preparar = test_main.FluxoPrevalidacaoTests.preparar
+    caminho = test_main.FluxoPrevalidacaoTests.caminho
+    assert_sem_interface = test_main.FluxoPrevalidacaoTests.assert_sem_interface
+
+    def test_preparacao_persiste_aptidao_sem_importar_e_importacao_revalida(self):
+        self.preparar()
+        resultado = servico.processar_pedidos(['2026-12345'], 'preparar')
+        self.assertEqual(resultado.situacoes, {'2026-12345':'pronto_importar'})
+        self.assert_sem_interface()
+        with EstadoPedidos(self.estado_path) as h:
+            self.assertEqual(h.obter('2026-12345').etapa, 'pronto_importar')
+            self.assertTrue(h.obter_itens_esperados('2026-12345'))
+        self.baixar.reset_mock(); self.banco.consultar_barras.reset_mock()
+        resultado = servico.processar_pedidos(['2026-12345'], 'importar')
+        self.baixar.assert_not_called()
+        self.banco.consultar_barras.assert_called_once()
+        self.assertEqual(resultado.importados, {'2026-12345'})
+
+    def test_separa_existentes_sem_cadastro_e_aptos_sem_pausar(self):
+        self.preparar('2026-12345', barra='9999999999999')
+        self.preparar('2026-67890')
+        self.banco.consultar_pedidos.return_value={'2026-99999':[PedidoExistente('777',2)]}
+        decidir=Mock(return_value='encerrar')
+        r=servico.processar_pedidos(['2026-99999','2026-12345','2026-67890'], 'preparar', ao_erro=decidir)
+        self.assertEqual(r.situacoes, {'2026-99999':'existente','2026-12345':'sem_cadastro','2026-67890':'pronto_importar'})
+        decidir.assert_not_called(); self.assert_sem_interface()
+        self.assertTrue(all('2026-99999' not in c.args[1] for c in self.baixar.call_args_list))
+
+    def test_revalidar_cadastro_reaproveita_arquivos_e_exige_importacao_posterior(self):
+        self.preparar(); cadastradas=self.banco.consultar_barras.return_value
+        self.banco.consultar_barras.return_value={}
+        servico.processar_pedidos(['2026-12345'], 'preparar')
+        self.banco.consultar_barras.return_value=cadastradas; self.baixar.reset_mock()
+        r=servico.processar_pedidos(['2026-12345'], 'revalidar')
+        self.assertEqual(r.situacoes['2026-12345'], 'pronto_importar')
+        self.baixar.assert_not_called(); self.assert_sem_interface()
+        with EstadoPedidos(self.estado_path) as h: self.assertEqual(h.obter('2026-12345').erro,'')
+
+    def test_cadastro_alterado_entre_preparo_e_importacao_nao_importa(self):
+        self.preparar(); servico.processar_pedidos(['2026-12345'], 'preparar')
+        self.banco.consultar_barras.return_value={}
+        r=servico.processar_pedidos(['2026-12345'], 'importar')
+        self.assertEqual(r.situacoes['2026-12345'], 'sem_cadastro'); self.assert_sem_interface()
+
+    def test_outro_operador_inseriu_apos_preparo_nao_importa(self):
+        self.preparar(); servico.processar_pedidos(['2026-12345'], 'preparar')
+        self.banco.consultar_pedidos.return_value={'2026-12345':[PedidoExistente('101',2)]}
+        r=servico.processar_pedidos(['2026-12345'], 'importar')
+        self.assertEqual(r.situacoes['2026-12345'],'existente'); self.assert_sem_interface()
+
+    def test_arquivo_removido_apos_preparo_nao_baixa_na_importacao(self):
+        self.preparar(); servico.processar_pedidos(['2026-12345'], 'preparar')
+        self.caminho('2026-12345').unlink(); self.baixar.reset_mock()
+        r=servico.processar_pedidos(['2026-12345'], 'importar')
+        self.assertEqual(r.situacoes['2026-12345'],'rejeitado')
+        self.baixar.assert_not_called(); self.assert_sem_interface()
+
+    def test_banco_indisponivel_nao_vira_produto_sem_cadastro(self):
+        self.preparar(); self.banco.consultar_barras.side_effect=BancoSisplanError('indisponível')
+        with self.assertRaises(BancoSisplanError): servico.processar_pedidos(['2026-12345'], 'preparar')
+        with EstadoPedidos(self.estado_path) as h: self.assertEqual(h.obter('2026-12345').etapa,'baixado')
+        self.assert_sem_interface()
+
+    def test_preparar_nao_reconcilia_nem_imprime_pedido_ja_importado(self):
+        with EstadoPedidos(self.estado_path) as h: h.salvar(EstadoPedido('2026-12345','100','impressao_incerta',2))
+        self.banco.consultar_pedidos.return_value={'2026-12345':[PedidoExistente('100',2)]}
+        r=servico.processar_pedidos(['2026-12345'],'preparar')
+        self.assertEqual(r.situacoes['2026-12345'],'aguardando')
+        self.assert_sem_interface()
+        with EstadoPedidos(self.estado_path) as h: self.assertEqual(h.obter('2026-12345').etapa,'impressao_incerta')

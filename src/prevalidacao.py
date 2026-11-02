@@ -27,7 +27,7 @@ def validar_pedido_baixado(banco: BancoSisplan, pedido: str) -> list[ItemEsperad
         if any(not cadastradas.get(v.barra) for v in variacoes):
             raise ProdutoSemCadastroError(
                 '; '.join(pendencias) + '. Pedido salvo. Após cadastrar os produtos, '
-                'escolha Importar novamente ou Retomar.'
+                'use Conferir cadastro novamente e depois Importe os pedidos aptos.'
             )
         raise PedidoRejeitadoError('; '.join(pendencias))
     totais: dict[ProdutoCadastrado, Decimal] = {}

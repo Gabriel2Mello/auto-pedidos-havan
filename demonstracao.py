@@ -16,37 +16,37 @@ def cenarios_interface():
     """Roteiros de teste; preparar a lista não altera o histórico nem executa."""
     cenarios = [
         ('geral', 'Lote com sucesso e pendências', 'normal', '999002\n999003\n999004\n999015',
-         'Confira e inicie. Deixe cadastro e falha de download pendentes para ver o resumo misto; depois use Retomar.'),
+         'Baixe e confira. Revise dois aptos, um sem cadastro e um download pendente. Importe apenas os aptos; corrija os demais pelas ações da lista.'),
         ('entrada', 'Entrada inválida e repetida', 'normal', '999002\n999002\nINVALIDO\n999015',
-         'Confira a contagem e o aviso de repetição. A entrada inválida bloqueia Conferir. Remova INVALIDO, confira e edite a lista para invalidar a conferência.'),
+         'Confira a contagem. A entrada inválida bloqueia Baixar e conferir. Remova INVALIDO e prepare a lista; os repetidos são contados uma vez.'),
         ('existente', 'Pedido já existente', 'normal', '999001',
-         'Inserir deve reconhecer o pedido existente sem nova inclusão ou impressão. Compare com Reimprimir.'),
+         'Baixar e conferir reconhece o existente sem download, nova inclusão ou impressão. Compare com Reimprimir.'),
         ('cadastro', 'Produto sem cadastro e nova tentativa', 'normal', '999003\n999015',
-         'Na pausa, deixe pendente e continue. Filtre Produto sem cadastro e use Importar novamente: a nova solicitação simula o cadastro corrigido.'),
+         'Baixe e confira. Filtre Produtos sem cadastro e use Conferir cadastro novamente: simula cadastro corrigido e libera a importação, que exige outro clique.'),
         ('download', 'Falha de download e decisões', 'normal', '999004\n999015',
-         'Teste Tentar novamente, Deixar pendente e Parar. Uma nova tentativa solicitada simula a conexão recuperada.'),
+         'Baixe e confira: o download falho fica em Outras pendências. Use Baixar e conferir na linha para simular recuperação; depois importe o apto.'),
         ('portal', 'Sessão expirada do portal', 'normal', '999005\n999015',
          'A pausa oferece Reconectar e continuar ou Parar, sem permitir pular. Reconectar simula uma nova sessão válida.'),
         ('banco', 'Banco indisponível', 'normal', '999006\n999015',
          'A consulta falha antes da inclusão. Tentar novamente simula a rede restabelecida; continuar para outro pedido fica bloqueado.'),
         ('retomada', 'Retomar de etapas diferentes', 'normal', '999009\n999010',
-         'Execute uma vez para preparar um pedido Baixado e outro No Sisplan. Depois escolha Retomar: só o primeiro deve receber nova inclusão.'),
+         'Baixe e confira e importe os aptos. Um pedido ficará com impressão pendente. Use Retomar impressão na linha, sem nova inclusão.'),
         ('reimprimir', 'Reimpressão com confirmação', 'reimprimir', '999001',
          'Conferir não envia nada. Iniciar só é liberado ao confirmar outra cópia. A execução reimprime sem contabilizar inclusão.'),
         ('impressao-pendente', 'Impressão pendente recuperável', 'normal', '999012',
-         'A inclusão é confirmada, mas a impressora simulada está indisponível antes do envio. Tente novamente ou pare e use Retomar; não deve haver nova inclusão.'),
+         'Baixe, confira e importe. A impressora falha após a gravação. Tente novamente ou pare e use Retomar impressão na linha, sem nova inclusão.'),
         ('impressao-incerta', 'Impressão incerta sem reenvio automático', 'normal', '999011',
-         'Deixe pendente na pausa. Retomar deve continuar bloqueando o envio; só Reimprimir, com confirmação de outra cópia, libera a impressão.'),
+         'Baixe, confira e importe. Deixe pendente na pausa; Conferir reimpressão exige confirmação explícita de outra cópia.'),
         ('gravacao', 'Gravação incerta e conferência posterior', 'normal', '999007\n999015',
-         'A gravação não é confirmada: repetir e pular ficam bloqueados. Pare e use Retomar para simular confirmação no banco, sem reincluir o primeiro pedido.'),
+         'Após baixar, conferir e importar, repetir e pular ficam bloqueados. Pare e use Conferir gravação no Sisplan na linha, sem reincluir.'),
         ('aviso', 'Aviso pendente e existência confirmada', 'normal', '999008\n999015',
-         'O aviso cancela a inclusão e bloqueia o lote até conferência. Pare e use Retomar: o pedido vira existente, sem impressão ou nova inclusão. Reimprimir permanece uma ação explícita.'),
+         'Após baixar, conferir e importar, pare no aviso e use Conferir gravação no Sisplan na linha. O pedido vira existente sem impressão ou nova inclusão.'),
         ('cancelamento', 'Cancelamento não confirmado', 'normal', '999014\n999015',
-         'O cancelamento por produto sem cadastro não é confirmado. Repetir, pular e novas inclusões ficam bloqueados, inclusive após Retomar. Reabra a demonstração para limpar este bloqueio sintético.'),
+         'Baixe, confira e importe. O cancelamento não confirmado bloqueia repetir, pular e novas inclusões, inclusive após conferir gravação. Teste por último e reabra para limpar.'),
         ('paginacao', 'Lista longa, filtros e paginação', 'normal', '\n'.join(str(n) for n in range(999100, 999160)),
-         'Confira os 60 pedidos e a rolagem da conferência. Execute para simular pedidos existentes; teste Próxima/Anterior, busca por pedido/número interno e os escopos Lote atual/Todos.'),
+         'Baixe e confira os 60 existentes; teste paginação, busca, filtros e os escopos Lote em conferência/Todos. Não há aptos para importar.'),
         ('parada', 'Parar e encerrar durante o lote', 'normal', '999016\n999017\n999018',
-         'Durante o processamento, use Parar. O passo em andamento termina num ponto seguro e os restantes ficam pendentes. Retome; teste também cancelar e confirmar o encerramento.'),
+         'Pare durante o preparo ou a importação. Confira os estados salvos e solicite a próxima ação pela lista. Teste cancelar e confirmar o encerramento.'),
     ]
     return [{'id': id_, 'nome': nome, 'modo': modo, 'entrada': entrada, 'orientacao': orientacao}
             for id_, nome, modo, entrada, orientacao in cenarios]
@@ -61,11 +61,48 @@ def esperar_etapa():
     Event().wait(.35)
 
 
+def _preparar(pedido, modo, historico, resumo, salvar, parar):
+    registro = historico.obter(pedido)
+    if registro is None:
+        raise RuntimeError('Pedido de demonstração não preservado.')
+    codigo = pedido.rsplit('-', 1)[-1]
+    if registro.etapa not in ETAPAS_INICIAIS:
+        resumo.situacoes[pedido] = 'existente' if registro.etapa in ETAPAS_FINAIS else 'aguardando'
+        return
+    if codigo == '999001' or 999100 <= int(codigo) <= 999159:
+        salvar('existente', str(8000 + int(codigo[-3:])))
+        resumo.situacoes[pedido] = 'existente'
+        return
+    if not registro.erro:
+        erros = {'999004': (PedidoRejeitadoError('Demonstração: download não concluído. Use Baixar e conferir novamente.'), True),
+                 '999005': (SessaoPortalExpiradaError(), False),
+                 '999006': (BancoSisplanError('Demonstração: banco indisponível.'), False)}
+        if codigo in erros:
+            erro, pular = erros[codigo]
+            raise FalhaSimulada(erro, True, pular)
+    if modo == 'revalidar' and registro.etapa == 'para_baixar':
+        raise FalhaSimulada(PedidoRejeitadoError('Arquivos ausentes. Use Baixar e conferir.'), False, True)
+    salvar('baixado', '')
+    if codigo == '999003' and modo != 'revalidar':
+        salvar('sem_cadastro', '')
+        raise FalhaSimulada(ProdutoSemCadastroError('EAN 0123456789012 (Produto sintético / Azul) sem cadastro. Use Conferir cadastro novamente após corrigir.'), True, True, 'sem_cadastro')
+    if not parar():
+        salvar('pronto_importar', '')
+        resumo.situacoes[pedido] = 'pronto_importar'
+
+
 def _processar(pedido, modo, historico, resumo, salvar, parar):
     codigo = pedido.rsplit('-', 1)[-1]
     registro = historico.obter(pedido)
     existente = codigo == '999001' or codigo in {str(n) for n in range(999100, 999160)}
     numero = registro.numero if registro and registro.numero else str(8000 + int(codigo[-3:]))
+    if modo in ('preparar', 'revalidar'):
+        _preparar(pedido, modo, historico, resumo, salvar, parar)
+        return
+    if modo == 'importar' and (registro is None or registro.etapa != 'pronto_importar' or registro.erro):
+        raise FalhaSimulada(PedidoRejeitadoError('Pedido não está pronto para importar.'), False, True)
+    if modo == 'recuperar' and (registro is None or registro.etapa in (*ETAPAS_INICIAIS, *ETAPAS_FINAIS)):
+        raise FalhaSimulada(PedidoRejeitadoError('Recuperar não pode incluir pedidos novos.'), False, False)
     if modo == 'reimprimir':
         if not existente and (registro is None or registro.etapa in ETAPAS_INICIAIS or codigo == '999014'):
             raise FalhaSimulada(PedidoRejeitadoError('Demonstração: pedido sem gravação confirmada para reimprimir.'), True, True, 'rejeitado')
@@ -96,7 +133,7 @@ def _processar(pedido, modo, historico, resumo, salvar, parar):
                 return
             if any(p != pedido for p in historico.inclusoes_incertas()):
                 raise FalhaSimulada(EstadoError('Há uma inclusão sintética anterior sem conferência.'), False, False)
-            if not registro.erro:
+            if modo != 'importar' and not registro.erro:
                 erros = {'999004': (PedidoRejeitadoError('Demonstração: falha temporária no download.'), True),
                          '999005': (SessaoPortalExpiradaError(), False),
                          '999006': (BancoSisplanError('Demonstração: banco indisponível antes de incluir.'), False)}
@@ -109,9 +146,9 @@ def _processar(pedido, modo, historico, resumo, salvar, parar):
                 if codigo == '999009':
                     resumo.situacoes[pedido] = 'aguardando'
                     return
-            if codigo == '999003' and registro.etapa != 'sem_cadastro':
+            if modo != 'importar' and codigo == '999003' and registro.etapa != 'sem_cadastro':
                 salvar('sem_cadastro', '')
-                raise FalhaSimulada(ProdutoSemCadastroError('Demonstração: produto sem cadastro. Use Importar novamente para simular o cadastro corrigido.'), True, True, 'sem_cadastro')
+                raise FalhaSimulada(ProdutoSemCadastroError('Demonstração: produto sem cadastro. Use Conferir cadastro novamente para simular o cadastro corrigido.'), True, True, 'sem_cadastro')
             if parar():
                 return
             salvar('importacao_iniciada', '')
@@ -125,7 +162,7 @@ def _processar(pedido, modo, historico, resumo, salvar, parar):
             # Uma parada não deixa a gravação artificialmente incerta.
             salvar('importado', numero)
             resumo.importados.add(pedido)
-            if preparar_pendencia and codigo == '999010':
+            if (preparar_pendencia or modo == 'importar') and codigo == '999010':
                 resumo.situacoes[pedido] = 'impressao_pendente'
                 return
         else:
@@ -168,6 +205,8 @@ def simular(pedidos, modo, *, historico, ao_erro, ao_progresso, parar):
                 if registro is not None:
                     historico.salvar(replace(registro, erro=str(falha.erro)))
                 resumo.situacoes[pedido] = falha.situacao
+                if modo in ('preparar', 'revalidar') and isinstance(falha.erro, PedidoRejeitadoError):
+                    break
                 decisao = ao_erro(pedido, falha.erro, falha.repetir, falha.pular)
                 if decisao == 'repetir' and falha.repetir:
                     continue

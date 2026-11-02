@@ -40,38 +40,87 @@ também precisa dos arquivos HTML/CSS/JS e ícones no pacote de distribuição.
 
 ## Uso pelo operador
 
-1. Abra o Sisplan na tela 1002 — Pedido por Grade e abra o atalho.
-2. Escolha **Inserir**, **Retomar** ou **Reimprimir**. Em Inserir/Reimprimir,
-   digite números separados por vírgula ou por linha. Reimprimir exige confirmar
-   o envio de outra cópia.
-3. Acompanhe o pedido atual e as quatro filas. Durante a inclusão, aguarde o
-   robô terminar antes de usar mouse, teclado ou a tela do Sisplan.
-4. Em caso de erro, o robô pausa. A página apresenta somente as escolhas
-   permitidas pela etapa. Reconexão de sessão exige uma escolha explícita.
-5. Para suporte, use **Copiar diagnóstico** e **Baixar log**. Informe o código
-   da execução. O botão baixa o log atual; os arquivos rotacionados permanecem
-   na pasta da aplicação quando for necessário consultar execuções anteriores.
-6. Use **Parar processamento** para preservar as pendências e continuar no
-   painel, ou **Encerrar** para finalizar o aplicativo.
+1. Em **1. Informar pedidos**, digite números separados por vírgula ou linha.
+   O contador elimina repetições e entradas inválidas bloqueiam o envio.
+2. Clique em **Baixar e conferir**. A aplicação salva a lista, consulta duplicidade
+   no banco e separa os já existentes antes do download. Para os novos, confere
+   XML/PDF e todos os EANs. Esta etapa não abre a inclusão no Sisplan nem imprime;
+   não exige impressora ou Sumatra configurados.
+3. Em **2. Conferir resultados**, revise uma única lista com cinco filtros:
+   **Prontos para importar**, **Produtos sem cadastro**, **Outras pendências**,
+   **Já existentes** e **Importados**. EAN ausente ou ambíguo bloqueia o pedido
+   inteiro; os outros pedidos continuam sendo conferidos. Falha de banco, sessão
+   ou configuração exige decisão e não é tratada como cadastro ausente.
+4. Abra o Sisplan na tela 1002 — Pedido por Grade e clique em **Importar N pedidos
+   aptos**. O botão inclui todos os aptos do escopo escolhido (lote em conferência
+   ou histórico completo); busca e filtros só alteram a visualização. A aplicação
+   revalida arquivos/EANs e consulta duplicidade novamente antes de incluir.
+5. Durante a importação, deixe o Sisplan em primeiro plano e aguarde sem usar
+   mouse ou teclado. Depois, confira os estados e os números internos na lista.
+   Importação confirmada e impressão pendente são estados distintos.
 
-A interface prioriza a conferência dos estados antes e depois do processamento,
-pois o Sisplan precisa ficar em primeiro plano durante a importação. Ao iniciar
-um lote, **Preparar lote** é recolhido; clique no título para expandir novamente.
-A escolha manual de expandir é preservada nas atualizações daquele lote. O painel
-mostra contagens compactas e mantém a lista de estados salvos acessível. Detalhes
-do processamento e o resumo da execução ficam em seções expansíveis; avisos que
-exigem decisão permanecem visíveis. Ao terminar, o último pedido deixa de ocupar
-o destaque do painel. A preparação conserva a lista digitada e a conferência
-obrigatória antes de uma nova execução.
+As próximas ações ficam na linha do pedido:
 
-Os cartões filtram o histórico; a busca aceita número Havan ou número interno.
-O histórico permanece salvo depois que as pendências terminam. “Enviado para
-impressão” mantém o significado existente: retorno de sucesso do SumatraPDF,
-sem comprovar a saída física do papel.
+| Situação | Ação |
+| --- | --- |
+| Produto sem cadastro | Corrija os EANs indicados e use **Conferir cadastro novamente**. Os arquivos são reaproveitados; depois, solicite a importação dos aptos. |
+| Arquivos baixados a conferir | **Conferir arquivos e produtos** revalida sem download nem inclusão. |
+| Download ausente ou inválido | **Baixar e conferir** obtém os arquivos novamente. |
+| Inclusão incerta | **Conferir gravação no Sisplan** reconcilia a gravação; não abre nova inclusão. Enquanto houver inclusão incerta, a importação de novos pedidos fica bloqueada. |
+| Importado, impressão pendente | **Retomar impressão**, sem reincluir o pedido. |
+| Impressão incerta ou outra cópia desejada | **Conferir reimpressão** / **Reimprimir** exige revisão e confirmação explícita de outra cópia. |
+
+A faixa **Importar no Sisplan** antecede a área **2. Conferir resultados**.
+Após iniciar a importação, a página sobe suavemente até o topo, preservando a entrada expandida ou
+recolhida, para acompanhar o pedido. O botão informa quantos pedidos estão aptos e fica desabilitado com o texto
+**Nenhum pedido apto** quando não há aptos no escopo. Observações que apenas
+repetem a situação salva são omitidas; erros e resultados diferentes permanecem.
+
+A entrada permanece à esquerda durante a execução e pode ser recolhida pelo título.
+Os cinco grupos de estados aparecem uma única vez, abaixo da faixa do pedido,
+e continuam filtrando a tabela de resultados no escopo selecionado.
+O mostrador exibe o pedido atual e a última etapa salva. Ao terminar, mantém o
+último pedido processado nesta execução, inclusive quando ficou pendente,
+identificado pelo estado salvo. Os detalhes ficam expansíveis após o término; decisões de segurança permanecem visíveis.
+Durante a execução, o botão de parada e a orientação ficam na mesma linha
+quando há espaço, com quebra em janelas menores. Ao recolher a entrada, a faixa do último pedido permanece visível após o término.
+O acompanhamento só fica oculto quando ainda não há pedido para exibir. Os cinco grupos
+passam para a conferência, acima da busca. Durante execução, pausa por erro ou
+falha, o acompanhamento continua acessível. A seleção de escopo fica junto aos
+filtros, alinhada à direita quando há espaço. **Limpar filtros** limpa a busca,
+seleciona todos os grupos e retorna à primeira página, preservando o escopo.
+Clicar em um cartão de estado recolhe a entrada e aplica o grupo na conferência.
+Os cartões ficam desabilitados durante a execução, inclusive nas pausas por erro,
+e são liberados após concluir ou interromper o processamento com segurança.
+A seção “Resumo da execução” foi removida. Os pedidos
+separados no preparo continuam no escopo de conferência após importar os aptos.
+Ao reabrir a aplicação, os estados persistidos aparecem em **Todos os pedidos
+salvos**, inclusive os prontos para importar; o escopo do lote é da sessão.
+
+Use **Parar após a etapa atual** para preservar as pendências, ou **Encerrar**
+para sair. **Atividade e diagnóstico** reúne o código de execução, cópia do
+resumo de suporte e acesso ao log. “Enviado para impressão” confirma apenas
+retorno de sucesso do SumatraPDF, sem comprovar a saída física do papel.
+
+### Contrato do fluxo em etapas
+
+`preparar` baixa e valida; `revalidar` só confere arquivos locais e cadastro;
+`importar` aceita apenas pedidos `pronto_importar` sem erro; `recuperar` aceita
+somente etapas pós-inclusão/incertas; `reimprimir` exige confirmação de cópia.
+Todas as ações passam por `/api/conferir` (snapshot local) e `/api/iniciar`, com
+revisão e identificador de solicitação. A consulta local não substitui a validação
+real no serviço. Os modos HTTP antigos `normal` e `retomar` ficam limitados à
+preparação, evitando importação implícita por uma página antiga.
+
+`pronto_importar` é persistido no histórico existente, sem apagar ou converter
+pedidos antigos automaticamente. “Baixado” não significa apto: é preciso conferir
+os produtos. A nova versão precisa ser usada para ler esse estado; executáveis
+antigos devem ser reconstruídos. O console mantém seu fluxo legado, com validação
+imediatamente antes de incluir; a separação em três etapas é do painel desktop/web.
 
 ## Persistência e encerramento
 
-A lista de Inserir é salva antes de confirmar o recebimento na página. Um único
+A lista de Baixar e conferir é salva antes de confirmar o recebimento na página. Um único
 executor possui o SQLite e executa o lote; outras abas acompanham a mesma
 operação. Cliques simultâneos, solicitações repetidas e respostas a avisos
 antigos são recusados. A trava existente impede outra execução na mesma pasta,

@@ -24,7 +24,7 @@ from src.contratos import AoErro, AoProgresso, DecisaoErro, Modo, ModoWeb
 from src.mensagens import mensagem_erro
 from src.pedidos import analisar_entrada_pedidos
 from src.resumo import ResumoExecucao
-from src.etapas import ETAPAS_FINAIS, ROTULOS, fila_da_etapa
+from src.etapas import ETAPAS_FINAIS, ETAPAS_INICIAIS, ROTULOS, fila_da_etapa
 from src.erros import (SessaoPortalExpiradaError)
 
 logger = get_logger(__name__)
@@ -90,6 +90,8 @@ class EstadoInterface:
         self.pedidos: list[dict[str, object]] = []
         self.resumo: dict[str, int] = {}
         self.lote: list[str] = []
+        self.lote_preparacao: list[str] = []
+        self.modo: ModoWeb = 'preparar'
         self.resultados_lote: dict[str, str] = {}
         self.pendentes_ordenados: list[str] = []
         self.revisao = 0
@@ -121,7 +123,7 @@ class EstadoInterface:
                 'pendentes': sum(p['etapa'] not in ETAPAS_FINAIS for p in self.pedidos),
                 'erro': self.erro, 'resumo': self.resumo, 'mensagens': list(self.mensagens),
                 'codigo_execucao': self.codigo_execucao,
-                'lote': self.lote, 'resultados_lote': self.resultados_lote,
+                'lote': self.lote, 'lote_preparacao': self.lote_preparacao, 'modo': self.modo, 'resultados_lote': self.resultados_lote,
                 'revisao': self.revisao, 'ano': datetime.now().year,
             })
 
@@ -139,19 +141,38 @@ class EstadoInterface:
             self.pendentes_ordenados = self._historico.pendentes()
             self.filas, self.pedidos = filas, pedidos
 
+    def _pendentes_preparacao(self) -> list[str]:
+        iniciais = {str(p['pedido']) for p in self.pedidos if p['etapa'] in ETAPAS_INICIAIS}
+        return [p for p in self.pendentes_ordenados if p in iniciais]
+
+    def _validar_selecao(self, modo: str, pedidos: list[str]) -> None:
+        historico = {str(p['pedido']): p for p in self.pedidos}
+        if modo == 'importar':
+            if any(p['etapa'] in ('importacao_iniciada', 'gravacao_pendente', 'aviso_pendente') for p in self.pedidos):
+                raise ConflitoInterface('Confira a inclusão anterior incerta antes de importar outros pedidos.')
+            if any(p not in historico or historico[p]['etapa'] != 'pronto_importar' or historico[p]['erro'] for p in pedidos):
+                raise ConflitoInterface('Somente pedidos prontos e sem pendências podem ser importados. Confira novamente.')
+        elif modo == 'revalidar':
+            if any(p not in historico or historico[p]['etapa'] not in ETAPAS_INICIAIS for p in pedidos):
+                raise ConflitoInterface('Selecione pedidos ainda não importados para conferir os cadastros.')
+        elif modo == 'recuperar':
+            if any(p not in historico or historico[p]['etapa'] in (*ETAPAS_INICIAIS, *ETAPAS_FINAIS) for p in pedidos):
+                raise ConflitoInterface('Selecione apenas inclusões incertas ou impressões pendentes para recuperar.')
+
     def conferir(self, dados: dict[str, object]) -> dict[str, object]:
         """Revisa somente entrada e snapshot local, sem consultar integrações."""
         modo, entrada = dados.get('modo'), dados.get('pedidos', '')
-        if modo not in ('normal', 'retomar', 'reimprimir') or not isinstance(entrada, str):
+        if modo not in ('normal', 'retomar', 'reimprimir', 'preparar', 'revalidar', 'importar', 'recuperar') or not isinstance(entrada, str):
             raise ValueError('Informe o modo e a lista de pedidos.')
         pedidos = analisar_entrada_pedidos(entrada, permitir_vazio=modo == 'retomar')
         with self.trava:
             if self.ocupada or self.bloqueado or self.encerrando or self.finalizado.is_set():
                 raise ConflitoInterface('Aguarde a liberação do processamento para conferir o lote.')
             if modo == 'retomar':
-                pedidos = list(self.pendentes_ordenados)
+                pedidos = self._pendentes_preparacao()
             if not pedidos:
                 raise ValueError('Não há pedidos pendentes para retomar.')
+            self._validar_selecao(str(modo), pedidos)
             identificador = uuid4().hex
             self.conferencias.append((identificador, str(modo), pedidos, self.revisao))
             historico = {str(p['pedido']): p for p in self.pedidos}
@@ -161,23 +182,27 @@ class EstadoInterface:
     def iniciar(self, dados: dict[str, object]) -> None:
         modo = dados.get('modo')
         entrada, solicitacao = dados.get('pedidos', ''), dados.get('solicitacao', '')
-        if modo not in ('normal', 'retomar', 'reimprimir'):
-            raise ValueError('Escolha Inserir, Retomar ou Reimprimir.')
+        if modo not in ('normal', 'retomar', 'reimprimir', 'preparar', 'revalidar', 'importar', 'recuperar'):
+            raise ValueError('Escolha Baixar e conferir, Importar, Conferir cadastro, Recuperar ou Reimprimir.')
         if not isinstance(entrada, str) or not isinstance(solicitacao, str) or not 1 <= len(solicitacao) <= 100:
             raise ValueError('Solicitação inválida. Atualize a página e tente novamente.')
         pedidos = analisar_entrada_pedidos(entrada, permitir_vazio=modo == 'retomar')
         if modo == 'reimprimir' and dados.get('confirmado') is not True:
             raise ValueError('Confirme o envio de outra cópia antes de reimprimir.')
-        trabalho = Trabalho(modo, pedidos)
+        # Clientes antigos também ficam limitados à preparação; nunca importam implicitamente.
+        modo_executor = 'preparar' if modo in ('normal', 'retomar') else modo
+        trabalho = Trabalho(modo_executor, pedidos)
         with self.trava:
             if self.ocupada or self.encerrando or self.bloqueado or self.finalizado.is_set():
                 raise ConflitoInterface('Já existe uma operação em andamento ou o programa precisa ser reaberto.')
             if solicitacao in self.solicitacoes:
                 raise ConflitoInterface('Esta solicitação já foi recebida. Confira o andamento na tela.')
-            lista = self.pendentes_ordenados if modo == 'retomar' else pedidos
+            lista = self._pendentes_preparacao() if modo == 'retomar' else pedidos
+            self._validar_selecao(str(modo), lista)
             conferido = (dados.get('conferencia'), modo, lista, self.revisao)
             if conferido not in self.conferencias:
                 raise ConflitoInterface('Confira novamente o lote antes de iniciar. A lista ou o histórico pode ter mudado.')
+            trabalho.pedidos = list(lista)
             self.conferencias.clear()
             self.solicitacoes.append(solicitacao)
             self.execucao = uuid4().hex
@@ -185,6 +210,11 @@ class EstadoInterface:
             self.erro = None
             self.resumo = {}
             self.lote = list(lista)
+            self.modo = trabalho.modo
+            if modo in ('normal', 'preparar', 'retomar'):
+                # Repetir o preparo de uma linha conserva os outros pedidos em conferência.
+                if not self.lote_preparacao or not set(lista).issubset(self.lote_preparacao):
+                    self.lote_preparacao = list(lista)
             self.resultados_lote = dict.fromkeys(lista, 'aguardando')
             self.mensagens.clear()
             self.pedido, self.indice, self.total = '', 0, len(lista)
@@ -275,10 +305,10 @@ class EstadoInterface:
     def _processar(self, trabalho: Trabalho) -> None:
         assert self._historico is not None
         try:
-            if trabalho.modo == 'normal':
+            if trabalho.modo in ('normal', 'preparar'):
                 self._historico.adicionar_pedidos(trabalho.pedidos)
             if trabalho.modo == 'retomar':
-                trabalho.pedidos = self._historico.pendentes()
+                trabalho.pedidos = self._pendentes_preparacao()
             self._atualizar()
             with self.trava:
                 self.total = len(trabalho.pedidos)
@@ -332,7 +362,7 @@ class EstadoInterface:
                             if self.encerrando:
                                 break
                             self.fase = 'PRONTO'
-                            self.mensagem = 'Tudo pronto. Insira pedidos ou retome as pendências.'
+                            self.mensagem = 'Informe os pedidos para baixar e conferir, ou revise os estados salvos abaixo.'
                         logging.getLogger().addHandler(handler)
                         if self.medidor_abertura is not None:
                             self.medidor_abertura.marcar('historico_pronto')

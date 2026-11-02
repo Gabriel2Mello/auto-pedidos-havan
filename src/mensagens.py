@@ -12,7 +12,7 @@ def mensagem_erro(erro: Exception) -> str:
         return str(erro)
     if isinstance(erro, ConfiguracaoError):
         return ('A configuração precisa ser corrigida. Pare este processamento, ajuste o arquivo '
-                'e inicie outro processamento ou use Retomar para aplicar os valores. '
+                'e solicite novamente a etapa para aplicar os valores. '
                 'Se alterou variáveis de ambiente do Windows, reabra o programa.')
     if isinstance(erro, EstadoEmUsoError):
         return ('Outra execução ainda está aberta ou terminando uma etapa. '

@@ -258,12 +258,24 @@ class RegressaoRevisaoTests(unittest.TestCase):
                 banco.consultar_pedidos.assert_not_called()
                 inclusao.assert_not_called(); impressao.assert_not_called()
                 conn.request('POST', '/api/iniciar', body=json.dumps(dados), headers=headers)
-                self.assertEqual(conn.getresponse().status, 200)
+                resposta = conn.getresponse(); self.assertEqual(resposta.status, 200); resposta.read()
                 limite = monotonic() + 3
                 while estado.fase == 'EXECUTANDO' and monotonic() < limite:
                     Event().wait(.01)
                 situacao = estado.situacao()
                 self.assertEqual(situacao['fase'], 'CONCLUIDO', str(situacao['erro']))
+                self.assertEqual(situacao['pedidos'][0]['etapa'], 'pronto_importar')
+                app.assert_not_called(); inclusao.assert_not_called(); impressao.assert_not_called()
+                dados = {'modo':'importar','pedidos':pedido,'solicitacao':'importacao-explicita'}
+                conn.request('POST', '/api/conferir', body=json.dumps(dados), headers=headers)
+                resposta=conn.getresponse(); self.assertEqual(resposta.status,200)
+                dados['conferencia']=json.loads(resposta.read())['id']
+                conn.request('POST', '/api/iniciar', body=json.dumps(dados), headers=headers)
+                resposta=conn.getresponse(); self.assertEqual(resposta.status,200); resposta.read()
+                limite=monotonic()+3
+                while estado.fase == 'EXECUTANDO' and monotonic()<limite: Event().wait(.01)
+                situacao=estado.situacao()
+                self.assertEqual(situacao['fase'],'CONCLUIDO',str(situacao['erro']))
                 self.assertEqual(situacao['pedidos'][0]['etapa'], 'impressao_enviada')
                 self.assertEqual(situacao['pedidos'][0]['fila'], 'enviados')
                 self.assertFalse(situacao['pedidos'][0]['pendente'])

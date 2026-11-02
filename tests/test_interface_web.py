@@ -85,7 +85,7 @@ class InterfaceTests(BaseInterface):
         self.assertEqual(situacao['resumo']['sem_cadastro'], 1)
         self.iniciar(pedidos='2026-12345', solicitacao='nova-importacao')
         self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
-        self.assertEqual(self.chamadas[-1][0], (['2026-12345'], 'normal'))
+        self.assertEqual(self.chamadas[-1][0], (['2026-12345'], 'preparar'))
 
     def test_reabrir_aguarda_execucao_anterior_liberar_historico(self) -> None:
         nova = EstadoInterface(self.caminho, executor=self.despachar)

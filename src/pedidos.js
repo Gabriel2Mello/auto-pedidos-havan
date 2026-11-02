@@ -6,14 +6,18 @@ const demonstracao=document.querySelector('meta[name="havan-demo"]').content==='
 let salvamentoTema=Promise.resolve(true);
 const headers = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'X-Havan-Pagina': crypto.randomUUID()};
 const fases = {INICIANDO:'Iniciando',PRONTO:'Pronto',EXECUTANDO:'Em andamento',PAUSADO:'Aguardando sua escolha',PARANDO:'Parando com segurança',CONCLUIDO:'Finalizado',INTERROMPIDO:'Parado',FALHA:'Precisa de atenção',ENCERRANDO:'Encerrando',ENCERRADO:'Encerrado'};
-let modo='normal', estado=null, enviando=false, encerrado=false, encerramentoPedido=false, pagina=0, erroVisivel='', tabelaAnterior='', atividadeAnterior='', presenca=null;
+let modo='preparar', estado=null, enviando=false, encerrado=false, encerramentoPedido=false, pagina=0, erroVisivel='', tabelaAnterior='', atividadeAnterior='', presenca=null;
 let estadoAnterior='', saindo=false;
 let conferencia=null, escopo='todos', conectado=false, inicioIncerto=false, ultimoLote='';
 let cenariosDemo=[];
+const etapasImportadas=['importado','pdf_pronto','impressao_pendente','impressao_iniciada','impressao_incerta','impressao_enviada'];
+const apto=p=>p.etapa==='pronto_importar'&&!p.erro;
+const iniciais=['para_baixar','baixado','sem_cadastro','pronto_importar'];
+function grupoPedido(p){return apto(p)?'prontos':p.etapa==='sem_cadastro'?'sem_cadastro':p.etapa==='existente'?'existentes':etapasImportadas.includes(p.etapa)?'importados':'outras';}
 const etapasAtencao=['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'];
 const exigeAtencao=p=>Boolean(p.erro)||etapasAtencao.includes(p.etapa)||['falhou','rejeitado','gravacao_pendente','impressao_incerta','impressao_pendente','sem_cadastro'].includes(p.resultado);
 function rotuloResultado(valor){
-  return ({aguardando:'Não processado',existente:'Já existente, sem novo envio',impressao_enviada:'Enviado para impressão',sem_cadastro:'Produto sem cadastro',falhou:'Falha no processamento',rejeitado:'Pedido rejeitado',gravacao_pendente:'Gravação não confirmada',impressao_incerta:'Conferir impressão',impressao_pendente:'Impressão pendente'})[valor]||'Pendente — conferir situação';
+  return ({pronto_importar:'Pronto para importar',aguardando:'Não processado',existente:'Já existente, sem novo envio',impressao_enviada:'Enviado para impressão',sem_cadastro:'Produto sem cadastro',falhou:'Falha no processamento',rejeitado:'Pedido rejeitado',gravacao_pendente:'Gravação não confirmada',impressao_incerta:'Conferir impressão',impressao_pendente:'Impressão pendente'})[valor]||'Pendente — conferir situação';
 }
 
 function analisarEntrada(texto, ano=estado?.ano??new Date().getFullYear()) {
@@ -48,11 +52,11 @@ function invalidarConferencia(texto='Confira os pedidos para revisar o lote ante
 }
 function proximaAcao(p){
   if(modo==='reimprimir')return 'Verificar gravação no Sisplan e enviar outra cópia.';
-  if(!p)return 'Verificar existência no Sisplan antes de incluir.';
+  if(!p)return 'Consultar duplicidade, baixar arquivos e conferir os EANs. A importação será solicitada depois.';
   if(['impressao_enviada','existente'].includes(p.etapa))return 'Conferir correspondência no Sisplan; não reincluir nem reimprimir.';
   if(p.etapa==='sem_cadastro')return 'Após corrigir o cadastro, validar os produtos novamente.';
   if(etapasAtencao.includes(p.etapa))return 'Conferir a situação; nenhuma repetição automática de ação incerta.';
-  return 'Continuar a partir da etapa salva, após as verificações de segurança.';
+  return 'Conferir arquivos e produtos antes de liberar a importação.';
 }
 async function conferirPedidos(){
   if(inicioBloqueado())return;
@@ -69,7 +73,7 @@ async function conferirPedidos(){
       acao.textContent=proximaAcao(item.salvo);detalhe.append(acao);tr.append(numero,detalhe);frag.append(tr);
     }
     el('itens-conferencia').replaceChildren(frag);
-    el('resumo-conferencia').textContent=`${c.pedidos.length} pedido(s) para ${modo==='retomar'?'retomar':modo==='reimprimir'?'reimprimir':'processar'}`;
+    el('resumo-conferencia').textContent=`${c.pedidos.length} pedido(s) para ${modo==='reimprimir'?'reimprimir':'baixar e conferir'}`;
     el('conferencia-vazia').hidden=true;el('conferencia-conteudo').hidden=false;
     el('confirmacao-reimpressao').hidden=modo!=='reimprimir';abrirAba('conferencia',true);
   }catch(erro){mensagem(erro.message);}finally{enviando=false;atualizarBotoes();}
@@ -85,23 +89,30 @@ function mensagem(texto) { el('mensagem-acao').textContent=texto; }
 function mudarModo(novo) {
   if (enviando || estado?.ocupada) return;
   el('preparacao').open=true;
-  modo=novo; mensagem(''); el('confirmar-copia').checked=false;
+  modo=['normal','retomar'].includes(novo)?'preparar':novo;
+  mensagem('');el('confirmar-copia').checked=false;
   invalidarConferencia();abrirAba('pedidos');
   document.querySelectorAll('[data-modo]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modo===modo)));
-  el('campo-pedidos').hidden=modo==='retomar'; el('pedidos').required=modo!=='retomar';
-  el('retomada').hidden=modo!=='retomar';el('limpar').hidden=modo==='retomar';
+  el('campo-pedidos').hidden=false;el('pedidos').required=true;
+  el('retomada').hidden=true;el('limpar').hidden=false;
+  el('abas-preparacao').hidden=modo!=='reimprimir';
   el('confirmacao-reimpressao').hidden=modo!=='reimprimir';
-  el('ajuda-modo').textContent=modo==='normal'?'Informe os pedidos. Os que já estão no Sisplan serão identificados antes de incluir.':modo==='retomar'?`Existem ${estado?.pendentes??0} pedido(s) pendente(s). Vamos continuar a partir da etapa salva de cada um.`:'Informe os pedidos para enviar outra cópia. Confira a impressão anterior antes de confirmar.';
-  el('iniciar').textContent=modo==='normal'?'Inserir e processar':modo==='retomar'?'Retomar pendências':'Reimprimir pedidos';
+  el('ajuda-modo').textContent=modo==='reimprimir'?'Informe os pedidos para enviar outra cópia. Confira a impressão anterior antes de confirmar.':'Pedidos existentes serão separados antes do download. Os demais terão arquivos e EANs conferidos.';
+  el('ajuda-modo').hidden=modo!=='reimprimir';
+  el('conferir').title=modo==='reimprimir'?'':el('ajuda-modo').textContent;
+  el('conferir').textContent=modo==='reimprimir'?'Conferir reimpressão':'Baixar e conferir';
+  el('iniciar').textContent=modo==='reimprimir'?'Reimprimir pedidos':'Baixar e conferir';
   atualizarBotoes();
 }
 function inicioBloqueado() { return enviando||!conectado||inicioIncerto||!estado||estado.ocupada||estado.bloqueado||encerrado||estado.encerrando; }
 function atualizarBotoes() {
   const bloqueado=inicioBloqueado();
   document.querySelectorAll('[data-modo]').forEach(b=>b.disabled=bloqueado);
-  document.querySelectorAll('[data-reimportar]').forEach(b=>b.disabled=bloqueado);
+  document.querySelectorAll('[data-fila]').forEach(b=>b.disabled=!estado||estado.ocupada||estado.encerrando||encerrado||estado.fase==='INICIANDO');
+  document.querySelectorAll('[data-acao-pedido]').forEach(b=>b.disabled=bloqueado);
   const entrada=analisarEntrada(el('pedidos').value);
-  el('conferir').disabled=bloqueado||(modo==='retomar'?!estado?.pendentes:!entrada.pedidos.length||entrada.invalidos.length>0);
+  el('conferir').disabled=bloqueado||!entrada.pedidos.length||entrada.invalidos.length>0;
+  atualizarImportacao();
   el('iniciar').disabled=bloqueado||!conferencia||(modo==='reimprimir'&&!el('confirmar-copia').checked);
   el('limpar').disabled=bloqueado||!el('pedidos').value;
   el('pedidos').disabled=bloqueado; el('confirmar-copia').disabled=bloqueado;
@@ -114,19 +125,42 @@ function pedidosDoEscopo(){
   const lista=estado?.pedidos??[];
   if(escopo==='todos')return lista;
   const mapa=new Map(lista.map(p=>[p.pedido,p]));
-  return (estado?.lote??[]).map(p=>{
+  return ((estado?.lote_preparacao?.length?estado.lote_preparacao:estado?.lote)??[]).map(p=>{
     const salvo=mapa.get(p)||{pedido:p,numero:'',etapa:'',fila:'',pendente:true,rotulo:'Sem registro local',erro:''};
     const resultado=estado?.resultados_lote?.[p];
     return {...salvo,resultado:estado?.ocupada?'':resultado};
   });
 }
+function atualizarImportacao(){
+  const quantidade=pedidosDoEscopo().filter(apto).length;
+  el('importar-aptos').textContent=quantidade?`Importar ${quantidade} ${quantidade===1?'pedido apto':'pedidos aptos'}`:'Nenhum pedido apto';
+  el('importar-aptos').disabled=inicioBloqueado()||!quantidade;
+  el('alcance-importacao').textContent='Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.';
+}
+function correspondeFiltro(p,filtro){
+  if(filtro==='todos')return true;
+  if(filtro==='pendentes')return p.pendente;
+  if(filtro==='atencao')return exigeAtencao(p);
+  if(['prontos','sem_cadastro','outras','existentes','importados'].includes(filtro))return grupoPedido(p)===filtro;
+  return p.fila===filtro;
+}
+function acaoDoPedido(p){
+  if(p.etapa==='sem_cadastro')return ['revalidar','Conferir cadastro novamente'];
+  if(p.etapa==='baixado'||p.etapa==='pronto_importar'&&p.erro)return ['revalidar','Conferir arquivos e produtos'];
+  if(p.etapa==='para_baixar')return ['preparar','Baixar e conferir'];
+  if(['importacao_iniciada','gravacao_pendente','aviso_pendente'].includes(p.etapa))return ['recuperar','Conferir gravação no Sisplan'];
+  if(['impressao_iniciada','impressao_incerta'].includes(p.etapa))return ['reimprimir','Conferir reimpressão'];
+  if(['importado','pdf_pronto','impressao_pendente'].includes(p.etapa))return ['recuperar','Retomar impressão'];
+  return null;
+}
 function renderizarTabela() {
   const filtro=el('filtro').value, busca=el('busca').value.trim().toLowerCase();
   const base=pedidosDoEscopo();
-  for(const fila of ['para_baixar','baixados','importados','enviados','atencao'])el('n-'+fila).textContent=estado?.fase==='INICIANDO'||estado?.bloqueado&&!base.length?'—':base.filter(p=>fila==='atencao'?exigeAtencao(p):p.fila===fila).length;
+  for(const grupo of ['prontos','sem_cadastro','outras','existentes','importados'])el('n-'+grupo).textContent=estado?.fase==='INICIANDO'||estado?.bloqueado&&!base.length?'—':base.filter(p=>grupoPedido(p)===grupo).length;
+  atualizarImportacao();
   document.querySelectorAll('[data-fila]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.fila===filtro)));
-  el('alcance').textContent=escopo==='todos'?'Filas do histórico completo.':'Filas dos pedidos deste lote; situações salvas no histórico.';
-  const lista=base.filter(p=>(filtro==='todos'||(filtro==='pendentes'?p.pendente:filtro==='atencao'?exigeAtencao(p):filtro==='sem_cadastro'?p.etapa==='sem_cadastro':p.fila===filtro))&&(`${p.pedido} ${p.numero}`.toLowerCase().includes(busca)));
+  el('alcance').textContent=escopo==='todos'?'Estados salvos de todos os pedidos.':'Lote em conferência: inclui os pedidos separados durante o preparo.';
+  const lista=base.filter(p=>correspondeFiltro(p,filtro)&&(`${p.pedido} ${p.numero}`.toLowerCase().includes(busca)));
   pagina=Math.min(pagina,Math.max(0,Math.ceil(lista.length/50)-1));
   const inicio=pagina*50, visiveis=lista.slice(inicio,inicio+50), chave=JSON.stringify([visiveis,filtro,busca,pagina,escopo,estado?.fase]);
   if(chave!==tabelaAnterior){
@@ -134,15 +168,16 @@ function renderizarTabela() {
     const linhas=document.createDocumentFragment();
     for(const p of visiveis){
       const tr=document.createElement('tr');
-      const resultado=p.resultado?rotuloResultado(p.resultado):'';
+      const resultado=p.resultado&&rotuloResultado(p.resultado)!==p.rotulo?rotuloResultado(p.resultado):'';
       [p.pedido,p.numero||'—',p.rotulo||'Conferir situação',[resultado?'Nesta execução: '+resultado:'',p.erro].filter(Boolean).join(' · ')||'—'].forEach((texto,i)=>{
         const td=document.createElement('td');
         td.setAttribute('data-rotulo',['Pedido Havan','Nº Sisplan','Situação salva','Observação / ação'][i]);
         if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
-        if(i===3&&p.etapa==='sem_cadastro'){
-          const botao=document.createElement('button');botao.type='button';botao.textContent='Importar novamente';
-          botao.setAttribute('data-reimportar',p.pedido);botao.setAttribute('aria-label','Importar novamente o pedido '+p.pedido);
-          botao.disabled=inicioBloqueado();botao.onclick=()=>importarNovamente(p.pedido);td.append(botao);
+        const acao=acaoDoPedido(p);
+        if(i===3&&acao){
+          const [operacao,rotulo]=acao,botao=document.createElement('button');botao.type='button';botao.textContent=rotulo;
+          botao.setAttribute('data-acao-pedido',p.pedido);botao.setAttribute('aria-label',rotulo+' — pedido '+p.pedido);
+          botao.disabled=inicioBloqueado();botao.onclick=()=>operacao==='reimprimir'?prepararReimpressao(p.pedido):executarEtapa(operacao,[p.pedido]);td.append(botao);
         }
         tr.append(td);
       });linhas.append(tr);
@@ -153,6 +188,14 @@ function renderizarTabela() {
   el('quantidade').textContent=lista.length?`${inicio+1}–${Math.min(inicio+50,lista.length)} de ${lista.length} pedido(s)`:'Nenhum pedido nesta seleção';
   el('anterior').disabled=pagina===0;el('proxima').disabled=inicio+50>=lista.length;
 }
+function atualizarLayout(){
+  const recolhida=!el('preparacao').open;
+  const destino=el(recolhida?'grupos-resultados':'grupos-acompanhamento');
+  const grupos=el('grupos-estados');
+  if(grupos.parentElement!==destino)destino.append(grupos);
+  el('acompanhamento').hidden=recolhida&&el('identificacao').hidden&&!estado?.ocupada&&!estado?.erro&&!estado?.bloqueado&&!['FALHA','ENCERRANDO'].includes(estado?.fase);
+}
+el('preparacao').addEventListener('toggle',atualizarLayout);
 function renderizar(s) {
   const chave=JSON.stringify(s);if(chave===estadoAnterior)return;estadoAnterior=chave;
   const anoAnterior=estado?.ano;
@@ -163,19 +206,22 @@ function renderizar(s) {
     ultimoLote=s.execucao;escopo='lote';pagina=0;el('filtro').value='todos';
     const preparacao=el('preparacao');
     if(document.activeElement&&preparacao.contains(document.activeElement))el('titulo-entrada').focus();
-    preparacao.open=false;el('detalhes-processamento').open=false;el('detalhes-resultado').open=false;
+    el('detalhes-processamento').open=false;
   }
   el('escopo-lote').setAttribute('aria-pressed',String(escopo==='lote'));el('escopo-todos').setAttribute('aria-pressed',String(escopo==='todos'));
-  el('n-pendentes').textContent=s.fase==='INICIANDO'||s.bloqueado&&!s.pedidos.length?'—':s.pendentes;
-  el('titulo-andamento').textContent=s.ocupada?'Situação do lote':s.execucao?'Resultado do último lote':'Situação dos pedidos';
+
+  const preparando=['preparar','revalidar','normal','retomar'].includes(s.modo);
+  el('titulo-andamento').textContent=s.ocupada?(preparando?'Conferindo pedidos':'Importação e impressão'):s.execucao?(preparando?'Resultado da conferência':'Resultado da execução'):'Etapas do lote';
   el('fase').textContent=fases[s.fase]||s.fase;
-  el('status').textContent=s.fase==='EXECUTANDO'?'Processamento em curso. As etapas ficam salvas para conferência.':s.mensagem;
-  el('detalhes-processamento').hidden=!s.ocupada||!s.total||Boolean(s.erro);
-  el('identificacao').hidden=!s.pedido;
+  el('status').textContent=s.fase==='EXECUTANDO'?(preparando?'Conferindo duplicidade, arquivos e cadastro dos produtos.':'Processamento em curso. As etapas ficam salvas para conferência.'):s.mensagem;
+  const ultimoProcessado=s.pedido||(s.lote??[]).slice().reverse().find(p=>s.resultados_lote?.[p]&&s.resultados_lote[p]!=='aguardando');
+  const pedidoExibido=s.ocupada?s.pedido:ultimoProcessado;
+  el('detalhes-processamento').hidden=s.ocupada||!pedidoExibido||Boolean(s.erro);
+  el('identificacao').hidden=!pedidoExibido;
   el('codigo').textContent=s.codigo_execucao||'—';
-  el('pedido-atual').textContent=s.pedido?`Pedido ${s.indice} de ${s.total}`:'As etapas concluídas ficam preservadas para retomar.';
-  el('numero-atual').textContent=s.pedido||'Aguardando lote';
-  const atual=s.pedidos.find(p=>p.pedido===s.pedido);
+  el('pedido-atual').textContent=s.ocupada?`Pedido ${s.indice} de ${s.total}`:'Último pedido processado';
+  el('numero-atual').textContent=pedidoExibido||'Aguardando lote';
+  const atual=s.pedidos.find(p=>p.pedido===pedidoExibido);
   el('etapa-atual').textContent=atual?'Último estado salvo: '+atual.rotulo:'';
   const mapa=new Map(s.pedidos.map(p=>[p.pedido,p])), lote=(s.lote??[]).map(p=>({...mapa.get(p),pendente:mapa.get(p)?.pendente??true,resultado:s.ocupada?'':s.resultados_lote?.[p]}));
   el('indicadores').hidden=!lote.length;el('total-lote').textContent=lote.length;el('pendentes-lote').textContent=lote.filter(p=>p.pendente).length;el('atencao-lote').textContent=lote.filter(exigeAtencao).length;
@@ -184,26 +230,23 @@ function renderizar(s) {
   el('posicao').textContent=s.ocupada?`Pedido ${s.indice} de ${s.total}. Etapas e pendências ficam salvas.`:`${resultadosConhecidos} de ${s.total} pedido(s) com resultado nesta execução; confira as pendências.`;
   el('progresso').max=Math.max(1,s.total);el('progresso').value=s.ocupada?Math.max(0,s.indice-1):resultadosConhecidos;
   el('orientacao').textContent=s.ocupada?'Durante a inclusão, aguarde o robô terminar antes de usar o teclado, o mouse ou a tela do Sisplan.':'O Sisplan deve estar aberto na tela 1002 — Pedido por Grade.';
-  el('orientacao').hidden=!s.ocupada&&Boolean(s.execucao);
-  const resumo=s.resumo??{};el('resumo').hidden=s.ocupada||!Object.keys(resumo).length;
-  el('detalhes-resultado').hidden=el('resumo').hidden;
-  const pendenciasResultado=Object.entries(s.resultados_lote??{}).filter(([,v])=>!['existente','impressao_enviada'].includes(v)).length;
+  el('orientacao').hidden=preparando||!s.ocupada;
+  const pendenciasResultado=Object.entries(s.resultados_lote??{}).filter(([,v])=>!['pronto_importar','existente','impressao_enviada'].includes(v)).length;
   if(s.fase==='CONCLUIDO'&&pendenciasResultado){el('fase').textContent='Finalizado com pendências';el('status').textContent='Processamento finalizado com pendências. Confira o resultado de cada pedido.';}
   if(s.fase==='CONCLUIDO'&&!pendenciasResultado)el('status').textContent='Processamento finalizado. Confira abaixo os estados salvos e os resultados por pedido.';
+  if(s.fase==='CONCLUIDO'&&preparando){el('status').textContent='Conferência concluída. Revise os grupos abaixo e importe os pedidos aptos quando estiver pronto.';el('fase').textContent=pendenciasResultado?'Conferido com pendências':'Conferido';}
   el('fase').className='etiqueta'+(s.erro||['FALHA','INTERROMPIDO'].includes(s.fase)||pendenciasResultado&&s.fase==='CONCLUIDO'?' atencao':'');
-  el('resumo').textContent=`Resultado desta execução\nImportações confirmadas: ${resumo.importacoes_confirmadas??0} · Já existentes: ${resumo.existente??0}\nImpressões enviadas: ${resumo.impressao_enviada??0} · Não processados: ${resumo.aguardando??0}\nAguardando cadastro de produto: ${resumo.sem_cadastro??0} · Outras pendências: ${Math.max(0,pendenciasResultado-(resumo.aguardando??0)-(resumo.sem_cadastro??0))}`;
   el('aviso-erro').hidden=!s.erro;
   if(s.erro){
     el('erro-pedido').textContent='Pedido: '+s.erro.pedido;el('erro-mensagem').textContent=s.erro.mensagem;
     el('repetir').hidden=!s.erro.repetir;el('pular').hidden=!s.erro.pular;
     el('repetir').textContent=s.erro.reconectar?'Reconectar e continuar':'Corrigi o problema · tentar novamente';
-    el('erro-seguranca').textContent=s.erro.configuracao?'Pare este processamento. Os ajustes do arquivo serão aplicados no próximo processamento ou em Retomar.':s.erro.repetir?'Nenhuma nova tentativa será feita sem sua escolha.':s.erro.pular?'Confira a impressão antes de usar Reimprimir para enviar outra cópia.':'Solicite ajuda ao responsável para conferir o Sisplan antes de iniciar outra inclusão.';
+    el('erro-seguranca').textContent=s.erro.configuracao?'Pare este processamento. Os ajustes do arquivo serão aplicados na próxima solicitação desta etapa.':s.erro.repetir?'Nenhuma nova tentativa será feita sem sua escolha.':s.erro.pular?'Confira a impressão antes de usar Reimprimir para enviar outra cópia.':'Solicite ajuda ao responsável para conferir o Sisplan antes de iniciar outra inclusão.';
     if(erroVisivel!==s.erro.id){erroVisivel=s.erro.id;el('titulo-erro').focus();}
   } else erroVisivel='';
   const atividade=JSON.stringify(s.mensagens);
   if(atividade!==atividadeAnterior){atividadeAnterior=atividade;const frag=document.createDocumentFragment();for(const texto of s.mensagens??[]){const li=document.createElement('li');li.textContent=texto;frag.append(li);}el('atividade').replaceChildren(frag);}
-  if(modo==='retomar')el('ajuda-modo').textContent=`Existem ${s.pendentes} pedido(s) pendente(s). Vamos continuar a partir da etapa salva de cada um.`;
-  atualizarBotoes();renderizarTabela();
+  atualizarBotoes();renderizarTabela();atualizarLayout();
 }
 async function atualizar() {
   if(encerrado||saindo)return;
@@ -217,19 +260,39 @@ async function acao(caminho,dados){
   catch(erro){mensagem(erro.message);if(caminho==='/api/iniciar'){invalidarConferencia('Confira o andamento e revise novamente o lote antes de iniciar.');if(!erro.status){inicioIncerto=true;invalidarConferencia('Envio sem confirmação. Aguarde a atualização do andamento antes de conferir outro lote.');}}}
   finally{enviando=false;atualizarBotoes();}
 }
-async function importarNovamente(pedido){
+async function prepararReimpressao(pedido){
   if(inicioBloqueado())return;
-  mudarModo('normal');el('pedidos').value=pedido;contarPedidos();await conferirPedidos();el('titulo-entrada').scrollIntoView?.({behavior:'smooth',block:'start'});
+  mudarModo('reimprimir');el('pedidos').value=pedido;contarPedidos();await conferirPedidos();el('titulo-entrada').scrollIntoView?.({behavior:'smooth',block:'start'});
+}
+async function executarEtapa(operacao,pedidos){
+  if(inicioBloqueado()||!pedidos.length)return;
+  const lista=[...new Set(pedidos)].join('\n');
+  invalidarConferencia();enviando=true;mensagem('');atualizarBotoes();
+  let iniciando=false;
+  try{
+    const c=await api('/api/conferir',{modo:operacao,pedidos:lista});
+    if(!conectado||estado?.ocupada||estado?.encerrando||saindo)throw Error('A situação mudou. Aguarde a atualização e solicite a ação novamente.');
+    iniciando=true;
+    await api('/api/iniciar',{modo:operacao,pedidos:lista,conferencia:c.id,solicitacao:crypto.randomUUID()});
+    renderizar(await api('/api/estado'));
+    if(operacao==='importar')window.scrollTo({top:0,behavior:'smooth'});
+  }catch(erro){
+    mensagem(erro.message);
+    if(iniciando&&!erro.status){inicioIncerto=true;mensagem('Envio sem confirmação. Aguarde a atualização dos estados antes de tentar novamente.');}
+  }finally{enviando=false;atualizarBotoes();}
 }
 el('formulario').addEventListener('submit',async e=>{
   e.preventDefault();
-  await conferirPedidos();
+  if(modo==='reimprimir'){await conferirPedidos();return;}
+  const entrada=contarPedidos();if(entrada.invalidos.length)return;
+  await executarEtapa('preparar',entrada.pedidos);
 });
+el('importar-aptos').onclick=()=>executarEtapa('importar',pedidosDoEscopo().filter(apto).map(p=>p.pedido));
 el('iniciar').onclick=async()=>{
   if(inicioBloqueado()||!conferencia)return;
   if(modo==='reimprimir'&&!el('confirmar-copia').checked){mensagem('Confirme que deseja enviar outra cópia.');el('confirmar-copia').focus();return;}
   const id=conferencia.id,confirmado=el('confirmar-copia').checked;
-  invalidarConferencia('Última conferência enviada. Acompanhe o resultado ao lado. Uma nova execução exige nova conferência.',true);
+  invalidarConferencia('Solicitação enviada. Confira o resultado da operação.',true);
   await acao('/api/iniciar',{modo,pedidos:modo==='retomar'?'':el('pedidos').value,confirmado,conferencia:id,solicitacao:crypto.randomUUID()});
 };
 el('pedidos').addEventListener('input',()=>{invalidarConferencia();contarPedidos();atualizarBotoes();});
@@ -242,7 +305,8 @@ for(const nome of ['pedidos','conferencia']){
 }
 for(const nome of ['lote','todos'])el('escopo-'+nome).onclick=()=>{escopo=nome;pagina=0;el('escopo-lote').setAttribute('aria-pressed',String(nome==='lote'));el('escopo-todos').setAttribute('aria-pressed',String(nome==='todos'));renderizarTabela();};
 document.querySelectorAll('[data-modo]').forEach(b=>b.onclick=()=>mudarModo(b.dataset.modo));
-document.querySelectorAll('[data-fila]').forEach(b=>b.onclick=()=>{el('filtro').value=b.dataset.fila;pagina=0;renderizarTabela();el('titulo-historico').scrollIntoView({behavior:'smooth',block:'start'});});
+document.querySelectorAll('[data-fila]').forEach(b=>b.onclick=()=>{if(b.disabled)return;el('preparacao').open=false;atualizarLayout();el('filtro').value=b.dataset.fila;pagina=0;renderizarTabela();b.focus();el('titulo-historico').scrollIntoView({behavior:'smooth',block:'start'});});
+el('limpar-filtros').onclick=()=>{el('busca').value='';el('filtro').value='todos';pagina=0;renderizarTabela();};
 for(const id of ['busca','filtro'])el(id).addEventListener('input',()=>{pagina=0;renderizarTabela();});
 el('anterior').onclick=()=>{pagina--;renderizarTabela();};el('proxima').onclick=()=>{pagina++;renderizarTabela();};
 for(const [id,decisao] of [['repetir','repetir'],['pular','pular'],['parar-erro','encerrar']])el(id).onclick=()=>{if(estado?.erro)acao('/api/decidir',{execucao:estado.execucao,erro:estado.erro.id,decisao});};

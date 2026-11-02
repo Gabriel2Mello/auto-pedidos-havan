@@ -271,17 +271,29 @@ class TestApiDemonstracao(BaseInterface):
         self.assertEqual(self.chamadas, [])
         self.assertEqual(self.estado.situacao()['pedidos'], [])
 
-    def test_simulador_real_pausa_e_reimporta_pelo_controlador(self):
+    def test_simulador_separa_cadastro_revalida_e_importa_sob_acao_explicita(self):
         self.executor = demo.simular
-        self.iniciar(pedidos='2027-999003')
-        self.aguardar(lambda: self.estado.fase == 'PAUSADO')
-        erro = self.estado.situacao()['erro']
-        self.assertTrue(erro['repetir'])
-        self.assertTrue(erro['pular'])
-        self.estado.decidir({'execucao': self.estado.execucao, 'erro': erro['id'], 'decisao': 'pular'})
+        self.iniciar(modo='preparar', pedidos='2027-999003,2027-999015')
         self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
-        self.assertEqual(self.estado.situacao()['pedidos'][0]['etapa'], 'sem_cadastro')
-        self.iniciar(pedidos='2027-999003', solicitacao='cadastro-corrigido')
+        etapas = {p['pedido']:p['etapa'] for p in self.estado.situacao()['pedidos']}
+        self.assertEqual(etapas, {'2027-999003':'sem_cadastro', '2027-999015':'pronto_importar'})
+        self.assertEqual(self.estado.situacao()['resumo']['importacoes_confirmadas'], 0)
+        self.iniciar(modo='importar', pedidos='2027-999015', solicitacao='aptos')
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        self.assertEqual(self.estado.situacao()['lote_preparacao'], ['2027-999003','2027-999015'])
+        self.iniciar(modo='revalidar', pedidos='2027-999003', solicitacao='cadastro-corrigido')
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        self.assertEqual(self.estado.situacao()['resumo']['importacoes_confirmadas'], 0)
+        self.iniciar(modo='importar', pedidos='2027-999003', solicitacao='importar-corrigido')
         self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
         self.assertEqual(self.estado.situacao()['resumo']['importacoes_confirmadas'], 1)
-        self.assertEqual(self.estado.situacao()['pedidos'][0]['etapa'], 'impressao_enviada')
+        self.assertTrue(all(p['etapa']=='impressao_enviada' for p in self.estado.situacao()['pedidos']))
+
+    def test_repetir_download_de_uma_linha_conserva_outros_pedidos_do_lote(self):
+        self.executor=demo.simular
+        self.iniciar(modo='preparar',pedidos='2027-999004,2027-999015')
+        self.aguardar(lambda:self.estado.fase=='CONCLUIDO')
+        self.iniciar(modo='preparar',pedidos='2027-999004',solicitacao='repetir-download')
+        self.aguardar(lambda:self.estado.fase=='CONCLUIDO')
+        self.assertEqual(self.estado.situacao()['lote_preparacao'],['2027-999004','2027-999015'])
+        self.assertTrue(all(p['etapa']=='pronto_importar' for p in self.estado.situacao()['pedidos']))

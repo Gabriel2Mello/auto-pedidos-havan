@@ -25,6 +25,7 @@ from src.login import realizar_login
 from src.contratos import AoErro, AoProgresso, Modo
 from src.prevalidacao import PedidoRejeitadoError, validar_pedido_baixado
 from src.resumo import ResumoExecucao
+from src.pedidos import ItemEsperado
 from src.erros import ConfiguracaoError, SessaoPortalExpiradaError, NumeroInternoForaSequenciaError, ProdutoSemCadastroError
 
 if TYPE_CHECKING:
@@ -124,16 +125,21 @@ def processar_pedidos(
     execucao_metricas = uuid4().hex
     try:
         with usar_configuracao(contexto.configuracao), (nullcontext(historico) if historico is not None else EstadoPedidos()) as estado:
-            if modo in ('normal', 'reiniciar'):
+            if modo in ('normal', 'reiniciar', 'preparar'):
                 estado.adicionar_pedidos(numero_pedidos)
             elif modo == 'retomar':
                 numero_pedidos = estado.pendentes()
                 resumo.situacoes = dict.fromkeys(numero_pedidos, 'aguardando')
+            if modo == 'importar':
+                for pedido in numero_pedidos:
+                    registro = estado.obter(pedido)
+                    if registro is None or registro.etapa != 'pronto_importar' or registro.erro:
+                        raise PedidoRejeitadoError('Somente pedidos prontos e sem pendências podem ser importados.')
             if not numero_pedidos:
                 logger.info('Nenhum pedido pendente para processar.')
                 return resumo
             logger.debug('Lista de trabalho: modo=%s pedidos=%s', modo, ', '.join(numero_pedidos))
-            validar_configuracao(apenas_impressao=True)
+            validar_configuracao(apenas_impressao=True, somente_preparacao=modo in ('preparar', 'revalidar'))
             with contexto.integracoes.banco(contexto.configuracao.banco_config, contexto.configuracao.banco_perfil) as banco, ExitStack() as pilha:
                 recursos = RecursosExecucao(pilha, contexto, parar=parar)
                 existentes_iniciais: dict[str, list[PedidoExistente]] | None = None
@@ -171,6 +177,14 @@ def processar_pedidos(
                             recursos.sisplan = None
                             if isinstance(error, SessaoPortalExpiradaError):
                                 recursos.scraper = None
+                            # Pendências conhecidas de um pedido não impedem conferir os demais.
+                            # Falhas de banco, sessão, configuração e persistência continuam pausando.
+                            if modo in ('preparar', 'revalidar', 'importar') and isinstance(error, (PedidoRejeitadoError, DownloadPendenteError)):
+                                registro_falha = estado.obter(pedido)
+                                if registro_falha is not None and registro_falha.etapa in ETAPAS_INICIAIS:
+                                    if ao_progresso is not None:
+                                        ao_progresso(pedido, indice, len(resumo.situacoes))
+                                    break
                             if not isinstance(error, Exception) or ao_erro is None:
                                 raise
                             pode_repetir, pode_continuar = opcoes_seguras(error, estado.obter(pedido))
@@ -219,6 +233,24 @@ def processar_um_pedido(
         return
     if registro is None:
         raise EstadoError('Pedido não está na fila salva. Volte ao menu e escolha Inserir.')
+    if modo in ('preparar', 'revalidar'):
+        if registro.etapa not in ETAPAS_INICIAIS:
+            # Conferir nunca reconcilia inclusão incerta nem reenvia impressão.
+            resumo.situacoes[pedido] = 'existente' if registro.etapa in ('existente', 'impressao_enviada') else 'aguardando'
+            return
+        if encontrados:
+            informar_existente(pedido, encontrados, historico, resumo)
+            return
+        itens = preparar_arquivos(pedido, banco, historico, recursos,
+                                 permitir_download=modo == 'preparar', somente_preparacao=True)
+        if recursos.parada_solicitada():
+            return
+        historico.salvar_itens_esperados(pedido, itens)
+        historico.salvar(EstadoPedido(pedido, '', 'pronto_importar'))
+        resumo.situacoes[pedido] = 'pronto_importar'
+        return
+    if modo == 'recuperar' and registro.etapa in (*ETAPAS_INICIAIS, 'existente', 'impressao_enviada'):
+        raise PedidoRejeitadoError('Recuperar só permite conferir inclusões incertas ou concluir impressão pendente.')
     if registro.etapa == 'aviso_pendente':
         informar_existente(pedido, encontrados, historico, resumo)
         return
@@ -230,7 +262,7 @@ def processar_um_pedido(
         if encontrados:
             informar_existente(pedido, encontrados, historico, resumo)
         else:
-            importar_novo(pedido, banco, historico, resumo, recursos)
+            importar_novo(pedido, banco, historico, resumo, recursos, permitir_download=modo != 'importar')
         return
     if registro.etapa in ('impressao_enviada', 'existente'):
         if encontrados and (not registro.numero or any(p.numero == registro.numero for p in encontrados)):
@@ -299,28 +331,31 @@ def registrar_inclusao(pedido: str, confirmado: PedidoExistente) -> None:
                      pedido, empresa=empresa)
 
 
-def importar_novo(
-    pedido: str, banco: BancoSisplan, historico: EstadoPedidos,
-    resumo: ResumoExecucao, recursos: RecursosExecucao,
-) -> None:
+def preparar_arquivos(
+    pedido: str, banco: BancoSisplan, historico: EstadoPedidos, recursos: RecursosExecucao,
+    *, permitir_download: bool, somente_preparacao: bool = False,
+) -> list[ItemEsperado]:
     registro = historico.obter(pedido)
     assert registro is not None
-    outras_inclusoes = [p for p in historico.inclusoes_incertas() if p != pedido]
-    if outras_inclusoes:
-        raise EstadoError('Existe uma inclusão anterior que precisa ser conferida pelo responsável: '
-                          + ', '.join(outras_inclusoes))
+    # Uma nova conferência invalida a aptidão anterior antes de consultar arquivos/banco.
+    if registro.etapa == 'pronto_importar':
+        registro = replace(registro, etapa='baixado', erro='')
+        historico.salvar(registro)
     logger.debug('Pedido %s: etapa salva=%s.', pedido, registro.etapa)
     logger.info('Conferindo arquivos e produtos do pedido %s.', pedido)
     arquivos_validos = conferir_arquivos_baixados(pedido)
     if registro.etapa in ('baixado', 'sem_cadastro') and not arquivos_validos:
         registro = replace(registro, etapa='para_baixar', erro='Arquivos locais precisam ser baixados novamente.')
         historico.salvar(registro)
-        raise PedidoRejeitadoError(
-            f'Os arquivos salvos do pedido {pedido} estão ausentes ou inválidos. '
-            'Escolha tentar novamente para baixá-los de novo.'
-        )
+        if not (somente_preparacao and permitir_download):
+            raise PedidoRejeitadoError(
+                f'Os arquivos salvos do pedido {pedido} estão ausentes ou inválidos. '
+                'Use Baixar e conferir para obtê-los novamente.'
+            )
+    if registro.etapa == 'para_baixar' and not permitir_download:
+        raise PedidoRejeitadoError('Arquivos precisam ser baixados. Use Baixar e conferir antes de importar.')
     if registro.etapa == 'para_baixar':
-        validar_configuracao()
+        validar_configuracao(somente_preparacao=somente_preparacao)
         if recursos.scraper is None:
             scraper = recursos.pilha.enter_context(recursos.contexto.integracoes.portal(
                 browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True},
@@ -328,7 +363,7 @@ def importar_novo(
             recursos.contexto.integracoes.login(scraper)
             recursos.scraper = scraper
         if recursos.parada_solicitada():
-            return
+            return []
         def registrar_download(numero: str) -> None:
             historico.salvar(EstadoPedido(numero, '', 'baixado'))
 
@@ -342,7 +377,20 @@ def importar_novo(
     if not conferir_arquivos_baixados(pedido):
         historico.salvar(EstadoPedido(pedido, '', 'para_baixar', erro='Arquivos baixados incompletos ou inválidos.'))
         raise PedidoRejeitadoError(f'Os arquivos do pedido {pedido} estão incompletos ou inválidos. Avise o responsável.')
-    itens_esperados = validar_pedido_baixado(banco, pedido)
+    return validar_pedido_baixado(banco, pedido)
+
+
+def importar_novo(
+    pedido: str, banco: BancoSisplan, historico: EstadoPedidos,
+    resumo: ResumoExecucao, recursos: RecursosExecucao, *, permitir_download: bool = True,
+) -> None:
+    registro = historico.obter(pedido)
+    assert registro is not None
+    outras_inclusoes = [p for p in historico.inclusoes_incertas() if p != pedido]
+    if outras_inclusoes:
+        raise EstadoError('Existe uma inclusão anterior que precisa ser conferida pelo responsável: '
+                          + ', '.join(outras_inclusoes))
+    itens_esperados = preparar_arquivos(pedido, banco, historico, recursos, permitir_download=permitir_download)
     encontrados = banco.consultar_pedidos([pedido]).get(pedido, [])
     if encontrados:
         informar_existente(pedido, encontrados, historico, resumo)
@@ -377,7 +425,7 @@ def importar_novo(
         historico.salvar(EstadoPedido(pedido, '', 'sem_cadastro'))
         raise ProdutoSemCadastroError(
             'O Sisplan encontrou produto sem cadastro. Pedido salvo. '
-            'Após cadastrar os produtos, escolha Importar novamente ou Retomar.'
+            'Após cadastrar os produtos, use Conferir cadastro novamente e depois Importe os pedidos aptos.'
         )
     confirmado = banco.confirmar_gravacao(pedido, resultado.numero, itens_esperados=itens_esperados)
     historico.salvar(EstadoPedido(pedido, confirmado.numero, 'importado', confirmado.empresa))

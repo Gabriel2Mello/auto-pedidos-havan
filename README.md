@@ -10,10 +10,13 @@ O operador pode usar **Abrir Pedidos Havan.cmd**, ou o atalho com o mesmo nome,
 para abrir a janela desktop local. O [guia desktop](DESKTOP.md) descreve o ambiente
 e o comando **testar interface.cmd**, que abre uma demonstração isolada.
 O modo navegador continua disponível por `havan.py --web`.
- Ele oferece Inserir, Retomar e Reimprimir, com contador
-de pedidos únicos e conferência local obrigatória antes de iniciar. Mantém as quatro
-filas, busca por pedido/número interno, andamento, decisões após erro e acesso
-ao diagnóstico. Tem temas claro/escuro, assinatura g2mello e ícone Nunes violeta.
+O painel separa **Informar pedidos → Baixar e conferir → Importar aptos**.
+Duplicidades, EANs sem cadastro e outras pendências ficam separados para correção;
+a importação exige uma ação explícita e reconfere duplicidade e produtos.
+Pedidos prontos permanecem salvos ao reabrir. Recuperação de impressão e
+reimpressão têm ações próprias por pedido. Há busca por número Havan/Sisplan,
+cinco grupos de conferência, decisões após erro e diagnóstico. Tem temas
+claro/escuro, assinatura g2mello e ícone Nunes violeta.
 O tema inicial é escuro; a escolha manual fica salva no mesmo navegador,
 inclusive quando uma nova abertura usa outra porta local.
 
