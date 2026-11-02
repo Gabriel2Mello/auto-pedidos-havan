@@ -169,7 +169,7 @@ function renderizarTabela() {
     for(const p of visiveis){
       const tr=document.createElement('tr');
       const resultado=p.resultado&&rotuloResultado(p.resultado)!==p.rotulo?rotuloResultado(p.resultado):'';
-      [p.pedido,p.numero||'—',p.rotulo||'Conferir situação',[resultado?'Nesta execução: '+resultado:'',p.erro].filter(Boolean).join(' · ')||'—'].forEach((texto,i)=>{
+      [p.pedido,p.numero||'—',p.rotulo||'Conferir situação',[resultado?'Nesta execução: '+resultado:'',p.erro?.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')].filter(Boolean).join('\n')||'—'].forEach((texto,i)=>{
         const td=document.createElement('td');
         td.setAttribute('data-rotulo',['Pedido Havan','Nº Sisplan','Situação salva','Observação / ação'][i]);
         if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
@@ -222,7 +222,8 @@ function renderizar(s) {
   el('pedido-atual').textContent=s.ocupada?`Pedido ${s.indice} de ${s.total}`:'Último pedido processado';
   el('numero-atual').textContent=pedidoExibido||'Aguardando lote';
   const atual=s.pedidos.find(p=>p.pedido===pedidoExibido);
-  el('etapa-atual').textContent=atual?'Último estado salvo: '+atual.rotulo:'';
+  el('estado-atual').hidden=!atual;
+  el('etapa-atual').textContent=atual?.rotulo||'';
   const mapa=new Map(s.pedidos.map(p=>[p.pedido,p])), lote=(s.lote??[]).map(p=>({...mapa.get(p),pendente:mapa.get(p)?.pendente??true,resultado:s.ocupada?'':s.resultados_lote?.[p]}));
   el('indicadores').hidden=!lote.length;el('total-lote').textContent=lote.length;el('pendentes-lote').textContent=lote.filter(p=>p.pendente).length;el('atencao-lote').textContent=lote.filter(exigeAtencao).length;
   el('area-progresso').hidden=!s.total;

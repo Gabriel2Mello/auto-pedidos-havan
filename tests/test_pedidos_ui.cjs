@@ -359,7 +359,7 @@ test('mostrador mantém último processado ao finalizar e durante decisão',()=>
   assert.equal(p.obter('identificacao').hidden,false);
   assert.equal(p.obter('numero-atual').textContent,'2026-12345');
   assert.equal(p.obter('pedido-atual').textContent,'Pedido 1 de 2');
-  assert.equal(p.obter('etapa-atual').textContent,'Último estado salvo: Baixado');
+  assert.equal(p.obter('etapa-atual').textContent,'Baixado');
   assert.equal(p.obter('detalhes-processamento').open,false);
   const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
   assert.match(html, /id="identificacao"[^>]*role="status"/);
@@ -371,7 +371,7 @@ test('mostrador mantém último processado ao finalizar e durante decisão',()=>
   assert.equal(p.obter('identificacao').hidden,false);
   assert.equal(p.obter('pedido-atual').textContent,'Último pedido processado');
   assert.equal(p.obter('numero-atual').textContent,s.pedido);
-  assert.equal(p.obter('etapa-atual').textContent,'Último estado salvo: Enviado para impressão');
+  assert.equal(p.obter('etapa-atual').textContent,'Enviado para impressão');
 });
 
 

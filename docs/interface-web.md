@@ -318,3 +318,10 @@ Zoom nativo de 200%, escala Windows de 125%, toque e alto contraste ainda precis
 de homologação no posto; o controle de zoom do navegador de teste não aplicou a
 mudança. Nenhum pedido real foi consultado, incluído ou impresso. Executável não
 foi gerado; reabra a aplicação pelos fontes para carregar a atualização.
+
+
+A tipografia distingue o rótulo auxiliar da etapa em seminegrito na faixa do
+pedido. Etiquetas usam 13 px; cartões bloqueados preservam o contraste dos
+contadores. Busca e filtros usam peso normal, com seminegrito no escopo
+selecionado. Observações separam resultados e pendências em linhas; o título
+da pausa e a mensagem do problema recebem destaque sobre a orientação auxiliar.

@@ -56,3 +56,15 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 .controles-execucao:has(>button[hidden]):has(>p[hidden]){display:none}
 .controles-execucao .orientacao{flex:1;min-width:220px;margin:0}
 @media(max-width:430px){.controles-execucao .orientacao{min-width:0;flex-basis:100%}}
+
+/* Estados legíveis e controles secundários com menor peso visual. */
+.estado-pedido{font-size:14px;line-height:1.5;overflow-wrap:anywhere;min-width:0}
+.estado-pedido b{font-weight:600;color:var(--texto)}
+.etiqueta{font-size:13px;font-weight:600;line-height:1.4}
+.filas button:disabled{opacity:1}
+.filtros input,.filtros select,#limpar,#limpar-filtros,.paginacao button{font-weight:400}
+.escopos button{font-weight:400;color:var(--muted)}
+.escopos button[aria-pressed=true]{font-weight:600;color:var(--marca)}
+.tabela-historico td:nth-child(4){white-space:pre-line;line-height:1.6}
+.aviso h3{font-size:18px;line-height:1.4}
+#erro-mensagem{font-size:15px;line-height:1.6}
