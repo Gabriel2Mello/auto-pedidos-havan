@@ -44,15 +44,19 @@
     <details id="preparacao" class="preparacao" open>
       <summary id="titulo-entrada">1. Informar pedidos</summary>
       <div class="conteudo-preparacao">
-      <div class="modos" role="group" aria-label="Operação">
-        <button type="button" data-modo="preparar" aria-pressed="true">Novos pedidos</button>
-        <button type="button" data-modo="reimprimir" aria-pressed="false">Reimprimir</button>
+      <div class="faixa-operacao">
+      <div class="modos" role="radiogroup" aria-label="Operação">
+        <label><input type="radio" name="modo" value="preparar" data-modo="preparar" checked>Novos pedidos</label>
+        <label><input type="radio" name="modo" value="reimprimir" data-modo="reimprimir">Reimprimir</label>
       </div>
-      <p id="ajuda-modo" class="dica" hidden>Pedidos existentes serão separados antes do download. Os demais terão arquivos e EANs conferidos.</p>
+      <div class="espaco-abas">
       <div id="abas-preparacao" class="abas" hidden role="tablist" aria-label="Preparação do lote">
         <button id="aba-pedidos" type="button" role="tab" aria-selected="true" aria-controls="painel-pedidos" tabindex="0">Pedidos</button>
         <button id="aba-conferencia" type="button" role="tab" aria-selected="false" aria-controls="painel-conferencia" tabindex="-1">Conferência</button>
       </div>
+      </div>
+      </div>
+      <p id="ajuda-modo" class="dica" hidden>Pedidos existentes serão separados antes do download. Os demais terão arquivos e EANs conferidos.</p>
       <section id="painel-pedidos" role="tabpanel" aria-labelledby="aba-pedidos">
         <form id="formulario">
           <div id="campo-pedidos">

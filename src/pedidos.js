@@ -93,13 +93,12 @@ function mudarModo(novo) {
   modo=['normal','retomar'].includes(novo)?'preparar':novo;
   mensagem('');el('confirmar-copia').checked=false;
   invalidarConferencia();abrirAba('pedidos');
-  document.querySelectorAll('[data-modo]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.modo===modo)));
+  document.querySelectorAll('[data-modo]').forEach(b=>b.checked=b.dataset.modo===modo);
   el('campo-pedidos').hidden=false;el('pedidos').required=true;
   el('retomada').hidden=true;el('limpar').hidden=false;
   el('abas-preparacao').hidden=modo!=='reimprimir';
   el('confirmacao-reimpressao').hidden=modo!=='reimprimir';
-  el('ajuda-modo').textContent=modo==='reimprimir'?'Informe os pedidos para enviar outra cópia. Confira a impressão anterior antes de confirmar.':'Pedidos existentes serão separados antes do download. Os demais terão arquivos e EANs conferidos.';
-  el('ajuda-modo').hidden=modo!=='reimprimir';
+  el('ajuda-modo').textContent=modo==='reimprimir'?'':'Pedidos existentes serão separados antes do download. Os demais terão arquivos e EANs conferidos.';
   el('conferir').title=modo==='reimprimir'?'':el('ajuda-modo').textContent;
   el('conferir').textContent=modo==='reimprimir'?'Conferir reimpressão':'Baixar e conferir';
   el('iniciar').textContent=modo==='reimprimir'?'Reimprimir pedidos':'Baixar e conferir';
@@ -211,6 +210,7 @@ function renderizar(s) {
   const anoAnterior=estado?.ano;
   const impressoraAnterior=estado?.impressora;
   estado=s; encerrado=s.fase==='ENCERRADO';
+  el('grupos-estados').setAttribute('data-finalizado',String(!s.ocupada&&Boolean(s.lote?.length)));
   el('impressora-atual').textContent=s.impressora||'Nenhuma impressora selecionada.';
   if(anoAnterior!==s.ano){contarPedidos();el('dica-pedidos').textContent=`Separe por vírgula ou linha. Sem o ano, será utilizado ${s.ano}.`;}
   if(conferencia&&(s.revisao!==conferencia.revisao||s.ocupada||s.impressora!==impressoraAnterior))invalidarConferencia('A situação mudou. Confira novamente os pedidos antes de iniciar.');
@@ -317,7 +317,7 @@ for(const nome of ['pedidos','conferencia']){
   el('aba-'+nome).addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();abrirAba(e.key==='Home'?'pedidos':e.key==='End'?'conferencia':nome==='pedidos'?'conferencia':'pedidos',true);}});
 }
 for(const nome of ['lote','todos'])el('escopo-'+nome).onclick=()=>{escopo=nome;pagina=0;el('escopo-lote').setAttribute('aria-pressed',String(nome==='lote'));el('escopo-todos').setAttribute('aria-pressed',String(nome==='todos'));renderizarTabela();};
-document.querySelectorAll('[data-modo]').forEach(b=>b.onclick=()=>mudarModo(b.dataset.modo));
+document.querySelectorAll('[data-modo]').forEach(b=>b.onchange=()=>{if(b.checked)mudarModo(b.dataset.modo);});
 document.querySelectorAll('[data-fila]').forEach(b=>b.onclick=()=>{if(b.disabled)return;el('preparacao').open=false;atualizarLayout();el('filtro').value=el('filtro').value===b.dataset.fila?'todos':b.dataset.fila;pagina=0;renderizarTabela();b.focus();el('titulo-historico').scrollIntoView({behavior:'smooth',block:'start'});});
 el('limpar-filtros').onclick=()=>{el('busca').value='';el('filtro').value='todos';pagina=0;renderizarTabela();};
 for(const id of ['busca','filtro'])el(id).addEventListener('input',()=>{pagina=0;renderizarTabela();});

@@ -23,13 +23,14 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     return elementos.get(id);
   };
   obter('filtro').value='todos';
+  const modos=['preparar','reimprimir'].map(nome=>{const b=obter('modo-'+nome);b.dataset={modo:nome};b.checked=nome==='preparar';return b;});
   const contexto = vm.createContext({
     document: {
       get cookie() { if(falhaCookie)throw Error('Cookies indisponíveis');return cookie; },
       set cookie(valor) { if(falhaCookie)throw Error('Cookies indisponíveis');cookie=valor; },
       getElementById: obter, querySelector: seletor => ({content:seletor==='meta[name="havan-demo"]'&&demonstracao?'1':'token-local'}),
       addEventListener: () => {},
-      querySelectorAll: seletor => seletor==='[data-fila]'?['prontos','sem_cadastro','outras','existentes','importados'].map(nome=>{const b=obter('fila-'+nome);b.dataset={fila:nome};return b;}):seletor==='[data-acao-pedido]'?criados.filter(e=>'data-acao-pedido' in e.atributos):[], documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
+      querySelectorAll: seletor => seletor==='[data-modo]'?modos:seletor==='[data-fila]'?['prontos','sem_cadastro','outras','existentes','importados'].map(nome=>{const b=obter('fila-'+nome);b.dataset={fila:nome};return b;}):seletor==='[data-acao-pedido]'?criados.filter(e=>'data-acao-pedido' in e.atributos):[], documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
       createElement: () => {const e=new Elemento();criados.push(e);return e;}, createDocumentFragment: () => new Elemento(),
     },
     crypto: {randomUUID}, AbortController,
@@ -308,6 +309,30 @@ test('editar a entrada invalida a conferência e mantém o conteúdo',async()=>{
   assert.equal(p.obter('iniciar').disabled,true);
   assert.equal(p.obter('contagem-pedidos').textContent,'Contagem: 2');
   assert.equal(vm.runInContext('conferencia',p.contexto),null);
+});
+
+test('seletor de operação sincroniza seleção e bloqueia opções durante execução',()=>{
+  const p=painel();p.renderizar(p.estado);
+  const novos=p.obter('modo-preparar'),reimprimir=p.obter('modo-reimprimir');
+  assert.equal(novos.checked,true);assert.equal(reimprimir.checked,false);
+  reimprimir.checked=true;reimprimir.onchange();
+  assert.equal(novos.checked,false);assert.equal(reimprimir.checked,true);
+  assert.equal(p.obter('abas-preparacao').hidden,false);
+  assert.equal(p.obter('conferir').textContent,'Conferir reimpressão');
+  assert.equal(p.obter('ajuda-modo').textContent,'');
+  assert.equal(p.obter('conferir').title,'');
+  vm.runInContext("mudarModo('normal')",p.contexto);
+  assert.equal(novos.checked,true);assert.equal(reimprimir.checked,false);
+  assert.equal(p.obter('abas-preparacao').hidden,true);
+  assert.match(p.obter('conferir').title,/Pedidos existentes serão separados antes do download/);
+  for(const fase of ['EXECUTANDO','PAUSADO','PARANDO']){
+    p.renderizar({...p.estado,fase,ocupada:true});
+    assert.equal(novos.disabled,true);assert.equal(reimprimir.disabled,true);
+    vm.runInContext("mudarModo('reimprimir')",p.contexto);
+    assert.equal(novos.checked,true);assert.equal(reimprimir.checked,false);
+  }
+  p.renderizar({...p.estado,fase:'CONCLUIDO',ocupada:false});
+  assert.equal(novos.disabled,false);assert.equal(reimprimir.disabled,false);
 });
 
 test('reimpressão exige conferência e confirmação de outra cópia',async()=>{
@@ -663,6 +688,24 @@ test('cartões ficam bloqueados durante execução e pausa e liberam ao terminar
   for(const fase of ['CONCLUIDO','INTERROMPIDO']){
     p.renderizar({...p.estado,fase,ocupada:false});
     assert.equal(p.obter('fila-prontos').disabled,false);
+  }
+});
+
+test('contorno final dos cartões acompanha o lote, inclusive ao mover e reiniciar',()=>{
+  const p=painel(),pedido='2026-11111';
+  p.renderizar(p.estado);
+  assert.equal(p.obter('grupos-estados').atributos['data-finalizado'],'false');
+  for(const fase of ['CONCLUIDO','INTERROMPIDO','FALHA']){
+    p.obter('preparacao').open=true;
+    const s={...p.estado,execucao:'lote',lote:[pedido],fase,ocupada:false};
+    p.renderizar(s);
+    assert.equal(p.obter('grupos-estados').atributos['data-finalizado'],'true');
+    p.obter('preparacao').open=false;vm.runInContext('atualizarLayout()',p.contexto);
+    assert.equal(p.obter('grupos-estados').atributos['data-finalizado'],'true');
+    p.renderizar({...s,fase:'EXECUTANDO',ocupada:true});
+    assert.equal(p.obter('grupos-estados').atributos['data-finalizado'],'false');
+    p.renderizar({...s,fase:'PRONTO',execucao:'',lote:[]});
+    assert.equal(p.obter('grupos-estados').atributos['data-finalizado'],'false');
   }
 });
 

@@ -21,11 +21,35 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 [hidden],[hidden] *,details:not([open])>*:not(summary),details:not([open])>*:not(summary) *{transition:none!important}
 .controles-cabecalho{display:flex;align-items:center;gap:8px;flex-shrink:0}.configuracoes{position:relative}.configuracoes summary{list-style:none;cursor:pointer;border:1px solid var(--borda);border-radius:7px;background:var(--cartao);min-height:44px}.configuracoes summary::-webkit-details-marker{display:none}.configuracoes summary:hover{background:var(--suave);border-color:var(--marca)}.configuracoes:not([open]) .menu-configuracoes{display:none}.menu-configuracoes{position:absolute;right:0;top:calc(100% + 8px);z-index:30;width:320px;max-width:calc(100dvi - 24px);max-height:calc(100dvh - 100px);overflow:auto;padding:16px;border:1px solid var(--borda);border-radius:8px;background:var(--cartao);color:var(--texto);box-shadow:0 4px 16px #0002}.menu-configuracoes h2{font-size:16px}.menu-configuracoes p{margin:8px 0 14px}.menu-configuracoes,.menu-configuracoes *{transition:none!important}
 
+/* Contornos neutros dos controles do cabeçalho, como no Cofre NFe. */
+:root{--contorno-controle:#778599}:root[data-tema=escuro]{--contorno-controle:#8293ac}
+@media(prefers-color-scheme:dark){:root:not([data-tema]){--contorno-controle:#8293ac}}
+.controles-cabecalho #tema,.controles-cabecalho #tema:hover:enabled,
+.configuracoes summary,.configuracoes summary:hover{border-color:var(--contorno-controle)}
+.modos{display:inline-grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;max-width:100%;vertical-align:top}
+.modos label{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;margin:0;padding:8px 12px;border:1px solid var(--contorno-controle);background:var(--cartao);font-size:14px;font-weight:600;cursor:pointer;user-select:none}
+.modos label:first-child{border-radius:7px 0 0 7px}
+.modos label:last-child{border-radius:0 7px 7px 0;border-left:0}
+.modos label:has(input:checked){color:var(--marca);background:var(--suave)}
+.modos input{width:16px;height:16px;margin:0;padding:0;flex-shrink:0;accent-color:var(--marca)}
+.modos label:has(input:disabled){opacity:.55;cursor:default}
+.modos label:has(input:focus-visible){box-shadow:inset 0 -3px 0 currentColor}
+.modos input:focus-visible{box-shadow:none}
+.conteudo-preparacao{container-type:inline-size}
+.faixa-operacao{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:end;gap:12px;margin:12px 0 16px;border-bottom:1px solid transparent}
+.faixa-operacao:has([data-modo=reimprimir]:checked){border-bottom-color:var(--borda)}
+.faixa-operacao .modos{margin:0 0 8px}
+.espaco-abas{min-width:0;min-height:44px}
+.faixa-operacao .abas{justify-content:flex-end;flex-wrap:nowrap;margin:0;border-bottom:0}
+@container(max-width:500px){.faixa-operacao{grid-template-columns:minmax(0,1fr);gap:0}.faixa-operacao .modos{justify-self:start}}
+@media(forced-colors:active){.modos label:has(input:focus-visible){background:Highlight;color:HighlightText}}
+
 /* A conferência permanece à vista; preparação e telemetria abrem sob demanda. */
 .preparacao>summary{font-size:18px;font-weight:600;cursor:pointer;min-height:44px;padding:8px 0}
 .conteudo-preparacao{padding-top:4px}
 .principal:has(.preparacao:not([open])){grid-template-columns:minmax(0,1fr);gap:12px}
 .principal:has(.preparacao:not([open])) .acompanhamento{border-left:0;border-top:1px solid var(--borda);padding:16px 0 0}
+:root[data-tema=claro] .principal .acompanhamento{border-color:var(--contorno-controle)}
 .detalhes-processamento{margin-top:12px}
 .detalhes-processamento>summary{cursor:pointer;color:var(--muted);font-size:14px;min-height:44px;padding:10px 0}
 .indicadores{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:12px}
@@ -42,6 +66,7 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 /* Um único resumo de estados acompanha o pedido em destaque. */
 .filas-acompanhamento{grid-template-columns:repeat(3,minmax(0,1fr));margin:16px 0 12px}
 .filas-acompanhamento button{min-width:0}
+.filas[data-finalizado=true] button:not([aria-pressed=true]){border-color:var(--contorno-controle)}
 @media(max-width:430px){.filas-acompanhamento{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* Entrada recolhida prioriza os resultados, sem duplicar os grupos. */
@@ -77,6 +102,7 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 .tabela-historico th:nth-child(4),.tabela-historico td:nth-child(4){text-align:center}
 .tabela-historico td{padding-block:10px}
 .tabela-historico [data-acao-pedido]{margin-top:0;margin-inline:auto;width:146px;max-width:100%;text-align:center}
+.tabela-historico [data-acao-pedido],.tabela-historico [data-acao-pedido]:hover:enabled{border-color:var(--contorno-controle)}
 @media(max-width:760px){
   .tabela-historico [data-acao-pedido]{width:auto}
 }
