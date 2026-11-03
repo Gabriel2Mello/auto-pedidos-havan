@@ -174,7 +174,7 @@ function renderizarTabela() {
     for(const p of visiveis){
       const tr=document.createElement('tr');
       const resultado=p.resultado&&rotuloResultado(p.resultado)!==p.rotulo?rotuloResultado(p.resultado):'';
-      [p.pedido,p.numero||'—',p.rotulo||'Conferir situação','',[resultado?'Nesta execução: '+resultado:'',p.erro?.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')].filter(Boolean).join('\n')||'—'].forEach((texto,i)=>{
+      [p.pedido,p.numero||'—',p.rotulo||'Conferir situação','',[resultado,p.erro?.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')].filter(Boolean).join('\n')||'—'].forEach((texto,i)=>{
         const td=document.createElement('td');
         td.setAttribute('data-rotulo',['Pedido Havan','Nº Sisplan','Situação salva','Ação','Observação'][i]);
         if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;

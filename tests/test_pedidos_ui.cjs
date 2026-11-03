@@ -508,7 +508,9 @@ test('observação omite estado repetido e preserva erro e resultado diferente',
   p.renderizar({...s,pedidos:[{...s.pedidos[0],erro:'Conferir documento'}]});
   assert.equal(observacao(),'Conferir documento');
   p.renderizar({...s,resultados_lote:{[pedido]:'falhou'}});
-  assert.match(observacao(),/Nesta execução:/);
+  assert.equal(observacao(),'Falha no processamento');
+  p.renderizar({...s,resultados_lote:{[pedido]:'falhou'},pedidos:[{...s.pedidos[0],erro:'Conferir documento'}]});
+  assert.equal(observacao(),'Falha no processamento\nConferir documento');
 });
 
 

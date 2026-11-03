@@ -39,6 +39,13 @@ class PedidoRejeitadoError(RuntimeError):
     """O pedido permanece na fila até o problema ser corrigido."""
 
 
+class PedidoNaoEncontradoPortalError(PedidoRejeitadoError):
+    """A consulta no portal não retornou o pedido informado."""
+
+    def __init__(self) -> None:
+        super().__init__('Pedido não encontrado no Portal Havan.')
+
+
 class ProdutoSemCadastroError(PedidoRejeitadoError):
     """O pedido aguarda cadastro de produto antes de uma nova importação."""
 

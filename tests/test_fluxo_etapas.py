@@ -1,8 +1,10 @@
 """Barreiras entre preparação, conferência e importação explícita."""
 import unittest
-from unittest.mock import Mock
-from tests import test_main
+from unittest.mock import Mock, patch
+from requests.exceptions import Timeout
+from tests import test_baixar, test_main
 from src import servico_pedidos as servico
+from src.baixar import baixar_pedidos
 from src.estado import EstadoPedido, EstadoPedidos
 from src.banco import BancoSisplanError, PedidoExistente
 
@@ -11,6 +13,56 @@ class FluxoEtapasTests(unittest.TestCase):
     preparar = test_main.FluxoPrevalidacaoTests.preparar
     caminho = test_main.FluxoPrevalidacaoTests.caminho
     assert_sem_interface = test_main.FluxoPrevalidacaoTests.assert_sem_interface
+
+    def test_pedido_ausente_preserva_mensagem_no_historico_e_confere_o_proximo(self):
+        pedido = '2026-037398'
+        self.preparar('2026-12345')
+        scraper = self.scraper.return_value.__enter__.return_value
+        scraper.post.return_value.url = 'https://cliente.havan.com.br/Fornecedor/PedidoCompra/GridIndexPedidoCompra'
+        scraper.post.return_value.status_code = 200
+        scraper.post.return_value.text = '<div></div>'
+        def baixar(sessao, pedidos, **kwargs):
+            if pedidos == [pedido]:
+                return baixar_pedidos(sessao, pedidos, **kwargs)
+            kwargs['ao_baixar']('2026-12345')
+            return {'2026-12345': True}
+        self.baixar.side_effect = baixar
+        decidir = Mock(return_value='encerrar')
+        with patch('src.baixar.caminho_pdf', return_value=self.pasta / f'{pedido}.pdf'), \
+                patch('src.baixar.salvar_pedido_txt') as salvar, patch('src.baixar.salvar_arquivos') as publicar:
+            resultado = servico.processar_pedidos([pedido, '2026-12345'], 'preparar', ao_erro=decidir)
+        self.assertEqual(resultado.situacoes, {pedido: 'rejeitado', '2026-12345': 'pronto_importar'})
+        mensagem = 'Pedido não encontrado no Portal Havan.'
+        salvar.assert_called_once_with(pedido, motivo=mensagem)
+        publicar.assert_not_called()
+        scraper.get.assert_not_called()
+        decidir.assert_not_called()
+        with EstadoPedidos(self.estado_path) as historico:
+            registro = historico.obter(pedido)
+            self.assertEqual((registro.etapa, registro.erro), ('para_baixar', mensagem))
+        self.assert_sem_interface()
+
+    def test_falha_de_conexao_ou_link_ausente_mantem_mensagem_de_download(self):
+        pedido = '2026-12345'
+        scraper = self.scraper.return_value.__enter__.return_value
+        resposta = scraper.post.return_value
+        resposta.url = 'https://cliente.havan.com.br/Fornecedor/PedidoCompra/GridIndexPedidoCompra'
+        resposta.status_code = 200
+        for timeout in (True, False):
+            with self.subTest(timeout=timeout):
+                scraper.post.side_effect = Timeout('Falha sintética') if timeout else None
+                resposta.text = test_baixar.LinksPedidoTests.HTML_PEDIDO.replace('Ordem de compra', 'Outro documento')
+                self.baixar.side_effect = baixar_pedidos
+                with patch('src.baixar.caminho_pdf', return_value=self.pasta / f'{pedido}.pdf'), \
+                        patch('src.baixar.salvar_pedido_txt'), patch('src.baixar.salvar_arquivos') as publicar:
+                    resultado = servico.processar_pedidos([pedido], 'preparar')
+                self.assertEqual(resultado.situacoes[pedido], 'rejeitado')
+                with EstadoPedidos(self.estado_path) as historico:
+                    self.assertEqual(historico.obter(pedido).erro,
+                        f'Não consegui baixar os arquivos do pedido {pedido}. Verifique o portal ou a conexão.')
+                publicar.assert_not_called()
+                scraper.get.assert_not_called()
+        self.assert_sem_interface()
 
     def test_preparacao_persiste_aptidao_sem_importar_e_importacao_revalida(self):
         self.preparar()

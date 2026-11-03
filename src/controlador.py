@@ -21,7 +21,7 @@ from src.estado import EstadoError, EstadoPedidos
 from src.logs import get_logger
 from src.seguranca import redigir
 from src.contratos import AoErro, AoProgresso, DecisaoErro, Modo, ModoWeb
-from src.mensagens import mensagem_erro
+from src.mensagens import mensagem_erro, mensagem_observacao
 from src.pedidos import analisar_entrada_pedidos
 from src.resumo import ResumoExecucao
 from src.etapas import ETAPAS_FINAIS, ETAPAS_INICIAIS, ROTULOS, fila_da_etapa
@@ -133,7 +133,7 @@ class EstadoInterface:
         filas = self._historico.filas()
         pedidos: list[dict[str, object]] = [{'pedido': p.pedido, 'numero': p.numero, 'etapa': p.etapa, 'fila': fila_da_etapa(p.etapa),
                     'rotulo': ROTULOS[p.etapa], 'pendente': p.etapa not in ETAPAS_FINAIS,
-                    'erro': redigir(p.erro)[:1000]}
+                    'erro': redigir(mensagem_observacao(p.erro, p.pedido))[:1000]}
                    for p in self._historico.listar()]
         with self.trava:
             if pedidos != self.pedidos:

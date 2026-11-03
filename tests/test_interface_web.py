@@ -70,6 +70,29 @@ class BaseInterface(unittest.TestCase):
 
 
 class InterfaceTests(BaseInterface):
+    def test_observacao_padroniza_historico_sem_alterar_diagnostico_salvo(self) -> None:
+        original = 'Não consegui baixar os arquivos do pedido 2026-12345. Verifique o portal ou a conexão.'
+        def executar(pedidos, modo, *, historico, **kwargs):
+            historico.salvar(EstadoPedido(pedidos[0], '', 'para_baixar', erro=original))
+            return ResumoExecucao({pedidos[0]: 'rejeitado'})
+        self.executor = executar
+        self.iniciar(pedidos='2026-12345')
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        pedido = self.estado.situacao()['pedidos'][0]
+        self.assertEqual(pedido['erro'], 'Não foi possível baixar os arquivos do pedido. Verifique o portal')
+        self.estado.encerrar()
+        self.estado.worker.join(3)
+        with EstadoPedidos(self.caminho) as historico:
+            self.assertEqual(historico.obter('2026-12345').erro, original)
+        nova = EstadoInterface(self.caminho, executor=self.despachar)
+        try:
+            self.assertTrue(nova.pronto.wait(3))
+            self.assertEqual(nova.situacao()['pedidos'][0]['erro'], pedido['erro'])
+        finally:
+            nova.encerrar()
+            nova.worker.join(3)
+            self.assertFalse(nova.worker.is_alive())
+
     def test_exibe_produto_sem_cadastro_e_aceita_nova_importacao_do_pedido(self) -> None:
         def executar(pedidos, modo, *, historico, **kwargs):
             historico.salvar(EstadoPedido(pedidos[0], '', 'sem_cadastro', erro='Produto pendente: 0123456789012'))

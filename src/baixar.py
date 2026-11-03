@@ -18,7 +18,7 @@ from src.config import (
 from src.arquivos import (caminho_pdf, caminho_xml, extrair_xml, salvar_pedido_txt)
 from src.filas import validar_arquivos_baixados
 from src.gravacao_download import DownloadPendenteError, publicar_download, verificar_download_pendente
-from src.erros import (SessaoPortalExpiradaError)
+from src.erros import PedidoNaoEncontradoPortalError, SessaoPortalExpiradaError
 
 if TYPE_CHECKING:
     from cloudscraper import ScraperMock
@@ -93,6 +93,10 @@ def processar_unico(
         raise
     except SessaoPortalExpiradaError:
         logger.warning('Pedido %s: sessão do portal expirada; aguardando decisão do operador.', pedido)
+        raise
+    except PedidoNaoEncontradoPortalError as error:
+        logger.warning('Pedido %s: %s', pedido, error)
+        salvar_pedido_txt(pedido, motivo=str(error))
         raise
     except Exception as error:
         logger.exception('Pedido %s: falha no download ou na extração.', pedido)
@@ -185,7 +189,7 @@ def links_pedido(html_content: str, pedido: str) -> tuple[str, str]:
 
         return ordem_url, integracao_url
 
-    raise RuntimeError('Pedido não encontrado na grade')
+    raise PedidoNaoEncontradoPortalError()
 
 
 def salvar_arquivos(pdf: bytes, xml: bytes, pedido: str) -> None:
