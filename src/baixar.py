@@ -18,7 +18,7 @@ from src.config import (
 from src.arquivos import (caminho_pdf, caminho_xml, extrair_xml, salvar_pedido_txt)
 from src.filas import validar_arquivos_baixados
 from src.gravacao_download import DownloadPendenteError, publicar_download, verificar_download_pendente
-from src.erros import PedidoNaoEncontradoPortalError, SessaoPortalExpiradaError
+from src.erros import LinkDownloadAusenteError, PedidoNaoEncontradoPortalError, SessaoPortalExpiradaError
 
 if TYPE_CHECKING:
     from cloudscraper import ScraperMock
@@ -94,7 +94,7 @@ def processar_unico(
     except SessaoPortalExpiradaError:
         logger.warning('Pedido %s: sessão do portal expirada; aguardando decisão do operador.', pedido)
         raise
-    except PedidoNaoEncontradoPortalError as error:
+    except (PedidoNaoEncontradoPortalError, LinkDownloadAusenteError) as error:
         logger.warning('Pedido %s: %s', pedido, error)
         salvar_pedido_txt(pedido, motivo=str(error))
         raise
@@ -182,7 +182,7 @@ def links_pedido(html_content: str, pedido: str) -> tuple[str, str]:
         integracao = grupo.select_one('a[title*="Arq. de integra"]')
 
         if not ordem or not integracao:
-            raise RuntimeError('Pedido encontrado, mas link ausente')
+            raise LinkDownloadAusenteError()
 
         ordem_url = urljoin(ORIGIN, str(ordem['href']))
         integracao_url = urljoin(ORIGIN, str(integracao['href']))

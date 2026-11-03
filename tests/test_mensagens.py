@@ -42,6 +42,7 @@ class MensagemObservacaoTests(unittest.TestCase):
         exemplos = (
             '',
             'Pedido não encontrado no Portal Havan.',
+            'Pedido encontrado, mas link para download ausente. Verifique o portal',
             'A sessão do Portal Havan expirou. Reconecte para continuar ou pare o processamento.',
             'Código de barras não cadastrado: 0123456789012 (Produto / Azul). Pedido salvo.',
             'Existe uma inclusão anterior que precisa ser conferida pelo responsável: 2026-999999',

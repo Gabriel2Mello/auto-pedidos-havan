@@ -46,6 +46,13 @@ class PedidoNaoEncontradoPortalError(PedidoRejeitadoError):
         super().__init__('Pedido não encontrado no Portal Havan.')
 
 
+class LinkDownloadAusenteError(PedidoRejeitadoError):
+    """O pedido foi localizado, mas falta um dos links para download."""
+
+    def __init__(self) -> None:
+        super().__init__('Pedido encontrado, mas link para download ausente. Verifique o portal')
+
+
 class ProdutoSemCadastroError(PedidoRejeitadoError):
     """O pedido aguarda cadastro de produto antes de uma nova importação."""
 

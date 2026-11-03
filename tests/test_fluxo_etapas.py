@@ -42,7 +42,7 @@ class FluxoEtapasTests(unittest.TestCase):
             self.assertEqual((registro.etapa, registro.erro), ('para_baixar', mensagem))
         self.assert_sem_interface()
 
-    def test_falha_de_conexao_ou_link_ausente_mantem_mensagem_de_download(self):
+    def test_falha_de_conexao_e_link_ausente_preservam_motivos_distintos(self):
         pedido = '2026-12345'
         scraper = self.scraper.return_value.__enter__.return_value
         resposta = scraper.post.return_value
@@ -57,9 +57,11 @@ class FluxoEtapasTests(unittest.TestCase):
                         patch('src.baixar.salvar_pedido_txt'), patch('src.baixar.salvar_arquivos') as publicar:
                     resultado = servico.processar_pedidos([pedido], 'preparar')
                 self.assertEqual(resultado.situacoes[pedido], 'rejeitado')
+                mensagem = (f'Não consegui baixar os arquivos do pedido {pedido}. Verifique o portal ou a conexão.'
+                            if timeout else 'Pedido encontrado, mas link para download ausente. Verifique o portal')
                 with EstadoPedidos(self.estado_path) as historico:
-                    self.assertEqual(historico.obter(pedido).erro,
-                        f'Não consegui baixar os arquivos do pedido {pedido}. Verifique o portal ou a conexão.')
+                    registro = historico.obter(pedido)
+                    self.assertEqual((registro.etapa, registro.erro), ('para_baixar', mensagem))
                 publicar.assert_not_called()
                 scraper.get.assert_not_called()
         self.assert_sem_interface()

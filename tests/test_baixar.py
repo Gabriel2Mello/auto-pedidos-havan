@@ -1,7 +1,7 @@
 import unittest
 
 from src.baixar import links_pedido
-from src.erros import PedidoNaoEncontradoPortalError
+from src.erros import LinkDownloadAusenteError, PedidoNaoEncontradoPortalError
 
 
 class LinksPedidoTests(unittest.TestCase):
@@ -37,10 +37,13 @@ class LinksPedidoTests(unittest.TestCase):
             self.assertEqual(str(erro.exception), 'Pedido não encontrado no Portal Havan.')
 
     def test_pedido_encontrado_sem_link_nao_e_tratado_como_inexistente(self) -> None:
-        html = self.HTML_PEDIDO.replace('Ordem de compra', 'Outro documento')
-        with self.assertRaisesRegex(RuntimeError, 'Pedido encontrado, mas link ausente') as erro:
-            links_pedido(html, '2026-12345')
-        self.assertNotIsInstance(erro.exception, PedidoNaoEncontradoPortalError)
+        for titulo in ('Ordem de compra', 'Arq. de integração'):
+            html = self.HTML_PEDIDO.replace(titulo, 'Outro documento')
+            with self.subTest(titulo=titulo), self.assertRaises(LinkDownloadAusenteError) as erro:
+                links_pedido(html, '2026-12345')
+            self.assertEqual(str(erro.exception),
+                'Pedido encontrado, mas link para download ausente. Verifique o portal')
+            self.assertNotIsInstance(erro.exception, PedidoNaoEncontradoPortalError)
 
 
 if __name__ == '__main__':
