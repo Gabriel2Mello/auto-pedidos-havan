@@ -76,8 +76,8 @@
       <button type="button" data-fila="prontos"><span>Prontos para importar</span><strong id="n-prontos">—</strong></button>
       <button type="button" data-fila="sem_cadastro" class="fila-atencao"><span>Produtos sem cadastro</span><strong id="n-sem_cadastro">—</strong></button>
       <button type="button" data-fila="outras" class="fila-atencao"><span>Outras pendências</span><strong id="n-outras">—</strong></button>
-      <button type="button" data-fila="existentes"><span>Já existentes</span><strong id="n-existentes">—</strong></button>
       <button type="button" data-fila="importados"><span>Importados</span><strong id="n-importados">—</strong></button>
+      <button type="button" data-fila="existentes"><span>Já existentes</span><strong id="n-existentes">—</strong></button>
     </div></div>
       <div class="controles-execucao"><button type="button" id="parar" hidden>Parar após a etapa atual</button><p id="orientacao" class="orientacao" hidden>O Sisplan deve estar aberto na tela 1002 — Pedido por Grade.</p></div>
       <details id="detalhes-processamento" class="detalhes-processamento" hidden><summary>Detalhes do processamento</summary>
@@ -97,12 +97,12 @@
       <button id="importar-aptos" class="botao-principal" type="button" disabled>Nenhum pedido apto</button>
     </section>
     <div class="titulo-secao"><h2 id="titulo-historico" tabindex="-1">2. Conferir resultados</h2></div>
+    <div class="abas escopos" role="group" aria-label="Pedidos exibidos"><button id="escopo-lote" type="button" aria-pressed="false">Lote em conferência</button><button id="escopo-todos" type="button" aria-pressed="true">Todos os pedidos salvos</button></div>
     <div id="grupos-resultados"></div>
-    <p id="alcance" class="dica">Filas do histórico completo.</p>
-    <div class="filtros"><label class="sr-only" for="busca">Buscar pedido ou número Sisplan</label><input id="busca" type="search" placeholder="Buscar pedido ou nº Sisplan"><label class="sr-only" for="filtro">Filtrar pedidos</label><select id="filtro"><option value="todos">Todos os grupos</option><option value="prontos">Prontos para importar</option><option value="sem_cadastro">Produtos sem cadastro</option><option value="outras">Outras pendências</option><option value="existentes">Já existentes</option><option value="importados">Importados</option><option value="atencao">Exigem atenção</option></select><button id="limpar-filtros" type="button">Limpar filtros</button><div class="modos escopos" role="group" aria-label="Pedidos exibidos"><button id="escopo-lote" type="button" aria-pressed="false">Lote em conferência</button><button id="escopo-todos" type="button" aria-pressed="true">Todos os pedidos salvos</button></div></div>
-    <p class="dica ajuda-historico">Corrija os cadastros e use “Conferir cadastro novamente”. Pedidos importados podem ter impressão pendente; envio não comprova a saída do papel.</p>
-    <div class="rolagem-historico" tabindex="0" role="region" aria-label="Situações dos pedidos"><table class="tabela-historico"><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Nº Sisplan</th><th scope="col">Situação salva</th><th scope="col">Observação / ação</th></tr></thead><tbody id="linhas"><tr><td colspan="4" class="vazio">Carregando os pedidos…</td></tr></tbody></table></div>
-    <div class="paginacao"><span id="quantidade" class="dica">Aguardando histórico</span><div class="acoes"><button id="anterior" type="button" disabled>Anterior</button><button id="proxima" type="button" disabled>Próxima</button></div></div>
+    <p id="alcance" class="sr-only">Filas do histórico completo.</p>
+    <div class="filtros"><label class="sr-only" for="busca">Buscar pedido ou número Sisplan</label><input id="busca" type="search" placeholder="Buscar pedido ou nº Sisplan"><label class="sr-only" for="filtro">Filtrar pedidos</label><select id="filtro"><option value="todos">Todos os grupos</option><option value="prontos">Prontos para importar</option><option value="sem_cadastro">Produtos sem cadastro</option><option value="outras">Outras pendências</option><option value="existentes">Já existentes</option><option value="importados">Importados</option><option value="atencao">Exigem atenção</option></select><button id="limpar-filtros" type="button" hidden>Limpar filtros</button></div>
+    <div class="rolagem-historico" tabindex="0" role="region" aria-label="Situações dos pedidos"><table class="tabela-historico"><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Nº Sisplan</th><th scope="col">Situação salva</th><th scope="col">Ação</th><th scope="col">Observação</th></tr></thead><tbody id="linhas"><tr><td colspan="5" class="vazio">Carregando os pedidos…</td></tr></tbody></table></div>
+    <div class="paginacao"><span id="quantidade" class="dica">Aguardando histórico</span><div id="paginacao-controles" class="acoes" hidden><button id="anterior" type="button" disabled>Anterior</button><button id="proxima" type="button" disabled>Próxima</button></div></div>
   </section>
   <section class="suporte" aria-label="Informações de suporte"><details><summary>Atividade e diagnóstico</summary><ol id="atividade" tabindex="0" aria-label="Atividade desta execução"></ol><div class="acoes"><span class="dica">Código de execução: <strong id="codigo">—</strong></span><button id="copiar-suporte" type="button">Copiar diagnóstico</button><button id="baixar-log" type="button">Baixar log</button></div></details></section>
 </main>

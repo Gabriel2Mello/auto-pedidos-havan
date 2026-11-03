@@ -234,9 +234,9 @@ def main():
                         assert w.evaluate_js("document.querySelector('.rolagem-historico').scrollHeight>document.querySelector('.rolagem-historico').clientHeight")
                         largura_historico=w.evaluate_js("document.querySelector('.rolagem-historico').getBoundingClientRect().width")
                         w.evaluate_js("document.getElementById('proxima').click()")
-                        assert w.evaluate_js("document.getElementById('quantidade').textContent==='51–60 de 60 pedido(s)'")
+                        assert w.evaluate_js("document.getElementById('quantidade').textContent==='51–60 de 60 pedidos' && !document.getElementById('paginacao-controles').hidden")
                         w.evaluate_js("document.getElementById('busca').value='999159';document.getElementById('busca').dispatchEvent(new Event('input'))")
-                        assert w.evaluate_js("document.getElementById('quantidade').textContent==='1–1 de 1 pedido(s)'")
+                        assert w.evaluate_js("document.getElementById('quantidade').textContent==='1 pedido' && document.getElementById('paginacao-controles').hidden && !document.getElementById('limpar-filtros').hidden")
                         assert w.evaluate_js("document.querySelector('.rolagem-historico').scrollHeight<=document.querySelector('.rolagem-historico').clientHeight")
                         assert abs(w.evaluate_js("document.querySelector('.rolagem-historico').getBoundingClientRect().width")-largura_historico)<1
                         limpar_filtros()

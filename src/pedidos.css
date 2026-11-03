@@ -65,6 +65,34 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 .filtros input,.filtros select,#limpar,#limpar-filtros,.paginacao button{font-weight:400}
 .escopos button{font-weight:400;color:var(--muted)}
 .escopos button[aria-pressed=true]{font-weight:600;color:var(--marca)}
-.tabela-historico td:nth-child(4){white-space:pre-line;line-height:1.6}
+.tabela-historico td:nth-child(5){white-space:pre-line;line-height:1.6}
 .aviso h3{font-size:18px;line-height:1.4}
 #erro-mensagem{font-size:15px;line-height:1.6}
+
+/* Uma faixa por pedido: identificação compacta, ação e observação lado a lado. */
+.tabela-historico th:nth-child(1){width:116px}
+.tabela-historico th:nth-child(2){width:90px}
+.tabela-historico th:nth-child(3){width:130px}
+.tabela-historico th:nth-child(4){width:199.5px}
+.tabela-historico th:nth-child(4),.tabela-historico td:nth-child(4){text-align:center}
+.tabela-historico td{padding-block:10px}
+.tabela-historico [data-acao-pedido]{margin-top:0;margin-inline:auto;width:146px;max-width:100%;text-align:center}
+@media(max-width:760px){
+  .tabela-historico [data-acao-pedido]{width:auto}
+}
+
+/* Resultados: hierarquia discreta e observação em destaque. */
+.historico>.escopos{margin:0 0 16px;gap:24px}
+.historico>.escopos button{padding-inline:0;color:var(--muted);font-weight:400}
+.historico>.escopos button[aria-pressed=true]{border-bottom-color:var(--marca);color:var(--marca);font-weight:600;background:transparent}
+.filtros{align-items:center;margin-bottom:12px}
+#limpar-filtros{border-color:transparent;background:transparent;color:var(--muted)}
+#limpar-filtros:hover:enabled{text-decoration:underline;color:var(--marca)}
+.tabela-historico th{font-weight:400}
+.tabela-historico .situacao{padding:0;background:transparent;color:var(--muted);font-weight:400}
+.tabela-historico .situacao.atencao{color:var(--aviso)}
+.tabela-historico .situacao.concluido{background:transparent;color:var(--muted)}
+.tabela-historico td{vertical-align:middle}
+.paginacao{padding-top:10px}
+.suporte{padding-top:16px}
+@media(forced-colors:active){.historico>.escopos button[aria-pressed=true]{border-bottom-color:Highlight}}

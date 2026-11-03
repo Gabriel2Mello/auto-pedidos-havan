@@ -218,6 +218,9 @@ test('conferir cadastro novamente revalida somente o pedido escolhido sem solici
   const linhas=p.obter('linhas').children[0].children;
   assert.equal(linhas.length,1);
   assert.equal(linhas[0].children[0].textContent,'2026-12345');
+  assert.equal(linhas[0].children.length,5);
+  assert.equal(linhas[0].children[4].textContent,'Barra 0123456789012');
+  assert.equal(linhas[0].children[4].children.length,0);
   const botao=linhas[0].children[3].children[0];
   assert.equal(botao.textContent,'Conferir cadastro novamente');
   assert.equal(botao.disabled,false);
@@ -391,6 +394,22 @@ test('baixar e conferir envia somente preparação e mantém importação como a
   assert.equal(p.obter('orientacao').hidden,true);
 });
 
+test('faixa de importação não reescreve aviso e rótulo idênticos ao atualizar ou filtrar',()=>{
+  const p=painel();
+  p.renderizar(p.estado);
+  const aviso=p.obter('alcance-importacao'),botao=p.obter('importar-aptos');
+  const escritasAviso=aviso.escritas,escritasBotao=botao.escritas;
+  p.renderizar({...p.estado,mensagem:'Outra atualização ociosa.'});
+  p.obter('fila-outras').onclick();
+  p.obter('fila-outras').onclick();
+  assert.equal(aviso.escritas,escritasAviso);
+  assert.equal(botao.escritas,escritasBotao);
+  p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa:'pronto_importar',erro:''}]});
+  assert.equal(botao.textContent,'Importar 1 pedido apto');
+  assert.equal(botao.escritas,escritasBotao+1);
+  assert.equal(aviso.escritas,escritasAviso);
+});
+
 test('importação usa aptos do lote em conferência e preserva escopo apesar de filtros e nova execução',async()=>{
   const p=painel(), chamadas=[];
   const criar=(pedido,etapa,erro='')=>({pedido,etapa,erro,numero:'',pendente:true,rotulo:etapa});
@@ -484,7 +503,7 @@ test('observação omite estado repetido e preserva erro e resultado diferente',
   const p=painel(),pedido='2026-11111';
   const s={...p.estado,execucao:'lote',lote:[pedido],pedidos:[{pedido,etapa:'impressao_enviada',rotulo:'Enviado para impressão',erro:''}],resultados_lote:{[pedido]:'impressao_enviada'}};
   p.renderizar(s);
-  const observacao=()=>p.obter('linhas').children[0].children[0].children[3].textContent;
+  const observacao=()=>p.obter('linhas').children[0].children[0].children[4].textContent;
   assert.equal(observacao(),'—');
   p.renderizar({...s,pedidos:[{...s.pedidos[0],erro:'Conferir documento'}]});
   assert.equal(observacao(),'Conferir documento');
@@ -532,6 +551,61 @@ test('cartão recolhe entrada e filtra; limpar filtros conserva escopo e reinici
   assert.equal(vm.runInContext('escopo',p.contexto),'todos');
 });
 
+
+test('segundo clique no cartão remove o grupo, preserva busca e escopo e reinicia página',()=>{
+  const p=painel(),pedido='2026-11111';
+  p.renderizar({...p.estado,execucao:'lote',lote:[pedido],pedidos:[{pedido,etapa:'para_baixar',rotulo:'A baixar',erro:''}]});
+  p.obter('busca').value='2026';
+  for(const escopo of ['lote','todos']){
+    p.obter('escopo-'+escopo).onclick();
+    for(const grupo of ['prontos','sem_cadastro','outras','existentes','importados']){
+      const cartao=p.obter('fila-'+grupo);
+      cartao.onclick();
+      assert.equal(p.obter('filtro').value,grupo);
+      assert.equal(cartao.atributos['aria-pressed'],'true');
+      vm.runInContext('pagina=2',p.contexto);
+      cartao.onclick();
+      assert.equal(p.obter('filtro').value,'todos');
+      assert.equal(cartao.atributos['aria-pressed'],'false');
+      assert.equal(p.obter('busca').value,'2026');
+      assert.equal(vm.runInContext('escopo',p.contexto),escopo);
+      assert.equal(vm.runInContext('pagina',p.contexto),0);
+      assert.equal(p.obter('quantidade').textContent,'1 pedido');
+    }
+  }
+  p.obter('fila-outras').onclick();
+  p.obter('fila-sem_cadastro').onclick();
+  assert.equal(p.obter('filtro').value,'sem_cadastro');
+  assert.equal(p.obter('fila-outras').atributos['aria-pressed'],'false');
+});
+
+test('contagem e controles acompanham filtros e número de páginas sem perder foco',()=>{
+  const p=painel();
+  const pedidos=Array.from({length:60},(_,i)=>({pedido:`2026-${10000+i}`,etapa:'para_baixar',rotulo:'A baixar',erro:''}));
+  p.renderizar({...p.estado,pedidos});
+  assert.equal(p.obter('quantidade').textContent,'1–50 de 60 pedidos');
+  assert.equal(p.obter('paginacao-controles').hidden,false);
+  assert.equal(p.obter('limpar-filtros').hidden,true);
+  p.obter('proxima').onclick();
+  assert.equal(p.obter('quantidade').textContent,'51–60 de 60 pedidos');
+  p.obter('busca').value='2026-10059';
+  p.obter('busca').listeners.input[0]();
+  assert.equal(p.obter('quantidade').textContent,'1 pedido');
+  assert.equal(p.obter('paginacao-controles').hidden,true);
+  assert.equal(p.obter('limpar-filtros').hidden,false);
+  let focos=0;
+  p.obter('busca').focus=()=>focos++;
+  p.contexto.document.activeElement=p.obter('limpar-filtros');
+  p.obter('limpar-filtros').onclick();
+  assert.equal(focos,1);
+  assert.equal(p.obter('limpar-filtros').hidden,true);
+  assert.equal(p.obter('paginacao-controles').hidden,false);
+  assert.equal(p.obter('quantidade').textContent,'1–50 de 60 pedidos');
+  p.obter('busca').value='inexistente';
+  p.obter('busca').listeners.input[0]();
+  assert.equal(p.obter('quantidade').textContent,'Nenhum pedido nesta seleção');
+  assert.equal(p.obter('paginacao-controles').hidden,true);
+});
 
 test('cartões ficam bloqueados durante execução e pausa e liberam ao terminar',()=>{
   const p=painel();p.obter('preparacao').open=true;

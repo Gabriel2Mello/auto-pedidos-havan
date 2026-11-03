@@ -133,9 +133,11 @@ function pedidosDoEscopo(){
 }
 function atualizarImportacao(){
   const quantidade=pedidosDoEscopo().filter(apto).length;
-  el('importar-aptos').textContent=quantidade?`Importar ${quantidade} ${quantidade===1?'pedido apto':'pedidos aptos'}`:'Nenhum pedido apto';
+  const rotulo=quantidade?`Importar ${quantidade} ${quantidade===1?'pedido apto':'pedidos aptos'}`:'Nenhum pedido apto';
+  if(el('importar-aptos').textContent!==rotulo)el('importar-aptos').textContent=rotulo;
   el('importar-aptos').disabled=inicioBloqueado()||!quantidade;
-  el('alcance-importacao').textContent='Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.';
+  const aviso='Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.';
+  if(el('alcance-importacao').textContent!==aviso)el('alcance-importacao').textContent=aviso;
 }
 function correspondeFiltro(p,filtro){
   if(filtro==='todos')return true;
@@ -155,6 +157,9 @@ function acaoDoPedido(p){
 }
 function renderizarTabela() {
   const filtro=el('filtro').value, busca=el('busca').value.trim().toLowerCase();
+  const semFiltros=filtro==='todos'&&!busca;
+  if(semFiltros&&document.activeElement===el('limpar-filtros'))el('busca').focus();
+  el('limpar-filtros').hidden=semFiltros;
   const base=pedidosDoEscopo();
   for(const grupo of ['prontos','sem_cadastro','outras','existentes','importados'])el('n-'+grupo).textContent=estado?.fase==='INICIANDO'||estado?.bloqueado&&!base.length?'—':base.filter(p=>grupoPedido(p)===grupo).length;
   atualizarImportacao();
@@ -169,9 +174,9 @@ function renderizarTabela() {
     for(const p of visiveis){
       const tr=document.createElement('tr');
       const resultado=p.resultado&&rotuloResultado(p.resultado)!==p.rotulo?rotuloResultado(p.resultado):'';
-      [p.pedido,p.numero||'—',p.rotulo||'Conferir situação',[resultado?'Nesta execução: '+resultado:'',p.erro?.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')].filter(Boolean).join('\n')||'—'].forEach((texto,i)=>{
+      [p.pedido,p.numero||'—',p.rotulo||'Conferir situação','',[resultado?'Nesta execução: '+resultado:'',p.erro?.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')].filter(Boolean).join('\n')||'—'].forEach((texto,i)=>{
         const td=document.createElement('td');
-        td.setAttribute('data-rotulo',['Pedido Havan','Nº Sisplan','Situação salva','Observação / ação'][i]);
+        td.setAttribute('data-rotulo',['Pedido Havan','Nº Sisplan','Situação salva','Ação','Observação'][i]);
         if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
         const acao=acaoDoPedido(p);
         if(i===3&&acao){
@@ -182,10 +187,12 @@ function renderizarTabela() {
         tr.append(td);
       });linhas.append(tr);
     }
-    if(!visiveis.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=4;td.className='vazio';td.textContent=estado?.fase==='INICIANDO'?'Carregando o histórico…':estado?.bloqueado?'Histórico indisponível. Confira o aviso de andamento.':busca?'Nenhum pedido corresponde à busca.':escopo==='lote'&&!estado?.lote?.length?'Nenhum lote iniciado nesta sessão.':!base.length?'Nenhum pedido salvo. Prepare o primeiro lote.':'Nenhum pedido nesta seleção.';tr.append(td);linhas.append(tr);}
+    if(!visiveis.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.className='vazio';td.textContent=estado?.fase==='INICIANDO'?'Carregando o histórico…':estado?.bloqueado?'Histórico indisponível. Confira o aviso de andamento.':busca?'Nenhum pedido corresponde à busca.':escopo==='lote'&&!estado?.lote?.length?'Nenhum lote iniciado nesta sessão.':!base.length?'Nenhum pedido salvo. Prepare o primeiro lote.':'Nenhum pedido nesta seleção.';tr.append(td);linhas.append(tr);}
     el('linhas').replaceChildren(linhas);
   }
-  el('quantidade').textContent=lista.length?`${inicio+1}–${Math.min(inicio+50,lista.length)} de ${lista.length} pedido(s)`:'Nenhum pedido nesta seleção';
+  el('quantidade').textContent=lista.length>50?`${inicio+1}–${Math.min(inicio+50,lista.length)} de ${lista.length} pedidos`:lista.length?`${lista.length} ${lista.length===1?'pedido':'pedidos'}`:'Nenhum pedido nesta seleção';
+  if(lista.length<=50&&[el('anterior'),el('proxima')].includes(document.activeElement))el('busca').focus();
+  el('paginacao-controles').hidden=lista.length<=50;
   el('anterior').disabled=pagina===0;el('proxima').disabled=inicio+50>=lista.length;
 }
 function atualizarLayout(){
@@ -306,7 +313,7 @@ for(const nome of ['pedidos','conferencia']){
 }
 for(const nome of ['lote','todos'])el('escopo-'+nome).onclick=()=>{escopo=nome;pagina=0;el('escopo-lote').setAttribute('aria-pressed',String(nome==='lote'));el('escopo-todos').setAttribute('aria-pressed',String(nome==='todos'));renderizarTabela();};
 document.querySelectorAll('[data-modo]').forEach(b=>b.onclick=()=>mudarModo(b.dataset.modo));
-document.querySelectorAll('[data-fila]').forEach(b=>b.onclick=()=>{if(b.disabled)return;el('preparacao').open=false;atualizarLayout();el('filtro').value=b.dataset.fila;pagina=0;renderizarTabela();b.focus();el('titulo-historico').scrollIntoView({behavior:'smooth',block:'start'});});
+document.querySelectorAll('[data-fila]').forEach(b=>b.onclick=()=>{if(b.disabled)return;el('preparacao').open=false;atualizarLayout();el('filtro').value=el('filtro').value===b.dataset.fila?'todos':b.dataset.fila;pagina=0;renderizarTabela();b.focus();el('titulo-historico').scrollIntoView({behavior:'smooth',block:'start'});});
 el('limpar-filtros').onclick=()=>{el('busca').value='';el('filtro').value='todos';pagina=0;renderizarTabela();};
 for(const id of ['busca','filtro'])el(id).addEventListener('input',()=>{pagina=0;renderizarTabela();});
 el('anterior').onclick=()=>{pagina--;renderizarTabela();};el('proxima').onclick=()=>{pagina++;renderizarTabela();};
