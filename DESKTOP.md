@@ -9,7 +9,7 @@ navegador. `main.py` continua sendo a entrada de console.
 - **Abrir Pedidos Havan.cmd** abre a automação operacional.
 - **testar interface.cmd** abre **Pedidos Havan · Demonstração**, com histórico,
   log, tema e geometria temporários. Pode ser usada junto da aplicação normal.
-- Na demonstração, abra o ícone **Configurações da demonstração**, ao lado do tema,
+- Na demonstração, abra o ícone **Configurações**, ao lado do tema,
   escolha um dos 16 cenários e clique em **Preparar cenário**. Isso apenas preenche
   a lista e seleciona a operação; **Baixar e conferir** e **Importar aptos**
   são ações separadas. Em Reimprimir, a revisão e a confirmação de cópia continuam
@@ -19,6 +19,9 @@ navegador. `main.py` continua sendo a entrada de console.
 A demonstração não cria `IntegracaoLocal`, não reserva Sisplan, não inicia
 sincronização e não consulta portal, banco externo ou impressoras. Os dados são
 removidos após a saída. O executor operacional não é chamado nesse modo.
+O seletor de impressora usa duas filas fictícias na demonstração e não altera
+a preferência operacional. No uso normal, o mesmo menu permite escolher e
+salvar uma fila instalada no Windows para os próximos lotes.
 
 ## Roteiros da demonstração
 

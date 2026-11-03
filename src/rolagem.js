@@ -10,8 +10,9 @@
     trilho.setAttribute('aria-hidden', 'true');
     polegar.className = 'barra-rolagem-polegar';
     trilho.append(polegar);
-    // O indicador de um diálogo precisa acompanhar sua camada modal.
-    (alvo.matches('dialog') ? alvo : document.body).append(trilho);
+    // Mantém o indicador na camada do diálogo e dentro do menu, para que
+    // arrastá-lo não seja interpretado como um clique fora das configurações.
+    (alvo.matches('dialog,.menu-configuracoes') ? alvo : document.body).append(trilho);
     alvo.classList.add('rolagem-sobreposta');
     const pagina = alvo === document.documentElement;
     const margemExterna = false;

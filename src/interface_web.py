@@ -185,6 +185,8 @@ def criar_servidor(estado: EstadoInterface, *, modo_desktop=False) -> tuple[Serv
                     self.json_resposta(403, {'erro': 'Acesso não autorizado.'})
                 elif caminho == '/api/estado':
                     self.json_resposta(200, estado.situacao())
+                elif caminho == '/api/impressoras':
+                    self.json_resposta(200, estado.listar_impressoras())
                 elif caminho == '/api/demo/cenarios' and getattr(servidor, 'demonstracao', False):
                     from demonstracao import cenarios_interface
                     self.json_resposta(200, cenarios_interface())
@@ -235,6 +237,8 @@ def criar_servidor(estado: EstadoInterface, *, modo_desktop=False) -> tuple[Serv
                     estado.decidir(dados)
                 elif caminho == '/api/parar':
                     estado.parar(dados.get('execucao'))
+                elif caminho == '/api/impressora':
+                    estado.selecionar_impressora(dados.get('impressora'))
                 elif caminho == '/api/encerrar':
                     servidor.encerrar()
                 elif caminho == '/api/tema' and servidor.modo_desktop:

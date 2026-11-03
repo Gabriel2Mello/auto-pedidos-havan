@@ -48,7 +48,10 @@ def main():
             for indice, etapa in enumerate(('impressao_enviada', 'para_baixar', 'sem_cadastro', 'impressao_incerta'), 1):
                 h.salvar(EstadoPedido(f'2026-99900{indice}', str(8000+indice) if indice in (1,4) else '', etapa,
                                      erro='Exemplo sintético para conferência.' if indice in (3,4) else ''))
-        estado = EstadoInterface(banco, executor=executar, codigo_execucao='PREVIA-SINTETICA', arquivo_log=Path(pasta)/'previa.log')
+        estado = EstadoInterface(banco, executor=executar, codigo_execucao='PREVIA-SINTETICA', arquivo_log=Path(pasta)/'previa.log',
+                                 impressora='Impressora de teste',
+                                 listar_filas=lambda: ['Impressora de teste', 'PDF de teste'],
+                                 salvar_fila=lambda nome: None)
         estado.pronto.wait(5)
         servidor, _ = criar_servidor(estado)
         print(f'http://127.0.0.1:{servidor.server_port}', flush=True)

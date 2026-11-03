@@ -10,6 +10,7 @@ let modo='preparar', estado=null, enviando=false, encerrado=false, encerramentoP
 let estadoAnterior='', saindo=false;
 let conferencia=null, escopo='todos', conectado=false, inicioIncerto=false, ultimoLote='';
 let cenariosDemo=[];
+let consultandoImpressoras=false;
 const etapasImportadas=['importado','pdf_pronto','impressao_pendente','impressao_iniciada','impressao_incerta','impressao_enviada'];
 const apto=p=>p.etapa==='pronto_importar'&&!p.erro;
 const iniciais=['para_baixar','baixado','sem_cadastro','pronto_importar'];
@@ -107,6 +108,8 @@ function mudarModo(novo) {
 function inicioBloqueado() { return enviando||!conectado||inicioIncerto||!estado||estado.ocupada||estado.bloqueado||encerrado||estado.encerrando; }
 function atualizarBotoes() {
   const bloqueado=inicioBloqueado();
+  for(const id of ['lista-impressoras','atualizar-impressoras'])el(id).disabled=bloqueado||consultandoImpressoras;
+  el('confirmar-impressora').disabled=bloqueado||consultandoImpressoras||!el('lista-impressoras').value;
   document.querySelectorAll('[data-modo]').forEach(b=>b.disabled=bloqueado);
   document.querySelectorAll('[data-fila]').forEach(b=>b.disabled=!estado||estado.ocupada||estado.encerrando||encerrado||estado.fase==='INICIANDO');
   document.querySelectorAll('[data-acao-pedido]').forEach(b=>b.disabled=bloqueado);
@@ -206,9 +209,11 @@ el('preparacao').addEventListener('toggle',atualizarLayout);
 function renderizar(s) {
   const chave=JSON.stringify(s);if(chave===estadoAnterior)return;estadoAnterior=chave;
   const anoAnterior=estado?.ano;
+  const impressoraAnterior=estado?.impressora;
   estado=s; encerrado=s.fase==='ENCERRADO';
+  el('impressora-atual').textContent=s.impressora||'Nenhuma impressora selecionada.';
   if(anoAnterior!==s.ano){contarPedidos();el('dica-pedidos').textContent=`Separe por vírgula ou linha. Sem o ano, será utilizado ${s.ano}.`;}
-  if(conferencia&&(s.revisao!==conferencia.revisao||s.ocupada))invalidarConferencia('A situação mudou. Confira novamente os pedidos antes de iniciar.');
+  if(conferencia&&(s.revisao!==conferencia.revisao||s.ocupada||s.impressora!==impressoraAnterior))invalidarConferencia('A situação mudou. Confira novamente os pedidos antes de iniciar.');
   if(s.execucao&&s.execucao!==ultimoLote){
     ultimoLote=s.execucao;escopo='lote';pagina=0;el('filtro').value='todos';
     const preparacao=el('preparacao');
@@ -281,7 +286,7 @@ async function executarEtapa(operacao,pedidos){
     const c=await api('/api/conferir',{modo:operacao,pedidos:lista});
     if(!conectado||estado?.ocupada||estado?.encerrando||saindo)throw Error('A situação mudou. Aguarde a atualização e solicite a ação novamente.');
     iniciando=true;
-    await api('/api/iniciar',{modo:operacao,pedidos:lista,conferencia:c.id,solicitacao:crypto.randomUUID()});
+    await api('/api/iniciar',{modo:operacao,pedidos:lista,conferencia:c.id,solicitacao:crypto.randomUUID(),impressora:estado?.impressora});
     renderizar(await api('/api/estado'));
     if(operacao==='importar')window.scrollTo({top:0,behavior:'smooth'});
   }catch(erro){
@@ -301,7 +306,7 @@ el('iniciar').onclick=async()=>{
   if(modo==='reimprimir'&&!el('confirmar-copia').checked){mensagem('Confirme que deseja enviar outra cópia.');el('confirmar-copia').focus();return;}
   const id=conferencia.id,confirmado=el('confirmar-copia').checked;
   invalidarConferencia('Solicitação enviada. Confira o resultado da operação.',true);
-  await acao('/api/iniciar',{modo,pedidos:modo==='retomar'?'':el('pedidos').value,confirmado,conferencia:id,solicitacao:crypto.randomUUID()});
+  await acao('/api/iniciar',{modo,pedidos:modo==='retomar'?'':el('pedidos').value,confirmado,conferencia:id,solicitacao:crypto.randomUUID(),impressora:estado?.impressora});
 };
 el('pedidos').addEventListener('input',()=>{invalidarConferencia();contarPedidos();atualizarBotoes();});
 el('confirmar-copia').addEventListener('change',atualizarBotoes);
@@ -345,12 +350,39 @@ if(desktop){
   });
   el('baixar-log').hidden=true;
 }
+const menu=el('demo-configuracoes');
+document.addEventListener('pointerdown',e=>{if(!menu.contains(e.target))menu.open=false;});
+document.addEventListener('focusin',e=>{if(!menu.contains(e.target))menu.open=false;});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&menu.open){menu.open=false;menu.querySelector('summary').focus();}});
+async function carregarImpressoras(){
+  if(inicioBloqueado()||consultandoImpressoras)return;
+  const anterior=el('lista-impressoras').value;
+  consultandoImpressoras=true;atualizarBotoes();el('erro-impressora').textContent='';
+  el('aviso-impressora').textContent='Consultando as impressoras…';
+  el('lista-impressoras').replaceChildren();
+  try{
+    const r=await api('/api/impressoras');
+    for(const nome of r.impressoras){const o=document.createElement('option');o.value=nome;o.textContent=nome;el('lista-impressoras').append(o);}
+    el('lista-impressoras').value=r.impressoras.includes(anterior)?anterior:r.impressoras.includes(r.impressora)?r.impressora:'';
+    el('aviso-impressora').textContent=r.aviso_impressora||'';
+  }catch(erro){el('erro-impressora').textContent=erro.message;el('aviso-impressora').textContent='Use Atualizar lista para tentar novamente.';}
+  finally{consultandoImpressoras=false;atualizarBotoes();}
+}
+menu.addEventListener('toggle',()=>{if(menu.open)carregarImpressoras();});
+el('atualizar-impressoras').onclick=carregarImpressoras;
+el('lista-impressoras').addEventListener('change',atualizarBotoes);
+el('confirmar-impressora').onclick=async()=>{
+  if(inicioBloqueado()||consultandoImpressoras||!el('lista-impressoras').value)return;
+  enviando=true;atualizarBotoes();el('erro-impressora').textContent='';
+  try{
+    await api('/api/impressora',{impressora:el('lista-impressoras').value});
+    invalidarConferencia();renderizar(await api('/api/estado'));
+    el('aviso-impressora').textContent='Impressora selecionada.';
+  }catch(erro){el('erro-impressora').textContent=erro.message;}
+  finally{enviando=false;atualizarBotoes();}
+};
 if(demonstracao){
-  const menu=el('demo-configuracoes');
-  menu.hidden=false;
-  document.addEventListener('pointerdown',e=>{if(!menu.contains(e.target))menu.open=false;});
-  document.addEventListener('focusin',e=>{if(!menu.contains(e.target))menu.open=false;});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&menu.open){menu.open=false;menu.querySelector('summary').focus();}});
+  el('demo-opcoes').hidden=false;
   const descrever=()=>{const c=cenariosDemo.find(c=>c.id===el('demo-cenario').value);if(c)el('demo-descricao').textContent=c.orientacao;};
   el('demo-cenario').addEventListener('change',descrever);
   el('demo-exemplo').onclick=()=>{

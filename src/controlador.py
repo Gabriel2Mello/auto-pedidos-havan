@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections import Counter, deque
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from queue import Queue
@@ -16,7 +16,8 @@ from uuid import uuid4
 from integracao_hub import MedidorAbertura
 
 from src.erros import BancoSisplanError, ConfiguracaoError, EstadoEmUsoError
-from src.config import diretorio_aplicacao
+from src.config import CONFIG, Configuracao, configuracao_atual, diretorio_aplicacao, usar_configuracao
+from src.impressoras import listar_impressoras_windows, salvar_impressora
 from src.estado import EstadoError, EstadoPedidos
 from src.logs import get_logger
 from src.seguranca import redigir
@@ -41,9 +42,10 @@ def executar_fluxo(pedidos: list[str], modo: Modo, *, historico: EstadoPedidos,
                    ao_erro: AoErro, ao_progresso: AoProgresso,
                    parar: Callable[[], bool]) -> ResumoExecucao:
     # O fluxo de automação é chamado na thread que possui o histórico.
-    from src.servico_pedidos import processar_pedidos
+    from src.servico_pedidos import ContextoExecucao, processar_pedidos
     return processar_pedidos(pedidos, modo, historico=historico, ao_erro=ao_erro,
-                             ao_progresso=ao_progresso, parar=parar)
+                             ao_progresso=ao_progresso, parar=parar,
+                             contexto=ContextoExecucao(configuracao_atual()))
 
 
 class ConflitoInterface(ValueError):
@@ -54,6 +56,8 @@ class ConflitoInterface(ValueError):
 class Trabalho:
     modo: ModoWeb
     pedidos: list[str]
+    impressora: str = ''
+    configuracao: Configuracao | None = None
     recebido: Event = field(default_factory=Event)
     erro: Exception | None = None
 
@@ -72,10 +76,16 @@ class MensagensInterface(logging.Handler):
 class EstadoInterface:
     def __init__(self, caminho: Path | None = None, *, executor: Executor = executar_fluxo,
                  codigo_execucao: str = '', arquivo_log: Path | None = None,
-                 medidor_abertura: MedidorAbertura | None = None) -> None:
+                 medidor_abertura: MedidorAbertura | None = None,
+                 listar_filas: Callable[[], list[str]] | None = None,
+                 salvar_fila: Callable[[str], None] | None = None,
+                 impressora: str | None = None) -> None:
         self.medidor_abertura = medidor_abertura
         self.caminho = caminho
         self.executor = executor
+        self.impressora = CONFIG.impressora if impressora is None else impressora
+        self.listar_filas = listar_filas or listar_impressoras_windows
+        self.salvar_fila = salvar_fila or salvar_impressora
         self.codigo_execucao = codigo_execucao
         self.arquivo_log = arquivo_log or diretorio_aplicacao() / 'auto-pedidos.log'
         self.trava = RLock()
@@ -113,6 +123,32 @@ class EstadoInterface:
         with self.trava:
             self.mensagens.append(redigir(mensagem))
 
+    def listar_impressoras(self) -> dict[str, object]:
+        try:
+            nomes = self.listar_filas()
+            aviso = (f'A impressora “{self.impressora}” não está instalada ou foi renomeada.'
+                     if self.impressora and self.impressora not in nomes else
+                     '' if nomes else 'Nenhuma impressora instalada foi encontrada. Instale uma impressora no Windows e atualize a lista.')
+        except RuntimeError as erro:
+            nomes, aviso = [], str(erro)
+        with self.trava:
+            return {'impressoras': nomes, 'impressora': self.impressora,
+                    'aviso_impressora': aviso}
+
+    def selecionar_impressora(self, nome: object) -> None:
+        with self.trava:
+            if self.ocupada or self.encerrando or self.finalizado.is_set():
+                raise ConflitoInterface('Aguarde o término do lote para alterar a impressora.')
+            try:
+                nomes = self.listar_filas()
+            except RuntimeError as erro:
+                raise ValueError(str(erro)) from erro
+            if not isinstance(nome, str) or nome not in nomes:
+                raise ValueError('Selecione uma impressora instalada neste computador.')
+            self.salvar_fila(nome)
+            self.impressora = nome
+            self.conferencias.clear()
+
     def situacao(self) -> dict[str, object]:
         with self.trava:
             return deepcopy({
@@ -125,6 +161,7 @@ class EstadoInterface:
                 'codigo_execucao': self.codigo_execucao,
                 'lote': self.lote, 'lote_preparacao': self.lote_preparacao, 'modo': self.modo, 'resultados_lote': self.resultados_lote,
                 'revisao': self.revisao, 'ano': datetime.now().year,
+                'impressora': self.impressora,
             })
 
     def _atualizar(self) -> None:
@@ -202,6 +239,16 @@ class EstadoInterface:
             conferido = (dados.get('conferencia'), modo, lista, self.revisao)
             if conferido not in self.conferencias:
                 raise ConflitoInterface('Confira novamente o lote antes de iniciar. A lista ou o histórico pode ter mudado.')
+            if self.executor is executar_fluxo:
+                # Relê TOML/preferência ao aceitar o lote e preserva o snapshot.
+                trabalho.configuracao = Configuracao.carregar()
+                self.impressora = trabalho.configuracao.impressora
+            if 'impressora' in dados and modo_executor in ('importar', 'recuperar', 'reimprimir'):
+                if dados['impressora'] != self.impressora:
+                    raise ConflitoInterface('A impressora mudou. Confira a seleção e prepare o lote novamente.')
+                if modo_executor != 'recuperar' and (not self.impressora or self.impressora not in self.listar_filas()):
+                    raise ValueError('Selecione uma impressora instalada nas configurações antes de imprimir.')
+            trabalho.impressora = self.impressora
             trabalho.pedidos = list(lista)
             self.conferencias.clear()
             self.solicitacoes.append(solicitacao)
@@ -316,9 +363,11 @@ class EstadoInterface:
             logger.info('Interface: operação=%s modo=%s pedidos=%s', self.execucao, trabalho.modo, trabalho.pedidos)
             while not self.parada.is_set():
                 try:
-                    resumo = self.executor(trabalho.pedidos, trabalho.modo, historico=self._historico,
-                                           ao_erro=self.aguardar_decisao, ao_progresso=self.progresso,
-                                           parar=self.parada.is_set)
+                    config = replace(trabalho.configuracao or CONFIG, impressora=trabalho.impressora)
+                    with usar_configuracao(config):
+                        resumo = self.executor(trabalho.pedidos, trabalho.modo, historico=self._historico,
+                                               ao_erro=self.aguardar_decisao, ao_progresso=self.progresso,
+                                               parar=self.parada.is_set)
                     self._atualizar()
                     with self.trava:
                         self.resumo = dict(Counter(resumo.situacoes.values()))

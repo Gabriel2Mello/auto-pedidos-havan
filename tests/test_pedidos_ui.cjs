@@ -58,6 +58,48 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
   return {contexto, elementos, eventos, estado, renderizar, obter, rolagens};
 }
 
+test('configurações normais carregam e salvam impressora invalidando conferência anterior', async () => {
+  const p=painel();p.renderizar({...p.estado,impressora:'Fila A'});
+  const chamadas=[];
+  p.contexto.fetch=async(url,opcoes)=>{
+    chamadas.push([url,opcoes]);
+    return {ok:true,json:async()=>url==='/api/impressoras'?{impressoras:['Fila A','Fila B'],impressora:'Fila A'}:url==='/api/estado'?{...p.estado,impressora:'Fila B'}:{ok:true}};
+  };
+  await p.obter('atualizar-impressoras').onclick();
+  assert.equal(p.obter('lista-impressoras').children.length,2);
+  assert.equal(p.obter('lista-impressoras').value,'Fila A');
+  p.obter('lista-impressoras').value='Fila B';
+  vm.runInContext('conferencia={id:"antiga",revisao:0}',p.contexto);
+  await p.obter('confirmar-impressora').onclick();
+  assert.equal(p.obter('impressora-atual').textContent,'Fila B');
+  assert.equal(vm.runInContext('conferencia',p.contexto),null);
+  assert.deepEqual(JSON.parse(chamadas.find(([url])=>url==='/api/impressora')[1].body),{impressora:'Fila B'});
+});
+
+test('seletor informa fila ausente e falha de listagem sem habilitar confirmação', async () => {
+  const p=painel();p.renderizar(p.estado);
+  p.contexto.fetch=async()=>({ok:true,json:async()=>({impressoras:[],impressora:'Removida',aviso_impressora:'Nenhuma fila instalada.'})});
+  await p.obter('atualizar-impressoras').onclick();
+  assert.equal(p.obter('confirmar-impressora').disabled,true);
+  assert.equal(p.obter('aviso-impressora').textContent,'Nenhuma fila instalada.');
+  p.contexto.fetch=async()=>{throw Error('Serviço indisponível');};
+  await p.obter('atualizar-impressoras').onclick();
+  assert.equal(p.obter('erro-impressora').textContent,'Serviço indisponível');
+  assert.equal(p.obter('confirmar-impressora').disabled,true);
+});
+
+test('impressora não pode ser alterada durante execução ou perda de conexão', async () => {
+  const p=painel();p.obter('lista-impressoras').value='Fila B';
+  p.renderizar({...p.estado,fase:'EXECUTANDO',ocupada:true});
+  let chamadas=0;p.contexto.fetch=()=>{chamadas++;throw Error('Não deve consultar');};
+  await p.obter('atualizar-impressoras').onclick();await p.obter('confirmar-impressora').onclick();
+  assert.equal(p.obter('confirmar-impressora').disabled,true);
+  p.renderizar(p.estado);vm.runInContext('conectado=false;atualizarBotoes()',p.contexto);
+  assert.equal(p.obter('atualizar-impressoras').disabled,true);
+  await p.obter('confirmar-impressora').onclick();
+  assert.equal(chamadas,0);
+});
+
 test('preparar cenário mantém roteiro no menu e preenche lista sem conferir nem executar', async () => {
   const c={id:'geral',nome:'Lote misto',modo:'normal',entrada:'999002\n999003',orientacao:'Deixe o cadastro pendente.'};
   const p=painel({demonstracao:true,cenarios:[c]});

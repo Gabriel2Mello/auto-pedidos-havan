@@ -16,9 +16,17 @@
     <div class="marca"><img src="/icons/icone.svg" width="32" height="32" alt="" draggable="false"><h1>Pedidos Havan <span>· Nunes</span></h1></div>
     <div class="controles-cabecalho">
       <button id="tema" class="botao-icone" type="button" aria-label="Ativar tema claro" title="Alternar tema">Tema claro</button>
-      <details id="demo-configuracoes" class="configuracoes" hidden>
-        <summary class="botao-icone" title="Configurações da demonstração" aria-label="Configurações da demonstração"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></summary>
-        <div class="menu-configuracoes" tabindex="0" role="region" aria-label="Demonstração">
+      <details id="demo-configuracoes" class="configuracoes">
+        <summary class="botao-icone" title="Configurações" aria-label="Configurações"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></summary>
+        <div class="menu-configuracoes" tabindex="0" role="region" aria-label="Configurações">
+          <h2>Impressora</h2>
+          <p id="impressora-atual" class="dica" role="status">Carregando a seleção…</p>
+          <label for="lista-impressoras">Impressoras instaladas</label>
+          <select id="lista-impressoras" disabled aria-describedby="aviso-impressora"><option value="">Atualize a lista para escolher</option></select>
+          <p id="aviso-impressora" class="dica" role="status"></p>
+          <div class="acoes"><button id="atualizar-impressoras" type="button" disabled>Atualizar lista</button><button id="confirmar-impressora" type="button" disabled>Usar impressora</button></div>
+          <p id="erro-impressora" class="mensagem-acao" role="alert"></p>
+          <section id="demo-opcoes" hidden>
           <h2>Demonstração · dados temporários</h2>
           <p class="dica">Nenhum acesso ao Sisplan, portal ou impressora.</p>
           <label for="demo-cenario">Cenário para testar</label>
@@ -26,6 +34,7 @@
           <p id="demo-descricao" class="dica">Carregando os cenários…</p>
           <button id="demo-exemplo" type="button" disabled>Preparar cenário</button>
           <p class="dica">Preparar só preenche a lista. Use Baixar e conferir e, depois, Importar os aptos. Os cenários compartilham o histórico; reabra a demonstração para começar do zero.</p>
+          </section>
         </div>
       </details>
     </div>

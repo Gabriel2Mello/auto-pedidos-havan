@@ -97,6 +97,18 @@ modelo versionado. Se `config.toml` não existir ao iniciar o robô, esse arquiv
 de exemplo será criado automaticamente na mesma pasta, sem substituir um modelo
 existente.
 
+No painel, abra **Configurações**, ao lado do ícone de tema, escolha uma das
+impressoras instaladas no Windows e clique em **Usar impressora**. **Atualizar
+lista** consulta novamente as filas locais, de rede instaladas e virtuais.
+A seleção é salva em `%LOCALAPPDATA%\Nunes\PedidosHavan\impressora.json` e
+prevalece sobre `impressora` do TOML no painel e no console. Sem preferência
+salva, o TOML continua sendo usado. `HAVAN_IMPRESSORA_DADOS` permite isolar a
+pasta dessa preferência em testes. O TOML não é alterado pelo seletor.
+A troca fica bloqueada durante o lote; a fila permanece fixa até seu término.
+Trocar a impressora invalida a conferência anterior. Filas virtuais podem
+pedir um local para salvar o arquivo. A lista não comprova disponibilidade
+física do equipamento.
+
 O arquivo é relido ao iniciar cada lote. Durante o lote, a configuração fica
 preservada, inclusive nas threads de download. Se precisar corrigir o TOML,
 pare o processamento e inicie outro lote ou use Retomar para aplicar os valores.

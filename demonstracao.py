@@ -230,7 +230,10 @@ def main():
                 h.salvar(EstadoPedido(f'{datetime.now().year}-999001', '8001', 'impressao_enviada'))
             log = Path(pasta) / 'demo.log'
             log.write_text('Demonstração sintética de Pedidos Havan.\n', encoding='utf-8')
-            estado = EstadoInterface(banco, executor=simular, codigo_execucao='DEMONSTRACAO', arquivo_log=log)
+            estado = EstadoInterface(banco, executor=simular, codigo_execucao='DEMONSTRACAO', arquivo_log=log,
+                                     impressora='Impressora de teste',
+                                     listar_filas=lambda: ['Impressora de teste', 'PDF de teste'],
+                                     salvar_fila=lambda nome: None)
             servidor = None
             try:
                 if not estado.pronto.wait(5) or estado.fase != 'PRONTO':

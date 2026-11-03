@@ -9,6 +9,7 @@ from tomllib import TOMLDecodeError, load
 from typing import Generator, Mapping
 
 from src.seguranca import registrar_segredos
+from src.impressoras import ler_impressora
 
 
 MODELO_CONFIG = """# Copie este arquivo como config.toml e ajuste os valores.
@@ -93,11 +94,17 @@ class Configuracao:
             erro_leitura = (erro_leitura + ' tolerancia_numero_interno deve ser um inteiro positivo.').strip()
             tolerancia = 100
 
+        try:
+            impressora = ler_impressora(_ler_texto(dados, 'impressora'), ambiente)
+        except ValueError as error:
+            impressora = ''
+            erro_leitura = (erro_leitura + ' ' + str(error)).strip()
+
         config = cls(
             unrar_tool=Path(_ler_texto(dados, 'unrar_tool')),
             sumatra=Path(_ler_texto(dados, 'sumatra')),
             pasta_pedidos=Path(_ler_texto(dados, 'pasta_pedidos')),
-            impressora=_ler_texto(dados, 'impressora'),
+            impressora=impressora,
             cnpj_matriz=_ler_segredo(ambiente, 'CNPJ_MATRIZ'),
             senha_portal=_ler_segredo(ambiente, 'SENHA_PORTAL'),
             teams_webhook_url=_ler_segredo(ambiente, 'TEAMS_WEBHOOK_URL'),

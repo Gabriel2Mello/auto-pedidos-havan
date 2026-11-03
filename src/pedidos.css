@@ -96,3 +96,5 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 .paginacao{padding-top:10px}
 .suporte{padding-top:16px}
 @media(forced-colors:active){.historico>.escopos button[aria-pressed=true]{border-bottom-color:Highlight}}
+
+#demo-opcoes{border-top:1px solid var(--borda);margin-top:16px;padding-top:16px}.menu-configuracoes select{font-size:14px;text-overflow:ellipsis}.menu-configuracoes .acoes button{flex:1;min-width:0}.menu-configuracoes #impressora-atual{overflow-wrap:anywhere}
