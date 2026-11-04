@@ -111,7 +111,8 @@ Ao reabrir a aplicação, os estados persistidos aparecem em **Todos os pedidos
 salvos**, inclusive os prontos para importar; o escopo do lote é da sessão.
 
 Use **Parar após a etapa atual** para preservar as pendências, ou **Encerrar**
-para sair. **Atividade e diagnóstico** reúne o código de execução, cópia do
+para sair. Em **Configurações**, abaixo dos controles da impressora,
+**Atividade e diagnóstico** reúne o código de execução, cópia do
 resumo de suporte e acesso ao log. “Enviado para impressão” confirma apenas
 retorno de sucesso do SumatraPDF, sem comprovar a saída física do papel.
 

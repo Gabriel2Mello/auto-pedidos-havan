@@ -26,6 +26,7 @@
           <p id="aviso-impressora" class="dica" role="status"></p>
           <div class="acoes"><button id="atualizar-impressoras" type="button" disabled>Atualizar lista</button><button id="confirmar-impressora" type="button" disabled>Usar impressora</button></div>
           <p id="erro-impressora" class="mensagem-acao" role="alert"></p>
+          <section class="suporte" aria-label="Informações de suporte"><details><summary>Atividade e diagnóstico</summary><ol id="atividade" tabindex="0" aria-label="Atividade desta execução"></ol><div class="acoes"><span class="dica">Código de execução: <strong id="codigo">—</strong></span><button id="copiar-suporte" type="button">Copiar diagnóstico</button><button id="baixar-log" type="button">Baixar log</button></div></details></section>
           <section id="demo-opcoes" hidden>
           <h2>Demonstração · dados temporários</h2>
           <p class="dica">Nenhum acesso ao Sisplan, portal ou impressora.</p>
@@ -117,7 +118,6 @@
     <div class="rolagem-historico" tabindex="0" role="region" aria-label="Situações dos pedidos"><table class="tabela-historico"><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Nº Sisplan</th><th scope="col">Situação</th><th scope="col">Ação</th><th scope="col">Observação</th></tr></thead><tbody id="linhas"><tr><td colspan="5" class="vazio">Carregando os pedidos…</td></tr></tbody></table></div>
     <div class="paginacao"><span id="quantidade" class="dica">Aguardando histórico</span><div id="paginacao-controles" class="acoes" hidden><button id="anterior" type="button" disabled>Anterior</button><button id="proxima" type="button" disabled>Próxima</button></div></div>
   </section>
-  <section class="suporte" aria-label="Informações de suporte"><details><summary>Atividade e diagnóstico</summary><ol id="atividade" tabindex="0" aria-label="Atividade desta execução"></ol><div class="acoes"><span class="dica">Código de execução: <strong id="codigo">—</strong></span><button id="copiar-suporte" type="button">Copiar diagnóstico</button><button id="baixar-log" type="button">Baixar log</button></div></details></section>
 </main>
 <footer class="rodape"><p class="assinatura">Desenvolvido por <a href="https://github.com/Gabriel2Mello" target="_blank" rel="noopener noreferrer" aria-label="g2mello — perfil no GitHub">g2me<span class="assinatura-ll"><span>l</span><span>l</span></span>o</a></p><button id="encerrar" type="button">Encerrar<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M9 12h12m-5-5 5 5-5 5"/></svg></button></footer>
 </body>

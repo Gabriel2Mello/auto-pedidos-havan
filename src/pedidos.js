@@ -370,7 +370,7 @@ el('copiar-suporte').onclick=async()=>{
   if(!estado)return;
   const texto=`Pedidos Havan\nExecução: ${estado.codigo_execucao}\nSituação: ${fases[estado.fase]||estado.fase}\nPedido: ${estado.pedido||'—'}\nMensagem: ${estado.erro?.mensagem||estado.mensagem}`;
   try{await navigator.clipboard.writeText(texto);el('copiar-suporte').textContent='Diagnóstico copiado';setTimeout(()=>el('copiar-suporte').textContent='Copiar diagnóstico',2200);}
-  catch(_){mensagem('Não consegui copiar. Informe ao suporte o código de execução exibido abaixo.');}
+  catch(_){mensagem('Não consegui copiar. Informe ao suporte o código de execução em Configurações → Atividade e diagnóstico.');}
 };
 const tema=window.NunesTema.iniciar({controle:el('tema'),chave:'tema-pedidos-havan',cookie:true});
 if(desktop){
