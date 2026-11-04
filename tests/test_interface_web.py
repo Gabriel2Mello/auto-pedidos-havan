@@ -3,18 +3,22 @@ import socket
 import sqlite3
 import tempfile
 import unittest
+from decimal import Decimal
 from http.client import HTTPConnection, RemoteDisconnected
 from pathlib import Path
 from queue import SimpleQueue
 from threading import Event, Thread, get_ident
 from time import monotonic
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from src.banco import BancoSisplanError
 from src.estado import EstadoError, EstadoPedido, EstadoPedidos
 from src.interface_web import ConflitoInterface, EstadoInterface, criar_servidor
 from src.resumo import ResumoExecucao
 from src.erros import (SessaoPortalExpiradaError)
+from src.config import CONFIG
+from src.servico_pedidos import ContextoExecucao, Integracoes, processar_pedidos
+from src.pedidos import ItemEsperado
 
 
 class BaseInterface(unittest.TestCase):
@@ -222,7 +226,35 @@ class InterfaceTests(BaseInterface):
         self.estado.decidir(dados)
         self.aguardar(lambda: self.estado.fase == 'INTERROMPIDO')
 
-    def test_sessao_expirada_nao_repete_ate_usuario_reconectar(self) -> None:
+    def test_servico_reconecta_portal_sem_pausar_painel(self) -> None:
+        banco = MagicMock()
+        banco.__enter__.return_value.consultar_pedidos.return_value = {}
+        portal, login = MagicMock(), MagicMock()
+        tentativas = []
+        def baixar(scraper, pedidos, **kwargs):
+            tentativas.append(pedidos[0])
+            if len(tentativas) == 1:
+                raise SessaoPortalExpiradaError()
+            return {pedidos[0]: True}
+        contexto = ContextoExecucao(CONFIG, Integracoes(
+            banco=lambda *args: banco, portal=portal, login=login, baixar=baixar,
+        ))
+        self.executor = lambda *args, **kwargs: processar_pedidos(*args, **kwargs, contexto=contexto)
+        with (patch('src.servico_pedidos.validar_configuracao'),
+              patch('src.servico_pedidos.conferir_arquivos_baixados', return_value=True),
+              patch('src.servico_pedidos.validar_pedido_baixado',
+                    return_value=[ItemEsperado('P1', 'C1', 'T1', Decimal(1))]),
+              patch.object(self.estado, 'aguardar_decisao') as decidir):
+            self.iniciar(modo='preparar')
+            self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+            decidir.assert_not_called()
+        self.assertEqual(tentativas, ['2026-12345', '2026-12345', '2026-67890'])
+        self.assertEqual(login.call_count, 2)
+        self.assertIsNone(self.estado.situacao()['erro'])
+        self.assertEqual({p['pedido']: p['etapa'] for p in self.estado.situacao()['pedidos']},
+                         {'2026-12345': 'pronto_importar', '2026-67890': 'pronto_importar'})
+
+    def test_falha_persistente_de_sessao_permite_decisao_apos_reconexao_automatica(self) -> None:
         def executar(pedidos, modo, *, ao_erro, **kwargs):
             self.assertEqual(ao_erro(pedidos[0], SessaoPortalExpiradaError(), True, False), 'repetir')
             return ResumoExecucao()

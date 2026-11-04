@@ -92,7 +92,7 @@ def processar_unico(
         logger.exception('Pedido %s: recuperação local pendente; não repetir o download.', pedido)
         raise
     except SessaoPortalExpiradaError:
-        logger.warning('Pedido %s: sessão do portal expirada; aguardando decisão do operador.', pedido)
+        logger.warning('Pedido %s: sessão do portal expirada; autenticação precisa ser renovada.', pedido)
         raise
     except (PedidoNaoEncontradoPortalError, LinkDownloadAusenteError) as error:
         logger.warning('Pedido %s: %s', pedido, error)

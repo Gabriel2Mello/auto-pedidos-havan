@@ -73,7 +73,7 @@ class MenuTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()), patch('builtins.input', return_value='1'):
             self.assertEqual(perguntar_apos_erro('2026-12345', PedidoRejeitadoError('Produto ausente'), True, True), 'repetir')
 
-    def test_sessao_expirada_oferece_reconectar_ou_parar(self) -> None:
+    def test_expiracao_persistente_oferece_reconectar_ou_parar(self) -> None:
         saida = io.StringIO()
         with redirect_stdout(saida), patch('builtins.input', side_effect=['2', '1']):
             decisao = perguntar_apos_erro('2026-12345', SessaoPortalExpiradaError(), True, False)

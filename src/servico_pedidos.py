@@ -148,6 +148,7 @@ def processar_pedidos(
                 reconectar_banco = False
                 for indice, pedido in enumerate(dict.fromkeys(numero_pedidos), start=1):
                     primeira_tentativa = True
+                    reconexao_portal_tentada = False
                     while True:
                         if recursos.parada_solicitada():
                             logger.info('Parada solicitada. Os pedidos pendentes estão preservados.')
@@ -171,6 +172,14 @@ def processar_pedidos(
                                 ao_progresso(pedido, indice, len(resumo.situacoes))
                             break
                         except BaseException as error:
+                            if isinstance(error, SessaoPortalExpiradaError) and not reconexao_portal_tentada:
+                                registro = estado.obter(pedido)
+                                if registro is not None and registro.etapa == 'para_baixar':
+                                    recursos.scraper = None
+                                    reconexao_portal_tentada = True
+                                    primeira_tentativa = False
+                                    logger.info('Pedido %s: sessão expirada; reconectando automaticamente ao Portal Havan.', pedido)
+                                    continue
                             if isinstance(error, Exception):
                                 registrar_evento('pedido_falhou', f'{execucao_metricas}:{pedido}', pedido,
                                                  execucao=execucao_metricas)

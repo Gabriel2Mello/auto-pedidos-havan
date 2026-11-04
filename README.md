@@ -222,9 +222,12 @@ pedido, etapa, dados do ambiente e pilha da exceção. A tela não exibe a pilha
 técnica. Para atendimento, o operador envia o log e informa o código exibido ao
 abrir. As senhas do banco e parâmetros secretos não são reproduzidos no log.
 
-Quando o portal volta a exigir autenticação durante o lote, o programa pausa e
-oferece **Reconectar ao Portal Havan** ou **Parar**. A reconexão faz novo login
-somente depois da escolha do operador; parar preserva todos os pedidos pendentes.
+Quando o portal volta a exigir autenticação durante o download, o programa abre
+uma nova sessão e faz login automaticamente, sem pedir autorização ao operador.
+O pedido é reconferido e retomado, respeitando uma solicitação de parada.
+Há uma reconexão automática por pedido; se ela falhar ou a sessão expirar de novo
+no mesmo pedido, o processamento pausa e oferece tentar novamente ou parar,
+preservando todos os pedidos pendentes.
 Falhas de banco também descartam a conexão indisponível: quando for seguro
 repetir e o operador autorizar, uma nova conexão é aberta e o pedido é reconferido.
 Inclusões que ficaram incertas continuam exigindo conferência antes de outra inclusão.

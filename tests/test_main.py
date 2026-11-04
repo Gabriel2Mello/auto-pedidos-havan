@@ -433,25 +433,89 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         self.banco.reconectar.assert_called_once()
         self.importar.assert_not_called()
 
-    def test_sessao_expirada_reconecta_somente_por_escolha_e_reaproveita_pendencia(self) -> None:
+    def test_sessao_expirada_reconecta_automaticamente_sem_pedir_decisao(self) -> None:
         self.preparar()
         self.baixar.side_effect = [SessaoPortalExpiradaError(), {'2026-12345': True}]
-        def decidir(pedido, erro, repetir, continuar):
-            self.assertIsInstance(erro, SessaoPortalExpiradaError)
-            self.assertEqual((repetir, continuar), (True, False))
-            self.assertEqual(self.login.call_count, 1)
-            return 'repetir'
-        main.processar_pedidos(['2026-12345'], ao_erro=decidir)
+        sessoes = [MagicMock(), MagicMock()]
+        self.scraper.side_effect = sessoes
+        decidir = MagicMock(return_value='encerrar')
+        with patch('src.servico_pedidos.registrar_evento') as evento:
+            resumo = main.processar_pedidos(['2026-12345'], ao_erro=decidir)
+        decidir.assert_not_called()
+        self.assertNotIn('pedido_falhou', [chamada.args[0] for chamada in evento.call_args_list])
         self.assertEqual(self.scraper.call_count, 2)
         self.assertEqual(self.login.call_count, 2)
+        self.assertEqual([c.args[0] for c in self.baixar.call_args_list],
+                         [s.__enter__.return_value for s in sessoes])
+        for sessao in sessoes:
+            sessao.__exit__.assert_called_once()
+        self.assertEqual(resumo.situacoes['2026-12345'], 'impressao_enviada')
         self.importar.assert_called_once()
+        self.imprimir.assert_called_once()
 
-    def test_cancelar_sessao_expirada_preserva_lote_sem_novo_login(self) -> None:
+    def test_sessao_expirada_reconecta_tambem_sem_callback_de_erro(self) -> None:
+        self.preparar()
+        self.baixar.side_effect = [SessaoPortalExpiradaError(), {'2026-12345': True}]
+        resumo = main.processar_pedidos(['2026-12345'], modo='preparar')
+        self.assertEqual(self.login.call_count, 2)
+        self.assertEqual(resumo.situacoes['2026-12345'], 'pronto_importar')
+        self.assert_sem_interface()
+
+    def test_expiracao_repetida_pausa_sem_loop_e_preserva_lote(self) -> None:
         self.baixar.side_effect = SessaoPortalExpiradaError()
-        main.processar_pedidos(['2026-12345', '2026-67890'], ao_erro=lambda *args: 'encerrar')
-        self.assertEqual(self.login.call_count, 1)
+        decidir = MagicMock(return_value='encerrar')
+        main.processar_pedidos(['2026-12345', '2026-67890'], ao_erro=decidir)
+        self.assertEqual(self.login.call_count, 2)
+        self.assertEqual(self.baixar.call_count, 2)
+        decidir.assert_called_once()
+        self.assertEqual(decidir.call_args.args[2:], (True, False))
         with EstadoPedidos(self.estado_path) as historico:
             self.assertEqual(historico.pendentes(), ['2026-12345', '2026-67890'])
+        self.assert_sem_interface()
+
+    def test_parada_apos_expiracao_impede_reconexao_automatica(self) -> None:
+        parada = Event()
+        def expirar(*args, **kwargs):
+            parada.set()
+            raise SessaoPortalExpiradaError()
+        self.baixar.side_effect = expirar
+        decidir = MagicMock()
+        main.processar_pedidos(['2026-12345', '2026-67890'], parar=parada.is_set, ao_erro=decidir)
+        self.assertEqual(self.login.call_count, 1)
+        decidir.assert_not_called()
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.pendentes(), ['2026-12345', '2026-67890'])
+        self.assert_sem_interface()
+
+    def test_reconexao_reconfere_duplicidade_antes_de_repetir_download(self) -> None:
+        self.baixar.side_effect = SessaoPortalExpiradaError()
+        self.banco.consultar_pedidos.side_effect = [{}, {'2026-12345': [PedidoExistente('100', 2)]}]
+        resumo = main.processar_pedidos(['2026-12345'])
+        self.assertEqual(resumo.situacoes['2026-12345'], 'existente')
+        self.login.assert_called_once()
+        self.baixar.assert_called_once()
+        self.assert_sem_interface()
+
+    def test_falha_no_login_automatico_pausa_sem_novas_tentativas(self) -> None:
+        self.baixar.side_effect = SessaoPortalExpiradaError()
+        self.login.side_effect = [None, RuntimeError('Falha de login sintética')]
+        decidir = MagicMock(return_value='encerrar')
+        main.processar_pedidos(['2026-12345'], ao_erro=decidir)
+        self.assertEqual(self.login.call_count, 2)
+        self.baixar.assert_called_once()
+        decidir.assert_called_once()
+        self.assertIsInstance(decidir.call_args.args[1], RuntimeError)
+        self.assert_sem_interface()
+
+    def test_cada_pedido_pode_reconectar_e_sessao_nova_e_reaproveitada(self) -> None:
+        for pedido in ('2026-12345', '2026-67890', '2026-54321'):
+            self.preparar(pedido)
+        self.baixar.side_effect = [SessaoPortalExpiradaError(), {'2026-12345': True},
+                                  SessaoPortalExpiradaError(), {'2026-67890': True},
+                                  {'2026-54321': True}]
+        resumo = main.processar_pedidos(['2026-12345', '2026-67890', '2026-54321'], modo='preparar')
+        self.assertEqual(self.login.call_count, 3)
+        self.assertEqual(set(resumo.situacoes.values()), {'pronto_importar'})
         self.assert_sem_interface()
 
     def test_itens_sao_preservados_antes_da_interface_e_conferidos_antes_de_imprimir(self) -> None:
