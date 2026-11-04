@@ -47,7 +47,9 @@ também precisa dos arquivos HTML/CSS/JS e ícones no pacote de distribuição.
    XML/PDF e todos os EANs. Esta etapa não abre a inclusão no Sisplan nem imprime;
    não exige impressora ou Sumatra configurados.
 3. No **Sumário dos pedidos**, abaixo dos cartões, confira pedido Havan,
-   número Sisplan, situação e próximo passo. As ações de preparação, conferência
+   número Sisplan, situação e ações. A orientação fica junto da situação; a coluna
+   **Ações** contém somente o comando disponível, sem repetir instruções.
+   As ações de preparação, conferência
    e recuperação também ficam nessa tabela compacta. Use **2. Conferir resultados**
    para consultar observações, erros, buscar e filtrar a lista pelos grupos:
    **Prontos para importar**, **Produtos sem cadastro**, **Outras pendências**,
@@ -71,7 +73,7 @@ Arquivos baixados ainda exigem conferência; importação confirmada e PDF pront
 aparecem como **Impressão pendente**. Envio iniciado sem confirmação fica como
 **Impressão a conferir**, sem presumir que a impressão continua em andamento.
 
-Os botões da coluna Ação usam **Preparar**, **Conferir** e **Imprimir**,
+Na tabela detalhada, os botões da coluna Ação usam **Preparar**, **Conferir** e **Imprimir**,
 com descrição completa para leitores de tela. Não há função de reimpressão.
 
 As próximas ações ficam na linha do pedido (as descrições abaixo explicam os botões):
@@ -85,8 +87,23 @@ As próximas ações ficam na linha do pedido (as descrições abaixo explicam o
 | Importado, impressão pendente | **Retomar impressão**, sem reincluir o pedido. |
 | Impressão incerta | Confira a fila de impressão com o responsável. Não há ação de reenvio. |
 
-A faixa **Importar no Sisplan** fica logo abaixo do sumário, antes de
-**2. Conferir resultados**.
+A faixa de importação fica na coluna esquerda, abaixo de **Baixar e conferir** e
+**Limpar**, com a quantidade de pedidos prontos e a orientação para abrir a tela
+1002 do Sisplan. **Detalhes do processamento** fica logo abaixo dessa faixa.
+Ambos ficam fora da entrada recolhível, mantendo a importação acessível quando
+**1. Informar pedidos** é recolhido. À direita, o sumário vem diretamente abaixo
+dos cartões. No sumário, os botões são **Baixar e conferir**, **Conferir novamente**,
+**Conferir gravação** ou **Retomar impressão**, conforme a etapa. **Ver detalhes**
+localiza o pedido na conferência completa quando não há ação de recuperação.
+Pedidos aptos, já existentes e enviados para impressão exibem apenas um traço
+na coluna de ações. Nas impressões incertas, a orientação permanece junto da
+situação e não há botão de reenvio. A coluna de ações fica alinhada à direita;
+em áreas estreitas, os campos continuam empilhados com seus rótulos.
+No sumário, as situações usam texto colorido com marcador circular, sem fundo de
+etiqueta. **Cadastro pendente** traz a orientação curta **Cadastro precisa de
+revisão.**; os EANs, produtos e a mensagem completa continuam na tabela detalhada
+de **2. Conferir resultados**. As orientações de inclusão ou impressão incerta
+continuam visíveis no próprio sumário.
 Após iniciar a importação, a página sobe suavemente até o topo, preservando a entrada expandida ou
 recolhida, para acompanhar o pedido. O botão informa quantos pedidos estão aptos e fica desabilitado com o texto
 **Nenhum pedido apto** quando não há aptos no escopo. Observações que apenas
@@ -113,7 +130,8 @@ Durante a execução, o botão de parada e a orientação ficam na mesma linha
 quando há espaço, com quebra em janelas menores. Ao recolher a entrada, a faixa do último pedido permanece visível após o término.
 O acompanhamento só fica oculto quando ainda não há pedido para exibir. Nesse caso,
 os quatro cartões passam para a conferência, acima da busca. Com pedidos no escopo,
-cartões, sumário e importação permanecem juntos mesmo com a entrada recolhida.
+os cartões e o sumário permanecem no acompanhamento; a importação continua
+acessível na área de comandos mesmo com a entrada recolhida.
 Durante execução, pausa por erro ou
 falha, o acompanhamento continua acessível. A seleção de escopo fica junto aos
 filtros, alinhada à direita quando há espaço. **Limpar filtros** limpa a busca,

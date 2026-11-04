@@ -140,15 +140,23 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 .tabela-sumario th{position:sticky;top:0;z-index:1;font-size:12px;font-weight:400}
 .tabela-sumario th,.tabela-sumario td{padding:10px 8px;vertical-align:middle}
 .tabela-sumario th:first-child,.tabela-sumario td:first-child{padding-left:0;width:30%}
-.tabela-sumario th:nth-child(2){width:30%}
+.tabela-sumario th:nth-child(2){width:39%}
+.tabela-sumario th:last-child{width:31%}
 .tabela-sumario td:first-child strong,.tabela-sumario td:first-child .dica{display:block;font-variant-numeric:tabular-nums}
 .tabela-sumario td:first-child .dica{font-size:12px;margin-top:3px}
-.tabela-sumario .situacao{font-size:13px;line-height:1.4}
+.tabela-sumario .situacao{display:inline-flex;align-items:baseline;gap:8px;padding:0;border-radius:0;background:transparent;color:var(--marca);font-size:13px;line-height:1.4}
+.tabela-sumario .situacao::before{content:"";flex:0 0 6px;width:6px;height:6px;align-self:flex-start;margin-top:.5em;border-radius:50%;background:currentColor}
+.tabela-sumario .situacao.atencao{color:var(--aviso)}
+.tabela-sumario .situacao.concluido{color:var(--sucesso)}
+.tabela-sumario th:last-child,.tabela-sumario td:last-child{text-align:right}
 .tabela-sumario td:last-child{font-size:13px}
-.tabela-sumario button{margin-top:6px;max-width:100%;white-space:normal;border-color:var(--contorno-controle)}
-.tabela-sumario td:last-child>button:only-child{margin-top:0}
-.acompanhamento .importacao-lote{margin:16px 0 0;flex-wrap:wrap;padding:12px}
-.acompanhamento .importacao-lote>div{flex:1 1 220px}
+.tabela-sumario .orientacao-sumario{font-size:12px;line-height:1.45;margin:6px 0 0;white-space:pre-line}
+.tabela-sumario .acao-ausente{color:var(--muted)}
+.tabela-sumario button{margin:0;padding:7px 10px;font-size:13px;max-width:100%;white-space:normal;border-color:var(--contorno-controle)}
+.coluna-comandos{min-width:0}
+.coluna-comandos .importacao-lote{margin:16px 12px 8px;flex-wrap:wrap;padding:12px}
+.coluna-comandos .importacao-lote>div{flex:1 1 220px}
+.coluna-comandos .detalhes-processamento{margin:4px 20px 0}
 #grupos-acompanhamento,#grupos-resultados{container-type:inline-size;min-width:0}
 @container(max-width:500px){
   .filas-acompanhamento,#grupos-resultados .filas{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -158,6 +166,8 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
   .tabela-sumario,.tabela-sumario tbody,.tabela-sumario tr,.tabela-sumario td{display:block;width:100%}
   .tabela-sumario tr{padding:10px 0;border-bottom:1px solid var(--borda)}
   .tabela-sumario td,.tabela-sumario td:first-child{border:0;padding:4px 0;width:100%}
+  .tabela-sumario td:last-child{text-align:left}
+  .tabela-sumario td:last-child:has(.acao-ausente){display:none}
   .tabela-sumario td:not(:first-child)::before{content:attr(data-rotulo);display:block;color:var(--muted);font-size:12px;margin-bottom:3px}
 }
 

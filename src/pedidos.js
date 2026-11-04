@@ -78,6 +78,8 @@ function atualizarImportacao(){
   const rotulo=quantidade?`Importar ${quantidade} ${quantidade===1?'pedido':'pedidos'}`:'Nenhum pedido apto';
   if(el('importar-aptos').textContent!==rotulo)el('importar-aptos').textContent=rotulo;
   el('importar-aptos').disabled=inicioBloqueado()||!quantidade;
+  const titulo=quantidade?`${quantidade} ${quantidade===1?'pedido pronto':'pedidos prontos'} para importar`:'Nenhum pedido pronto para importar';
+  if(el('titulo-importacao').textContent!==titulo)el('titulo-importacao').textContent=titulo;
   const aviso='Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.';
   if(el('alcance-importacao').textContent!==aviso)el('alcance-importacao').textContent=aviso;
 }
@@ -118,41 +120,48 @@ function apresentacaoPedido(p){
   const observacao=[p.erro||'',motivo,!p.erro&&(falhaResultado||!rotulos[p.etapa])?resultado:''].filter(Boolean).join('\n');
   return {situacao,observacao:observacao.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')||'—'};
 }
-function criarAcaoPedido(p,acao){
+function criarAcaoPedido(p,acao,rotuloVisivel){
   const [operacao,rotulo]=acao,botao=document.createElement('button');
-  botao.type='button';botao.textContent=operacao==='preparar'?'Preparar':rotulo==='Retomar impressão'?'Imprimir':'Conferir';
+  botao.type='button';botao.textContent=rotuloVisivel||(operacao==='preparar'?'Preparar':rotulo==='Retomar impressão'?'Imprimir':'Conferir');
   botao.setAttribute('data-acao-pedido',p.pedido);botao.setAttribute('aria-label',botao.textContent+' — '+rotulo+' — pedido '+p.pedido);
   botao.disabled=inicioBloqueado();botao.onclick=()=>executarEtapa(operacao,[p.pedido]);
   return botao;
 }
 function renderizarSumario(base){
   el('sumario-pedidos').hidden=!base.length;
+  el('importacao-lote').hidden=!base.length;
   const chave=JSON.stringify([base,escopo,estado?.ocupada]);
   if(chave===sumarioAnterior)return;
   sumarioAnterior=chave;
   el('alcance-sumario').textContent=`${escopo==='lote'?'Lote em conferência':'Todos os pedidos salvos'} · ${base.length} ${base.length===1?'pedido':'pedidos'}${estado?.ocupada?' · em andamento':''}`;
   const linhas=document.createDocumentFragment();
   for(const p of base){
-    const tr=document.createElement('tr'),pedido=document.createElement('td'),situacao=document.createElement('td'),passo=document.createElement('td');
+    const tr=document.createElement('tr'),pedido=document.createElement('td'),situacao=document.createElement('td'),acoes=document.createElement('td');
     const numero=document.createElement('strong'),sisplan=document.createElement('span'),etiqueta=document.createElement('span');
     numero.textContent=p.pedido;sisplan.textContent='Sisplan: '+(p.numero||'—');sisplan.className='dica';pedido.append(numero,sisplan);
     const apresentacao=apresentacaoPedido(p),atencao=exigeAtencao(p)||['falhou','rejeitado'].includes(p.resultado);
     etiqueta.textContent=p.etapa==='existente'&&!atencao?'Já existe no Sisplan':apresentacao.situacao;
     etiqueta.className='situacao'+(atencao?' atencao':['existente','impressao_enviada'].includes(p.etapa)?' concluido':'');situacao.append(etiqueta);
+    let observacao=apresentacao.observacao;
+    if(!atencao&&['existente','impressao_enviada','pronto_importar'].includes(p.etapa))observacao='';
+    else if(p.etapa==='sem_cadastro')observacao='Cadastro precisa de revisão.';
+    if(observacao&&observacao!=='—'){
+      const orientacao=document.createElement('p');orientacao.className='dica orientacao-sumario';orientacao.textContent=observacao;situacao.append(orientacao);
+    }
     const acao=acaoDoPedido(p);
     if(acao){
-      const orientacao=document.createElement('p');orientacao.textContent=acao[1];passo.append(orientacao,criarAcaoPedido(p,acao));
-    }else if(apto(p)&&!atencao)passo.textContent='Importar pelo botão abaixo.';
-    else if(!atencao&&['existente','impressao_enviada'].includes(p.etapa))passo.textContent='Nenhuma ação.';
-    else if(['impressao_iniciada','impressao_incerta'].includes(p.etapa))passo.textContent='Confira a fila de impressão com o responsável.';
-    else{
+      const rotulo=acao[0]==='preparar'?'Baixar e conferir':acao[0]==='revalidar'?'Conferir novamente':acao[1]==='Retomar impressão'?'Retomar impressão':'Conferir gravação';
+      acoes.append(criarAcaoPedido(p,acao,rotulo));
+    }else if((!atencao&&(apto(p)||['existente','impressao_enviada'].includes(p.etapa)))||['impressao_iniciada','impressao_incerta'].includes(p.etapa)){
+      const vazio=document.createElement('span');vazio.className='acao-ausente';vazio.textContent='—';vazio.setAttribute('aria-label','Nenhuma ação disponível para este pedido');acoes.append(vazio);
+    }else{
       const detalhe=document.createElement('button');detalhe.type='button';detalhe.textContent='Ver detalhes';
       detalhe.setAttribute('aria-label','Ver detalhes do pedido '+p.pedido);
       detalhe.onclick=()=>{el('busca').value=p.pedido;el('filtro').value='todos';pagina=0;renderizarTabela();abrirResultados();};
-      passo.append(detalhe);
+      acoes.append(detalhe);
     }
-    [pedido,situacao,passo].forEach((td,i)=>td.setAttribute('data-rotulo',['Pedido / Sisplan','Situação','Próximo passo'][i]));
-    tr.append(pedido,situacao,passo);linhas.append(tr);
+    [pedido,situacao,acoes].forEach((td,i)=>td.setAttribute('data-rotulo',['Pedido / Sisplan','Situação','Ações'][i]));
+    tr.append(pedido,situacao,acoes);linhas.append(tr);
   }
   el('linhas-sumario').replaceChildren(linhas);
 }

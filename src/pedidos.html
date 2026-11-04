@@ -42,6 +42,7 @@
   </header>
   <p id="conexao" class="aviso conexao" role="alert" hidden></p>
   <div class="principal">
+    <div class="coluna-comandos">
     <details id="preparacao" class="preparacao" open>
       <summary id="titulo-entrada">1. Informar pedidos</summary>
       <div class="conteudo-preparacao">
@@ -59,6 +60,15 @@
       </section>
       </div>
     </details>
+      <section id="importacao-lote" class="importacao-lote" aria-labelledby="titulo-importacao" hidden>
+        <div><h3 id="titulo-importacao">Importar no Sisplan</h3><p id="alcance-importacao" class="dica">Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.</p></div>
+        <button id="importar-aptos" class="botao-principal" type="button" aria-describedby="alcance-importacao" disabled>Nenhum pedido apto</button>
+      </section>
+      <details id="detalhes-processamento" class="detalhes-processamento" hidden><summary>Detalhes do processamento</summary>
+      <div id="area-progresso" hidden><progress id="progresso" value="0" max="1" aria-label="Posição no lote; não representa sucesso de todos os pedidos"></progress><p id="posicao" class="dica"></p></div>
+      <div id="indicadores" class="indicadores" hidden><div><strong id="total-lote">0</strong><span>Pedidos no lote</span></div><div><strong id="pendentes-lote">0</strong><span>Pendentes no lote</span></div><div><strong id="atencao-lote">0</strong><span>Exigem atenção</span></div></div>
+      </details>
+    </div>
     <aside id="acompanhamento" class="acompanhamento" aria-labelledby="titulo-andamento">
       <div class="titulo-secao"><h2 id="titulo-andamento">Etapas do lote</h2><span id="fase" class="etiqueta">Iniciando</span></div>
       <p id="status" class="status" role="status">Carregando os pedidos salvos…</p>
@@ -72,16 +82,8 @@
     </div></div>
       <section id="sumario-pedidos" class="sumario-pedidos" aria-labelledby="titulo-sumario" hidden>
         <div class="titulo-secao"><h3 id="titulo-sumario">Sumário dos pedidos</h3><span id="alcance-sumario" class="dica" role="status"></span></div>
-        <div class="rolagem-conferencia rolagem-sumario" tabindex="0" role="region" aria-label="Sumário dos pedidos"><table class="tabela-sumario"><thead><tr><th scope="col">Pedido / Sisplan</th><th scope="col">Situação</th><th scope="col">Próximo passo</th></tr></thead><tbody id="linhas-sumario"></tbody></table></div>
+        <div class="rolagem-conferencia rolagem-sumario" tabindex="0" role="region" aria-label="Sumário dos pedidos"><table class="tabela-sumario"><thead><tr><th scope="col">Pedido / Sisplan</th><th scope="col">Situação</th><th scope="col">Ações</th></tr></thead><tbody id="linhas-sumario"></tbody></table></div>
       </section>
-      <section class="importacao-lote" aria-labelledby="titulo-importacao">
-        <div><h3 id="titulo-importacao">Importar no Sisplan</h3><p id="alcance-importacao" class="dica">Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.</p></div>
-        <button id="importar-aptos" class="botao-principal" type="button" disabled>Nenhum pedido apto</button>
-      </section>
-      <details id="detalhes-processamento" class="detalhes-processamento" hidden><summary>Detalhes do processamento</summary>
-      <div id="area-progresso" hidden><progress id="progresso" value="0" max="1" aria-label="Posição no lote; não representa sucesso de todos os pedidos"></progress><p id="posicao" class="dica"></p></div>
-      <div id="indicadores" class="indicadores" hidden><div><strong id="total-lote">0</strong><span>Pedidos no lote</span></div><div><strong id="pendentes-lote">0</strong><span>Pendentes no lote</span></div><div><strong id="atencao-lote">0</strong><span>Exigem atenção</span></div></div>
-      </details>
       <section id="aviso-erro" class="aviso" hidden aria-labelledby="titulo-erro">
         <h3 id="titulo-erro" tabindex="-1">É preciso conferir este pedido</h3><p id="erro-pedido"></p><p id="erro-mensagem"></p><p id="erro-seguranca" class="dica"></p>
         <div class="acoes"><button type="button" id="repetir" class="botao-principal">Tentar novamente</button><button type="button" id="pular">Deixar pendente e continuar</button><button type="button" id="parar-erro">Parar e preservar os pedidos</button></div>

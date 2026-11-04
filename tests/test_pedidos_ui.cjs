@@ -409,7 +409,7 @@ test('mostrador mantém último processado ao finalizar e durante decisão',()=>
   assert.equal(p.obter('detalhes-processamento').open,false);
   const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
   assert.match(html, /id="identificacao"[^>]*role="status"/);
-  assert.ok(html.indexOf('id="identificacao"')<html.indexOf('id="detalhes-processamento"'));
+  assert.ok(html.indexOf('id="detalhes-processamento"')<html.indexOf('id="acompanhamento"'));
   p.renderizar({...s,fase:'PAUSADO',erro:{id:'e',pedido:s.pedido,mensagem:'Conferir impressão',repetir:false,pular:true}});
   assert.equal(p.obter('identificacao').hidden,false);
   assert.equal(p.obter('aviso-erro').hidden,false);
@@ -842,21 +842,28 @@ test('sumário acompanha escopo completo sem seguir busca, filtro ou paginação
   assert.ok(p.obter('grupos-acompanhamento').children.includes(p.obter('grupos-estados')));
 });
 
-test('sumário diferencia existência, importação, impressão incerta e falha posterior',()=>{
+test('sumário separa situação, orientação e ações sem repetir instruções na coluna de ações',()=>{
   const p=painel();
-  for(const [etapa,erro,situacao,passo] of [
-    ['existente','','Já existe no Sisplan','Nenhuma ação.'],
-    ['existente','Consulta falhou','Conferência pendente',null],
-    ['pronto_importar','','Pronto para importar','Importar pelo botão abaixo.'],
-    ['impressao_enviada','','Enviado para impressão','Nenhuma ação.'],
-    ['impressao_incerta','','Impressão a conferir','Confira a fila de impressão com o responsável.'],
-    ['importado','','Impressão pendente',null]
+  for(const [etapa,erro,situacao,orientacao,acao] of [
+    ['existente','','Já existe no Sisplan',null,'—'],
+    ['existente','Consulta falhou','Conferência pendente','Consulta falhou','Ver detalhes'],
+    ['pronto_importar','','Pronto para importar',null,'—'],
+    ['impressao_enviada','','Enviado para impressão',null,'—'],
+    ['impressao_incerta','','Impressão a conferir','Confira a fila de impressão com o responsável.','—'],
+    ['importado','','Impressão pendente','Importação confirmada. Retome a impressão.','Retomar impressão'],
+    ['sem_cadastro','','Cadastro pendente','Cadastro precisa de revisão.','Conferir novamente'],
+    ['gravacao_pendente','','Inclusão a conferir','Gravação não confirmada no Sisplan.','Conferir gravação']
   ]){
     p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',numero:'11111',etapa,erro}]});
     const celulas=p.obter('linhas-sumario').children[0].children[0].children;
     assert.equal(celulas[0].children[1].textContent,'Sisplan: 11111');
     assert.equal(celulas[1].children[0].textContent,situacao);
-    if(passo)assert.equal(celulas[2].textContent,passo);else assert.ok(celulas[2].children.some(e=>e.onclick));
+    assert.equal(celulas[1].children.length,orientacao?2:1);
+    if(orientacao)assert.equal(celulas[1].children[1].textContent,orientacao);
+    assert.equal(celulas[2].atributos['data-rotulo'],'Ações');
+    assert.equal(celulas[2].children.length,1);
+    assert.equal(celulas[2].children[0].textContent,acao);
+    assert.equal(Boolean(celulas[2].children[0].onclick),acao!=='—');
   }
 });
 
@@ -881,7 +888,7 @@ test('sumário não sugere importar quando resultado da execução exige confer�
 test('ação de recuperação no sumário preserva revisão e bloqueia novos envios sem conexão',async()=>{
   const p=painel(),pedido='2026-12345',s={...p.estado,pedidos:[{pedido,etapa:'importado',numero:'11111',erro:''}]};
   p.renderizar(s);
-  const botao=p.obter('linhas-sumario').children[0].children[0].children[2].children[1];
+  const botao=p.obter('linhas-sumario').children[0].children[0].children[2].children[0];
   assert.match(botao.atributos['aria-label'],/Retomar impressão/);
   const chamadas=[];
   p.contexto.fetch=async(url,opcoes)=>{chamadas.push([url,opcoes]);return {ok:true,json:async()=>url==='/api/conferir'?{id:'revisao-sumario'}:url==='/api/estado'?s:{ok:true}};};
@@ -890,6 +897,47 @@ test('ação de recuperação no sumário preserva revisão e bloqueia novos env
   assert.equal(JSON.parse(chamadas[1][1].body).conferencia,'revisao-sumario');
   vm.runInContext('conectado=false;atualizarBotoes()',p.contexto);assert.equal(botao.disabled,true);
   const quantidade=chamadas.length;await botao.onclick();assert.equal(chamadas.length,quantidade);
+});
+
+test('orientação curta no sumário preserva erro completo nos detalhes e revalida somente o pedido escolhido',async()=>{
+  const p=painel(),pedido='2026-12345',erro='EAN 7891234567890 sem cadastro.';
+  const s={...p.estado,pedidos:[{pedido,etapa:'sem_cadastro',erro},{pedido:'2026-54321',etapa:'pronto_importar',erro:''}]};
+  p.renderizar(s);
+  const celulas=p.obter('linhas-sumario').children[0].children[0].children;
+  assert.equal(celulas[1].children[1].textContent,'Cadastro precisa de revisão.');
+  assert.match(p.obter('linhas').children[0].children[0].children[4].textContent,/EAN 7891234567890 sem cadastro/);
+  const botao=celulas[2].children[0],chamadas=[];
+  assert.equal(botao.textContent,'Conferir novamente');
+  assert.match(botao.atributos['aria-label'],/Conferir cadastro novamente/);
+  p.contexto.fetch=async(url,opcoes)=>{chamadas.push([url,opcoes]);return {ok:true,json:async()=>url==='/api/conferir'?{id:'cadastro-revisao'}:url==='/api/estado'?s:{ok:true}};};
+  await botao.onclick();
+  assert.deepEqual(JSON.parse(chamadas[0][1].body),{modo:'revalidar',pedidos:pedido});
+  assert.equal(JSON.parse(chamadas[1][1].body).conferencia,'cadastro-revisao');
+  assert.equal(JSON.parse(chamadas[1][1].body).pedidos,pedido);
+});
+
+test('importação e detalhes ficam na coluna de comandos, fora da entrada recolhível e do sumário',()=>{
+  const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
+  const comandos=html.slice(html.indexOf('<div class="coluna-comandos">'),html.indexOf('<aside id="acompanhamento"'));
+  const sumario=html.slice(html.indexOf('<section id="sumario-pedidos"'),html.indexOf('<section id="aviso-erro"'));
+  assert.ok(comandos.indexOf('</details>')<comandos.indexOf('id="importacao-lote"'));
+  assert.ok(comandos.indexOf('id="importacao-lote"')<comandos.indexOf('id="detalhes-processamento"'));
+  assert.ok(!sumario.includes('id="importar-aptos"')&&!sumario.includes('id="detalhes-processamento"'));
+  assert.ok(sumario.includes('<th scope="col">Ações</th>')&&!sumario.includes('Próximo passo'));
+  const p=painel();p.renderizar(p.estado);
+  assert.equal(p.obter('sumario-pedidos').hidden,true);
+  assert.equal(p.obter('importacao-lote').hidden,true);
+  assert.equal(p.obter('titulo-importacao').textContent,'Nenhum pedido pronto para importar');
+  p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa:'pronto_importar',erro:''},{pedido:'2026-54321',etapa:'sem_cadastro',erro:''}]});
+  assert.equal(p.obter('titulo-importacao').textContent,'1 pedido pronto para importar');
+  assert.equal(p.obter('importar-aptos').disabled,false);
+  assert.equal(p.obter('importacao-lote').hidden,false);
+  const escritas=p.obter('titulo-importacao').escritas;
+  p.obter('fila-pendencias').onclick();
+  assert.equal(p.obter('preparacao').open,false);
+  assert.equal(p.obter('importacao-lote').hidden,false);
+  assert.equal(p.obter('titulo-importacao').escritas,escritas);
+  assert.equal(p.obter('importar-aptos').textContent,'Importar 1 pedido');
 });
 
 test('detalhe do sumário localiza pedido sem executar integração',()=>{

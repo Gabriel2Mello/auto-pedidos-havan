@@ -13,7 +13,7 @@ from src.interface_web import criar_servidor
 from demonstracao import simular
 
 
-def main():
+def main(apenas_sumario=False):
     resultados, falhas = [], []
     with TemporaryDirectory(prefix='havan-ensaio-') as pasta, patch.dict(os.environ, {'HAVAN_DESKTOP_DADOS': pasta}):
         estado = EstadoInterface(Path(pasta)/'estado.sqlite3', executor=simular)
@@ -82,6 +82,7 @@ def main():
                             tarefas=[]
                             w.native.Invoke(Action(lambda:tarefas.append(w.native.webview.CoreWebView2.CallDevToolsProtocolMethodAsync(metodo,json.dumps(parametros)))))
                             assert tarefas[0].Wait(5000)
+                            return json.loads(tarefas[0].Result)
 
                         def roda(x,y,delta=150):
                             protocolo('Input.dispatchMouseEvent',dict(type='mouseMoved',x=x,y=y))
@@ -163,12 +164,61 @@ def main():
                         assert w.evaluate_js("document.getElementById('preparacao').open && !document.getElementById('aviso-erro').hidden===false")
                         resultados.append('preparo separa aptos, EAN ausente e download falho sem importar nem pausar por pedido')
                         assert w.evaluate_js("document.querySelectorAll('#linhas-sumario tr').length===4 && document.querySelector('#sumario-pedidos .tabela-sumario th').textContent==='Pedido / Sisplan'")
-                        assert w.evaluate_js("document.querySelector('.filas').getBoundingClientRect().bottom <= document.getElementById('sumario-pedidos').getBoundingClientRect().top && document.getElementById('sumario-pedidos').getBoundingClientRect().bottom <= document.querySelector('.importacao-lote').getBoundingClientRect().top")
+                        assert w.evaluate_js("document.querySelector('.filas').getBoundingClientRect().bottom <= document.getElementById('sumario-pedidos').getBoundingClientRect().top && !document.querySelector('#sumario-pedidos .importacao-lote')")
+                        assert w.evaluate_js("(()=>{const c=document.querySelector('.coluna-comandos'),p=document.getElementById('preparacao'),i=document.getElementById('importacao-lote'),d=document.getElementById('detalhes-processamento');return c.contains(i)&&c.contains(d)&&!p.contains(i)&&!p.contains(d)&&i.getBoundingClientRect().top>=p.getBoundingClientRect().bottom&&d.getBoundingClientRect().top>=i.getBoundingClientRect().bottom})()")
+                        assert w.evaluate_js("document.querySelector('.tabela-sumario th:last-child').textContent==='Ações' && [...document.querySelectorAll('#linhas-sumario td:last-child')].every(c=>c.children.length===1 && (c.querySelector('button') || c.querySelector('.acao-ausente')))")
+                        assert w.evaluate_js("(()=>{const l=[...document.querySelectorAll('#linhas-sumario tr')].find(l=>l.firstElementChild.textContent.includes('999003'));return l.cells[1].querySelector('.orientacao-sumario')!==null && l.cells[2].textContent==='Conferir novamente'})()")
+                        assert w.evaluate_js("[...document.querySelectorAll('.tabela-sumario .situacao')].every(s=>{const e=getComputedStyle(s),p=getComputedStyle(s,'::before');return e.backgroundColor==='rgba(0, 0, 0, 0)' && e.padding==='0px' && parseFloat(p.width)>0 && p.backgroundColor===e.color})")
+                        assert w.evaluate_js("(()=>{const l=[...document.querySelectorAll('#linhas-sumario tr')].find(l=>l.firstElementChild.textContent.includes('999003'));return l.cells[1].querySelector('.orientacao-sumario').textContent==='Cadastro precisa de revisão.' && document.getElementById('linhas').textContent.includes('EAN 0123456789012')})()")
                         for largura in (1180,760,480):
                             w.resize(largura,820);time.sleep(.2);sem_recorte()
                             assert w.evaluate_js("(()=>{const a=document.querySelector('.rolagem-sumario'),r=a.getBoundingClientRect();return a.scrollWidth<=a.clientWidth+1 && [...a.querySelectorAll('td')].every(e=>e.getBoundingClientRect().right<=r.right+1)})()")
                         w.resize(1180,820)
-                        resultados.append('sumário compacto abaixo dos cartões: quatro pedidos, importação próxima e sem recorte em três larguras')
+                        resultados.append('referência aplicada: importação e detalhes à esquerda, sumário com ações à direita e sem recorte em três larguras')
+                        w.maximize();time.sleep(.3);sem_recorte()
+                        w.toggle_fullscreen();time.sleep(.3);sem_recorte()
+                        assert w.evaluate_js("getComputedStyle(document.querySelector('.principal')).gridTemplateColumns.split(' ').length===2 && document.querySelector('.rolagem-sumario').scrollWidth<=document.querySelector('.rolagem-sumario').clientWidth+1")
+                        assert w.evaluate_js("document.getElementById('acompanhamento').getBoundingClientRect().left>=document.querySelector('.coluna-comandos').getBoundingClientRect().right")
+                        w.evaluate_js("document.getElementById('preparacao').open=false")
+                        time.sleep(.2)
+                        assert w.evaluate_js("!document.getElementById('importacao-lote').hidden && document.getElementById('importar-aptos').getBoundingClientRect().height>0 && !document.getElementById('importar-aptos').disabled && document.getElementById('detalhes-processamento').getBoundingClientRect().height>0")
+                        w.evaluate_js("document.getElementById('preparacao').open=true")
+                        time.sleep(.2)
+                        resultados.append('importação e detalhes continuam acessíveis com a entrada recolhida')
+                        from base64 import b64decode
+                        capturas=Path('.local/qa-desktop');capturas.mkdir(parents=True,exist_ok=True)
+                        for tema in ('escuro','claro'):
+                            w.evaluate_js(f"document.documentElement.dataset.tema={json.dumps(tema)};window.scrollTo({{top:0,behavior:'instant'}})")
+                            time.sleep(.2)
+                            assert w.evaluate_js("[...document.querySelectorAll('.tabela-sumario .situacao')].every(s=>{const e=getComputedStyle(s);return e.backgroundColor==='rgba(0, 0, 0, 0)' && getComputedStyle(s,'::before').backgroundColor===e.color})")
+                            (capturas/f'acoes-coluna-{tema}.png').write_bytes(b64decode(protocolo('Page.captureScreenshot',{'format':'png'})['data']))
+                        assert w.evaluate_js("(()=>{const a=document.querySelector('.rolagem-sumario'),limite=Math.min(innerHeight,a.getBoundingClientRect().bottom);return [...a.querySelectorAll('button')].every(b=>{const r=b.getBoundingClientRect(),y=r.top+r.height/2;return y>=limite||y<0||b.contains(document.elementFromPoint(r.right-1,y))})})()")
+                        largura_sumario=w.evaluate_js("document.querySelector('.rolagem-sumario').getBoundingClientRect().width")
+                        w.evaluate_js("window.linhasQA=[...document.querySelectorAll('#linhas-sumario tr')];document.getElementById('linhas-sumario').replaceChildren(...Array.from({length:60},(_,i)=>window.linhasQA[i%window.linhasQA.length].cloneNode(true)))")
+                        time.sleep(.2)
+                        assert w.evaluate_js("document.querySelector('.rolagem-sumario').scrollHeight>document.querySelector('.rolagem-sumario').clientHeight && document.querySelector('.rolagem-sumario').scrollWidth<=document.querySelector('.rolagem-sumario').clientWidth+1")
+                        assert abs(w.evaluate_js("document.querySelector('.rolagem-sumario').getBoundingClientRect().width")-largura_sumario)<1
+                        w.evaluate_js("document.getElementById('linhas-sumario').replaceChildren(window.linhasQA[0])")
+                        time.sleep(.2)
+                        assert w.evaluate_js("document.querySelector('.rolagem-sumario').scrollHeight<=document.querySelector('.rolagem-sumario').clientHeight")
+                        assert abs(w.evaluate_js("document.querySelector('.rolagem-sumario').getBoundingClientRect().width")-largura_sumario)<1
+                        w.evaluate_js("document.getElementById('linhas-sumario').replaceChildren(...window.linhasQA);delete window.linhasQA")
+                        time.sleep(.2)
+                        resultados.append('ações acessíveis na borda, com e sem excedente no sumário, sem deslocar a tabela')
+                        from System import Action
+                        w.native.Invoke(Action(lambda:setattr(w.native.webview,'ZoomFactor',1.25)))
+                        time.sleep(.3);sem_recorte()
+                        assert w.evaluate_js("document.querySelector('.rolagem-sumario').scrollWidth<=document.querySelector('.rolagem-sumario').clientWidth+1")
+                        w.native.Invoke(Action(lambda:setattr(w.native.webview,'ZoomFactor',1)))
+                        w.toggle_fullscreen();w.restore();w.resize(1180,820);time.sleep(.3)
+                        resultados.append('ações em coluna em tela cheia, temas claro e escuro e zoom real 125%, sem faixa reservada ou recorte')
+                        if apenas_sumario:
+                            w.resize(760,540)
+                            w.native.Invoke(Action(lambda:setattr(w.native.webview,'ZoomFactor',2)))
+                            time.sleep(.3);sem_recorte()
+                            assert w.evaluate_js("(()=>{const a=document.querySelector('.rolagem-sumario'),r=a.getBoundingClientRect();return a.scrollWidth<=a.clientWidth+1 && [...a.querySelectorAll('td')].every(e=>e.getBoundingClientRect().right<=r.right+1)})()")
+                            resultados.append(f'situações com marcadores e ações sem recorte em zoom real 200%, viewport {w.evaluate_js("innerWidth")}')
+                            return
                         assert w.evaluate_js("document.getElementById('preparacao').open && getComputedStyle(document.querySelector('.principal')).gridTemplateColumns.split(' ').length===2 && document.getElementById('pedidos').rows===6 && !document.getElementById('alternar-sumario') && !document.getElementById('resultados-detalhados')")
                         entrada=w.evaluate_js("document.getElementById('pedidos').value")
                         w.evaluate_js("document.getElementById('pedidos').value=Array.from({length:60},(_,i)=>'2026-'+(999100+i)).join('\\n');document.getElementById('pedidos').dispatchEvent(new Event('input'));window.scrollTo({top:0,behavior:'instant'});document.getElementById('pedidos').scrollTop=100")
@@ -353,4 +403,8 @@ def main():
     return int(bool(falhas))
 
 
-if __name__=='__main__': raise SystemExit(main())
+if __name__=='__main__':
+    import argparse
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--sumario',action='store_true',help='Validar somente entrada, cartões, sumário e layout no WebView2.')
+    raise SystemExit(main(apenas_sumario=parser.parse_args().sumario))
