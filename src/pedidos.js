@@ -151,11 +151,25 @@ function correspondeFiltro(p,filtro){
 function acaoDoPedido(p){
   if(p.etapa==='sem_cadastro')return ['revalidar','Conferir cadastro novamente'];
   if(p.etapa==='baixado'||p.etapa==='pronto_importar'&&p.erro)return ['revalidar','Conferir arquivos e produtos'];
-  if(p.etapa==='para_baixar')return ['preparar','Baixar e conferir'];
+  if(p.etapa==='para_baixar')return p.erro==='Pedido não encontrado no Portal Havan.'?null:['preparar','Baixar e conferir'];
   if(['importacao_iniciada','gravacao_pendente','aviso_pendente'].includes(p.etapa))return ['recuperar','Conferir gravação no Sisplan'];
   if(['impressao_iniciada','impressao_incerta'].includes(p.etapa))return ['reimprimir','Conferir reimpressão'];
   if(['importado','pdf_pronto','impressao_pendente'].includes(p.etapa))return ['recuperar','Retomar impressão'];
   return null;
+}
+function apresentacaoPedido(p){
+  const motivos={existente:'Já existe no Sisplan.',baixado:'Arquivos baixados; confira arquivos e produtos.',sem_cadastro:'Cadastre os produtos indicados no Sisplan e confira novamente.',importacao_iniciada:'A inclusão foi iniciada e precisa ser conferida no Sisplan.',gravacao_pendente:'A gravação ainda não foi confirmada no Sisplan.',aviso_pendente:'O aviso recebido não comprova duplicidade. Confira a existência no banco.',importado:'Importação confirmada; falta concluir a impressão.',pdf_pronto:'PDF pronto; falta concluir a impressão.',impressao_pendente:'Retome a impressão do pedido já importado.',impressao_iniciada:'Confira a impressora antes de revisar e confirmar outra cópia.',impressao_incerta:'Confira a impressora antes de revisar e confirmar outra cópia.'};
+  const rotulos={para_baixar:'Aguardando preparação',baixado:'Conferência pendente',sem_cadastro:'Cadastro pendente',pronto_importar:'Pronto para importar',importacao_iniciada:'Inclusão a conferir',gravacao_pendente:'Inclusão a conferir',aviso_pendente:'Existência a conferir',importado:'Impressão pendente',pdf_pronto:'Impressão pendente',impressao_pendente:'Impressão pendente',impressao_iniciada:'Impressão a conferir',impressao_incerta:'Impressão a conferir',impressao_enviada:'Enviado para impressão',existente:'Sem ação necessária'};
+  let situacao=rotulos[p.etapa]||p.rotulo||'Conferir situação';
+  if(p.erro){
+    if(p.etapa==='para_baixar')situacao=p.erro==='Pedido não encontrado no Portal Havan.'?'Não disponível':'Preparação pendente';
+    if(['pronto_importar','existente','impressao_enviada'].includes(p.etapa))situacao='Conferência pendente';
+  }
+  const falhaResultado=['falhou','rejeitado'].includes(p.resultado);
+  if(falhaResultado&&!p.erro)situacao='Conferência pendente';
+  const resultado=p.resultado&&rotuloResultado(p.resultado)!==p.rotulo?rotuloResultado(p.resultado):'';
+  const observacao=[p.erro||'',motivos[p.etapa]||'',!p.erro&&(falhaResultado||!rotulos[p.etapa])?resultado:''].filter(Boolean).join('\n');
+  return {situacao,observacao:observacao.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')||'—'};
 }
 function renderizarTabela() {
   const filtro=el('filtro').value, busca=el('busca').value.trim().toLowerCase();
@@ -175,15 +189,15 @@ function renderizarTabela() {
     const linhas=document.createDocumentFragment();
     for(const p of visiveis){
       const tr=document.createElement('tr');
-      const resultado=p.resultado&&rotuloResultado(p.resultado)!==p.rotulo?rotuloResultado(p.resultado):'';
-      [p.pedido,p.numero||'—',p.rotulo||'Conferir situação','',[resultado,p.erro?.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')].filter(Boolean).join('\n')||'—'].forEach((texto,i)=>{
+      const apresentacao=apresentacaoPedido(p);
+      [p.pedido,p.numero||'—',apresentacao.situacao,'',apresentacao.observacao].forEach((texto,i)=>{
         const td=document.createElement('td');
-        td.setAttribute('data-rotulo',['Pedido Havan','Nº Sisplan','Situação salva','Ação','Observação'][i]);
+        td.setAttribute('data-rotulo',['Pedido Havan','Nº Sisplan','Situação','Ação','Observação'][i]);
         if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
         const acao=acaoDoPedido(p);
         if(i===3&&acao){
-          const [operacao,rotulo]=acao,botao=document.createElement('button');botao.type='button';botao.textContent=rotulo;
-          botao.setAttribute('data-acao-pedido',p.pedido);botao.setAttribute('aria-label',rotulo+' — pedido '+p.pedido);
+          const [operacao,rotulo]=acao,botao=document.createElement('button');botao.type='button';botao.textContent=operacao==='preparar'?'Preparar':operacao==='reimprimir'?'Reimprimir':rotulo==='Retomar impressão'?'Imprimir':'Conferir';
+          botao.setAttribute('data-acao-pedido',p.pedido);botao.setAttribute('aria-label',botao.textContent+' — '+rotulo+' — pedido '+p.pedido);
           botao.disabled=inicioBloqueado();botao.onclick=()=>operacao==='reimprimir'?prepararReimpressao(p.pedido):executarEtapa(operacao,[p.pedido]);td.append(botao);
         }
         tr.append(td);
@@ -308,7 +322,24 @@ el('iniciar').onclick=async()=>{
   invalidarConferencia('Solicitação enviada. Confira o resultado da operação.',true);
   await acao('/api/iniciar',{modo,pedidos:modo==='retomar'?'':el('pedidos').value,confirmado,conferencia:id,solicitacao:crypto.randomUUID(),impressora:estado?.impressora});
 };
-el('pedidos').addEventListener('input',()=>{invalidarConferencia();contarPedidos();atualizarBotoes();});
+const contemLetras=texto=>/[\p{L}\p{M}]/u.test(texto);
+let entradaAnterior={valor:'',inicio:0,fim:0};
+el('pedidos').addEventListener('beforeinput',e=>{
+  const campo=el('pedidos');
+  entradaAnterior={valor:campo.value,inicio:campo.selectionStart,fim:campo.selectionEnd};
+  if(contemLetras(e.data||''))e.preventDefault();
+});
+el('pedidos').addEventListener('paste',e=>{
+  if(contemLetras(e.clipboardData?.getData('text')||''))e.preventDefault();
+});
+el('pedidos').addEventListener('input',()=>{
+  const campo=el('pedidos');
+  if(contemLetras(campo.value)){
+    campo.value=entradaAnterior.valor;campo.setSelectionRange(entradaAnterior.inicio,entradaAnterior.fim);return;
+  }
+  entradaAnterior={valor:campo.value,inicio:campo.selectionStart,fim:campo.selectionEnd};
+  invalidarConferencia();contarPedidos();atualizarBotoes();
+});
 el('confirmar-copia').addEventListener('change',atualizarBotoes);
 el('limpar').onclick=()=>{if(inicioBloqueado())return;el('pedidos').value='';invalidarConferencia();contarPedidos();mensagem('');atualizarBotoes();el('pedidos').focus();};
 el('editar').onclick=()=>abrirAba('pedidos',true);

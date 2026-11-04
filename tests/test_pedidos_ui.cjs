@@ -17,6 +17,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     replaceChildren(...filhos) { this.children=filhos; this.escritas++; }
     focus() {}
     scrollIntoView() {}
+    setSelectionRange(inicio,fim) { this.selectionStart=inicio;this.selectionEnd=fim; }
   }
   const obter = id => {
     if (!elementos.has(id)) elementos.set(id, new Elemento());
@@ -262,10 +263,10 @@ test('conferir cadastro novamente revalida somente o pedido escolhido sem solici
   assert.equal(linhas.length,1);
   assert.equal(linhas[0].children[0].textContent,'2026-12345');
   assert.equal(linhas[0].children.length,5);
-  assert.equal(linhas[0].children[4].textContent,'Barra 0123456789012');
+  assert.match(linhas[0].children[4].textContent,/Barra 0123456789012/);
   assert.equal(linhas[0].children[4].children.length,0);
   const botao=linhas[0].children[3].children[0];
-  assert.equal(botao.textContent,'Conferir cadastro novamente');
+  assert.equal(botao.textContent,'Conferir');
   assert.equal(botao.disabled,false);
   p.contexto.fetch=async (url,opcoes)=>{
     chamadas.push({url,opcoes});
@@ -297,6 +298,39 @@ test('contador normaliza ano, elimina repetições e informa inválidos sem acei
   assert.equal(a.repetidos,1);assert.equal(a.invalidos.length,2);
   assert.equal(p.obter('contagem-pedidos').textContent,'Contagem: 2');
   assert.equal(p.obter('pedidos').atributos['aria-invalid'],'true');
+});
+
+test('campo de pedidos bloqueia letras inclusive acentuadas sem bloquear números e separadores',()=>{
+  const p=painel(),campo=p.obter('pedidos');p.renderizar(p.estado);
+  campo.value='12345';campo.setSelectionRange(2,4);
+  for(const data of ['a','Z','ç','á','漢','\u0301']){
+    let bloqueado=false;
+    campo.listeners.beforeinput[0]({data,preventDefault(){bloqueado=true;}});
+    assert.equal(bloqueado,true);
+    assert.equal(campo.value,'12345');
+  }
+  for(const data of ['0','9','-',',',' ','\n',null]){
+    let bloqueado=false;
+    campo.listeners.beforeinput[0]({data,preventDefault(){bloqueado=true;}});
+    assert.equal(bloqueado,false);
+  }
+});
+
+test('colagem com letras é recusada inteira e entrada alternativa restaura conteúdo e seleção',()=>{
+  const p=painel(),campo=p.obter('pedidos');p.renderizar(p.estado);
+  for(const [texto,esperado] of [['123a45',true],['Pedido 12345',true],['Á',true],['2026-12345, 67890\n99999',false]]){
+    let bloqueado=false;
+    campo.listeners.paste[0]({clipboardData:{getData:()=>texto},preventDefault(){bloqueado=true;}});
+    assert.equal(bloqueado,esperado);
+  }
+  campo.value='2026-12345,67890';campo.setSelectionRange(5,10);
+  campo.listeners.beforeinput[0]({data:null});
+  campo.value='2026-12abc345,67890';campo.listeners.input[0]();
+  assert.equal(campo.value,'2026-12345,67890');
+  assert.equal(campo.selectionStart,5);assert.equal(campo.selectionEnd,10);
+  campo.value='2026-12345,67890\n99999';campo.listeners.input[0]();
+  assert.equal(p.obter('contagem-pedidos').textContent,'Contagem: 3');
+  assert.equal(p.obter('conferir').disabled,false);
 });
 
 test('editar a entrada invalida a conferência e mantém o conteúdo',async()=>{
@@ -527,6 +561,23 @@ test('ações por estado distinguem recuperação pós-inclusão e outra cópia'
 });
 
 
+test('pedido não encontrado no portal fica sem ação e conserva observação no lote e no histórico',()=>{
+  const p=painel(), pedido='2026-12345', erro='Pedido não encontrado no Portal Havan.';
+  const casos=[erro,'','Não foi possível baixar os arquivos do pedido. Verifique o portal',
+    'Pedido encontrado, mas link para download ausente. Verifique o portal'];
+  for(const escopo of ['todos','lote']){
+    p.contexto.escopoTeste=escopo;vm.runInContext('escopo=escopoTeste',p.contexto);
+    for(const observacao of casos){
+      p.renderizar({...p.estado,lote:[pedido],resultados_lote:{[pedido]:'rejeitado'},
+        pedidos:[{pedido,etapa:'para_baixar',rotulo:'A baixar',numero:'',pendente:true,erro:observacao}]});
+      const linha=p.obter('linhas').children[0].children[0];
+      assert.equal(linha.children[3].children.length,observacao===erro?0:1);
+      if(observacao===erro)assert.match(linha.children[4].textContent,/Pedido não encontrado no Portal Havan\./);
+      else assert.equal(linha.children[3].children[0].textContent,'Preparar');
+    }
+  }
+});
+
 test('último processado mantém pendência final e ignora outras execuções',()=>{
   const p=painel(), a='2026-11111', b='2026-22222', c='2026-33333';
   const s={...p.estado,execucao:'misto',fase:'INTERROMPIDO',ocupada:false,pedido:b,lote:[a,b],
@@ -577,9 +628,42 @@ test('observação omite estado repetido e preserva erro e resultado diferente',
   p.renderizar({...s,resultados_lote:{[pedido]:'falhou'}});
   assert.equal(observacao(),'Falha no processamento');
   p.renderizar({...s,resultados_lote:{[pedido]:'falhou'},pedidos:[{...s.pedidos[0],erro:'Conferir documento'}]});
-  assert.equal(observacao(),'Falha no processamento\nConferir documento');
+  assert.equal(observacao(),'Conferir documento');
 });
 
+
+test('situação considera pendências e ações curtas preservam operações e nomes acessíveis',()=>{
+  const p=painel();
+  const casos=[
+    ['para_baixar','Pedido não encontrado no Portal Havan.','Não disponível',null],
+    ['para_baixar','','Aguardando preparação','Preparar'],
+    ['para_baixar','Sessão expirada','Preparação pendente','Preparar'],
+    ['baixado','','Conferência pendente','Conferir'],
+    ['sem_cadastro','EAN ausente','Cadastro pendente','Conferir'],
+    ['pronto_importar','','Pronto para importar',null],
+    ['pronto_importar','Erro na consulta','Conferência pendente','Conferir'],
+    ['importacao_iniciada','','Inclusão a conferir','Conferir'],
+    ['gravacao_pendente','','Inclusão a conferir','Conferir'],
+    ['aviso_pendente','','Existência a conferir','Conferir'],
+    ['importado','','Impressão pendente','Imprimir'],
+    ['pdf_pronto','','Impressão pendente','Imprimir'],
+    ['impressao_pendente','','Impressão pendente','Imprimir'],
+    ['impressao_iniciada','','Impressão a conferir','Reimprimir'],
+    ['impressao_incerta','','Impressão a conferir','Reimprimir'],
+    ['impressao_enviada','','Enviado para impressão',null],
+    ['existente','','Sem ação necessária',null],
+    ['existente','Divergência no histórico','Conferência pendente',null],
+  ];
+  for(const [etapa,erro,situacao,acao] of casos){
+    p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa,erro}]});
+    const celulas=p.obter('linhas').children[0].children[0].children;
+    assert.equal(celulas[2].children[0].textContent,situacao,etapa);
+    assert.equal(celulas[3].children[0]?.textContent||null,acao,etapa);
+    if(acao)assert.match(celulas[3].children[0].atributos['aria-label'],/pedido 2026-12345/);
+    if(erro)assert.ok(celulas[4].textContent.includes(erro));
+    if(etapa==='existente')assert.match(celulas[4].textContent,/Já existe no Sisplan/);
+  }
+});
 
 test('entrada recolhida move grupos sem duplicar e preserva decisões e execução',()=>{
   const p=painel();p.obter('preparacao').open=false;p.renderizar(p.estado);

@@ -59,7 +59,20 @@ também precisa dos arquivos HTML/CSS/JS e ícones no pacote de distribuição.
    mouse ou teclado. Depois, confira os estados e os números internos na lista.
    Importação confirmada e impressão pendente são estados distintos.
 
-As próximas ações ficam na linha do pedido:
+Na tabela, **Situação** resume a condição atual; **Observação** explica a pendência
+e a próxima providência. As etapas internas de recuperação continuam preservadas.
+Pedidos ausentes no portal aparecem como **Não disponível**, sem ação. Pedidos
+já existentes aparecem como **Sem ação necessária**, com o motivo na observação.
+Erros posteriores continuam visíveis, inclusive em etapas anteriormente concluídas.
+Arquivos baixados ainda exigem conferência; importação confirmada e PDF pronto
+aparecem como **Impressão pendente**. Envio iniciado sem confirmação fica como
+**Impressão a conferir**, sem presumir que a impressão continua em andamento.
+
+Os botões da coluna Ação usam **Preparar**, **Conferir**, **Imprimir** e
+**Reimprimir**, com descrição completa para leitores de tela. Reimprimir abre
+a revisão e continua exigindo confirmação explícita de outra cópia.
+
+As próximas ações ficam na linha do pedido (as descrições abaixo explicam os botões):
 
 | Situação | Ação |
 | --- | --- |
