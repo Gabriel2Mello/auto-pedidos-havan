@@ -19,6 +19,13 @@ from src.erros import SessaoPortalExpiradaError, NumeroInternoForaSequenciaError
 
 
 class FluxoPrevalidacaoTests(unittest.TestCase):
+    def test_reimpressao_removida_e_recusada_sem_operacao(self) -> None:
+        with self.assertRaisesRegex(ValueError, 'Operação não disponível'):
+            main.processar_pedidos(['2026-12345'], modo='reimprimir')
+        self.banco.consultar_pedidos.assert_not_called()
+        self.imprimir.assert_not_called()
+        self.assert_sem_interface()
+
     def test_download_pendente_bloqueia_portal_e_inclusao_antes_da_retomada(self) -> None:
         self.preparar()
         with EstadoPedidos(self.estado_path) as historico:
@@ -369,14 +376,6 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         self.assertEqual(resumo.retomados, {'2026-12345'})
         self.assertEqual(resumo.situacoes['2026-12345'], 'impressao_enviada')
 
-    def test_reimpressao_explicita_de_pedido_antigo_confere_numero_no_banco(self) -> None:
-        self.banco.consultar_pedidos.return_value = {'2026-109335': [PedidoExistente('11250', 2)]}
-        self.banco.confirmar_gravacao.return_value = PedidoExistente('11250', 2)
-        main.processar_pedidos(['2026-109335'], modo='reimprimir')
-        self.assertEqual(self.imprimir.call_args.args[:2], ('2026-109335', '11250'))
-        self.assertTrue(self.imprimir.call_args.kwargs['forcar'])
-        self.scraper.assert_not_called()
-        self.app.assert_not_called()
 
     def test_pendencia_sem_correspondencia_nao_reimporta_automaticamente(self) -> None:
         self.salvar_estado('gravacao_pendente')

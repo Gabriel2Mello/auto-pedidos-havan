@@ -24,14 +24,13 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     return elementos.get(id);
   };
   obter('filtro').value='todos';
-  const modos=['preparar','reimprimir'].map(nome=>{const b=obter('modo-'+nome);b.dataset={modo:nome};b.checked=nome==='preparar';return b;});
   const contexto = vm.createContext({
     document: {
       get cookie() { if(falhaCookie)throw Error('Cookies indisponíveis');return cookie; },
       set cookie(valor) { if(falhaCookie)throw Error('Cookies indisponíveis');cookie=valor; },
       getElementById: obter, querySelector: seletor => ({content:seletor==='meta[name="havan-demo"]'&&demonstracao?'1':'token-local'}),
       addEventListener: () => {},
-      querySelectorAll: seletor => seletor==='[data-modo]'?modos:seletor==='[data-fila]'?['prontos','sem_cadastro','outras','existentes','importados'].map(nome=>{const b=obter('fila-'+nome);b.dataset={fila:nome};return b;}):seletor==='[data-acao-pedido]'?criados.filter(e=>'data-acao-pedido' in e.atributos):[], documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
+      querySelectorAll: seletor => seletor==='[data-fila]'?['prontos','sem_cadastro','outras','existentes','importados'].map(nome=>{const b=obter('fila-'+nome);b.dataset={fila:nome};return b;}):seletor==='[data-acao-pedido]'?criados.filter(e=>'data-acao-pedido' in e.atributos):[], documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
       createElement: () => {const e=new Elemento();criados.push(e);return e;}, createDocumentFragment: () => new Elemento(),
     },
     crypto: {randomUUID}, AbortController,
@@ -71,10 +70,8 @@ test('configurações normais carregam e salvam impressora invalidando conferên
   assert.equal(p.obter('lista-impressoras').children.length,2);
   assert.equal(p.obter('lista-impressoras').value,'Fila A');
   p.obter('lista-impressoras').value='Fila B';
-  vm.runInContext('conferencia={id:"antiga",revisao:0}',p.contexto);
   await p.obter('confirmar-impressora').onclick();
   assert.equal(p.obter('impressora-atual').textContent,'Fila B');
-  assert.equal(vm.runInContext('conferencia',p.contexto),null);
   assert.deepEqual(JSON.parse(chamadas.find(([url])=>url==='/api/impressora')[1].body),{impressora:'Fila B'});
 });
 
@@ -116,25 +113,15 @@ test('preparar cenário mantém roteiro no menu e preenche lista sem conferir ne
   assert.equal(p.obter('demo-descricao').textContent,c.orientacao);
   assert.equal(p.elementos.has('demo-roteiro'),false);
   assert.equal(p.obter('demo-configuracoes').open,false);
-  assert.equal(p.obter('iniciar').disabled,true);
-  assert.equal(vm.runInContext('conferencia',p.contexto),null);
   assert.equal(chamadas.length,0);
 });
 
-test('cenários de entrada e reimpressão preservam validação e confirmação obrigatórias', async () => {
-  const cenarios=[{id:'geral',nome:'Entrada',modo:'normal',entrada:'999002\n999002\nINVALIDO',orientacao:'Corrija a entrada.'},
-    {id:'reimprimir',nome:'Reimpressão',modo:'reimprimir',entrada:'999001',orientacao:'Confirme outra cópia.'}];
+test('cenário com entrada inválida mantém bloqueado o preparo',async()=>{
+  const cenarios=[{id:'geral',nome:'Entrada',modo:'normal',entrada:'999002\n999002\nINVALIDO',orientacao:'Corrija a entrada.'}];
   const p=painel({demonstracao:true,cenarios});p.renderizar(p.estado);await new Promise(setImmediate);
   p.obter('demo-exemplo').onclick();
   assert.equal(p.obter('conferir').disabled,true);
   assert.match(p.obter('validacao-pedidos').textContent,/repetição/);
-  assert.match(p.obter('validacao-pedidos').textContent,/INV[AÁ]LIDO|INVALIDO/);
-  p.obter('confirmar-copia').checked=true;
-  p.obter('demo-cenario').value='reimprimir';p.obter('demo-exemplo').onclick();
-  assert.equal(vm.runInContext('modo',p.contexto),'reimprimir');
-  assert.equal(p.obter('confirmar-copia').checked,false);
-  assert.equal(p.obter('iniciar').disabled,true);
-  assert.equal(p.obter('conferir').disabled,false);
 });
 
 test('cenários não substituem a lista durante execução ou perda de conexão', async () => {
@@ -201,10 +188,8 @@ test('recuperar conexão com estado idêntico reabilita o início', async () => 
   p.renderizar(p.estado);
   p.contexto.fetch=async () => { throw Error('sem conexão'); };
   await vm.runInContext('atualizar()', p.contexto);
-  assert.equal(p.obter('iniciar').disabled, true);
   p.contexto.fetch=async () => ({ok:true, json:async () => p.estado});
   await vm.runInContext('atualizar()', p.contexto);
-  assert.equal(p.obter('iniciar').disabled, true);
   assert.equal(p.obter('conferir').disabled, false);
   assert.equal(p.obter('conexao').hidden, true);
 });
@@ -278,7 +263,6 @@ test('conferir cadastro novamente revalida somente o pedido escolhido sem solici
   assert.equal(dados.modo,'revalidar');
   assert.equal(dados.pedidos,'2026-12345');
   assert.equal(chamadas.length,3);
-  assert.equal(p.obter('iniciar').disabled,true);
   assert.equal(chamadas[1].url,'/api/iniciar');
   assert.equal(JSON.parse(chamadas[1].opcoes.body).modo,'revalidar');
   assert.equal(JSON.parse(chamadas[1].opcoes.body).conferencia,'conferencia-1');
@@ -333,54 +317,17 @@ test('colagem com letras é recusada inteira e entrada alternativa restaura cont
   assert.equal(p.obter('conferir').disabled,false);
 });
 
-test('editar a entrada invalida a conferência e mantém o conteúdo',async()=>{
-  const p=painel();p.renderizar(p.estado);p.obter('pedidos').value='12345';
-  p.contexto.fetch=async()=>({ok:true,json:async()=>({id:'c',revisao:0,pedidos:[{pedido:'2026-12345',salvo:null}]})});
-  await vm.runInContext('conferirPedidos()',p.contexto);
-  assert.equal(p.obter('iniciar').disabled,false);
-  p.obter('pedidos').value='12345,67890';
-  p.obter('pedidos').listeners.input[0]();
-  assert.equal(p.obter('iniciar').disabled,true);
-  assert.equal(p.obter('contagem-pedidos').textContent,'Contagem: 2');
-  assert.equal(vm.runInContext('conferencia',p.contexto),null);
-});
-
-test('seletor de operação sincroniza seleção e bloqueia opções durante execução',()=>{
+test('editar a entrada atualiza a contagem sem alterar seu conteúdo',()=>{
   const p=painel();p.renderizar(p.estado);
-  const novos=p.obter('modo-preparar'),reimprimir=p.obter('modo-reimprimir');
-  assert.equal(novos.checked,true);assert.equal(reimprimir.checked,false);
-  reimprimir.checked=true;reimprimir.onchange();
-  assert.equal(novos.checked,false);assert.equal(reimprimir.checked,true);
-  assert.equal(p.obter('abas-preparacao').hidden,false);
-  assert.equal(p.obter('conferir').textContent,'Conferir reimpressão');
-  assert.equal(p.obter('ajuda-modo').textContent,'');
-  assert.equal(p.obter('conferir').title,'');
-  vm.runInContext("mudarModo('normal')",p.contexto);
-  assert.equal(novos.checked,true);assert.equal(reimprimir.checked,false);
-  assert.equal(p.obter('abas-preparacao').hidden,true);
-  assert.match(p.obter('conferir').title,/Pedidos existentes serão separados antes do download/);
-  for(const fase of ['EXECUTANDO','PAUSADO','PARANDO']){
-    p.renderizar({...p.estado,fase,ocupada:true});
-    assert.equal(novos.disabled,true);assert.equal(reimprimir.disabled,true);
-    vm.runInContext("mudarModo('reimprimir')",p.contexto);
-    assert.equal(novos.checked,true);assert.equal(reimprimir.checked,false);
-  }
-  p.renderizar({...p.estado,fase:'CONCLUIDO',ocupada:false});
-  assert.equal(novos.disabled,false);assert.equal(reimprimir.disabled,false);
+  p.obter('pedidos').value='12345,67890';p.obter('pedidos').listeners.input[0]();
+  assert.equal(p.obter('pedidos').value,'12345,67890');
+  assert.equal(p.obter('contagem-pedidos').textContent,'Contagem: 2');
+  assert.equal(p.obter('conferir').disabled,false);
 });
 
-test('reimpressão exige conferência e confirmação de outra cópia',async()=>{
-  const p=painel();p.renderizar(p.estado);p.obter('pedidos').value='12345';
-  vm.runInContext("mudarModo('reimprimir')",p.contexto);
-  p.contexto.fetch=async()=>({ok:true,json:async()=>({id:'c',revisao:0,pedidos:[{pedido:'2026-12345',salvo:null}]})});
-  await vm.runInContext('conferirPedidos()',p.contexto);
-  assert.equal(p.obter('iniciar').disabled,true);
-  p.obter('confirmar-copia').checked=true;p.obter('confirmar-copia').listeners.change[0]();
-  assert.equal(p.obter('iniciar').disabled,false);
-  vm.runInContext("mudarModo('normal')",p.contexto);
-  assert.equal(p.obter('confirmar-copia').checked,false);
-  assert.equal(p.obter('iniciar').disabled,true);
-});
+
+
+
 
 test('lote e histórico possuem contagens separadas e finalização não esconde pendências',()=>{
   const p=painel();
@@ -397,23 +344,20 @@ test('lote e histórico possuem contagens separadas e finalização não esconde
 
 test('perda de conexão conserva dados, bloqueia ações e invalida a revisão anterior',async()=>{
   const p=painel();p.renderizar(p.estado);p.obter('pedidos').value='12345';
-  p.contexto.fetch=async()=>({ok:true,json:async()=>({id:'c',revisao:0,pedidos:[{pedido:'2026-12345',salvo:null}]})});
-  await vm.runInContext('conferirPedidos()',p.contexto);
   p.contexto.fetch=async()=>{throw Error('rede');};
   await vm.runInContext('atualizar()',p.contexto);
   assert.equal(p.obter('pedidos').value,'12345');assert.equal(p.obter('conferir').disabled,true);
-  assert.equal(p.obter('iniciar').disabled,true);assert.match(p.obter('conexao').textContent,/últimos dados/);
-  assert.equal(vm.runInContext('conferencia',p.contexto),null);
 });
 
 test('falha de transporte no início não permite reenvio até obter o estado',async()=>{
   const p=painel();p.renderizar(p.estado);p.obter('pedidos').value='12345';
-  p.contexto.fetch=async()=>({ok:true,json:async()=>({id:'c',revisao:0,pedidos:[{pedido:'2026-12345',salvo:null}]})});
-  await vm.runInContext('conferirPedidos()',p.contexto);
-  p.contexto.fetch=async()=>{throw Error('resposta perdida');};
-  await p.obter('iniciar').onclick();
+  p.contexto.fetch=async url=>{
+    if(url==='/api/conferir')return {ok:true,json:async()=>({id:'c'})};
+    throw Error('resposta perdida');
+  };
+  await p.obter('formulario').listeners.submit[0]({preventDefault(){}});
   assert.equal(vm.runInContext('inicioIncerto',p.contexto),true);
-  assert.equal(p.obter('conferir').disabled,true);assert.equal(p.obter('iniciar').disabled,true);
+  assert.equal(p.obter('conferir').disabled,true);
 });
 
 test('novo lote preserva entrada aberta e permite recolher manualmente',()=>{
@@ -437,8 +381,6 @@ test('novo lote preserva entrada aberta e permite recolher manualmente',()=>{
 
   assert.equal(p.obter('orientacao').hidden,true);
   assert.equal(p.obter('titulo-andamento').textContent,'Resultado da execução');
-  vm.runInContext("mudarModo('retomar')",p.contexto);
-  assert.equal(p.obter('preparacao').open,true);
 });
 
 test('pausa conserva decisão visível e falhas conservam mensagem sem depender dos detalhes',()=>{
@@ -490,7 +432,7 @@ test('baixar e conferir envia somente preparação e mantém importação como a
   assert.equal(chamadas[0].body.modo,'preparar');assert.equal(chamadas[1].body.modo,'preparar');
   assert.equal(chamadas[1].body.pedidos,'2026-12345');
   assert.equal(p.obter('importar-aptos').disabled,false);
-  assert.equal(p.obter('importar-aptos').textContent,'Importar 1 pedido apto');
+  assert.equal(p.obter('importar-aptos').textContent,'Importar 1 pedido');
   assert.equal(p.obter('fase').textContent,'Conferido');
   assert.equal(p.obter('orientacao').hidden,true);
 });
@@ -506,7 +448,7 @@ test('faixa de importação não reescreve aviso e rótulo idênticos ao atualiz
   assert.equal(aviso.escritas,escritasAviso);
   assert.equal(botao.escritas,escritasBotao);
   p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa:'pronto_importar',erro:''}]});
-  assert.equal(botao.textContent,'Importar 1 pedido apto');
+  assert.equal(botao.textContent,'Importar 1 pedido');
   assert.equal(botao.escritas,escritasBotao+1);
   assert.equal(aviso.escritas,escritasAviso);
 });
@@ -518,7 +460,7 @@ test('importação usa aptos do lote em conferência e preserva escopo apesar de
   p.obter('filtro').value='sem_cadastro';p.obter('busca').value='20000';vm.runInContext('renderizarTabela()',p.contexto);
   assert.equal(p.obter('linhas').children[0].children.length,1);
   assert.equal(p.obter('n-sem_cadastro').textContent,1);
-  assert.equal(p.obter('importar-aptos').textContent,'Importar 1 pedido apto');
+  assert.equal(p.obter('importar-aptos').textContent,'Importar 1 pedido');
   assert.equal(p.obter('alcance-importacao').textContent,'Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.');
   p.contexto.fetch=async(url,opcoes)=>{chamadas.push({url,body:opcoes.body&&JSON.parse(opcoes.body)});return {ok:true,json:async()=>url==='/api/conferir'?{id:'importar-revisao'}:url==='/api/estado'?p.estado:{ok:true}};};
   await p.obter('importar-aptos').onclick();
@@ -553,7 +495,7 @@ test('resposta perdida ao iniciar preparação bloqueia reenvio até atualizaç�
 
 test('ações por estado distinguem recuperação pós-inclusão e outra cópia',()=>{
   const p=painel();
-  for(const [etapa,modo] of [['para_baixar','preparar'],['baixado','revalidar'],['sem_cadastro','revalidar'],['importacao_iniciada','recuperar'],['gravacao_pendente','recuperar'],['aviso_pendente','recuperar'],['importado','recuperar'],['impressao_pendente','recuperar'],['impressao_incerta','reimprimir']]){
+  for(const [etapa,modo] of [['para_baixar','preparar'],['baixado','revalidar'],['sem_cadastro','revalidar'],['importacao_iniciada','recuperar'],['gravacao_pendente','recuperar'],['aviso_pendente','recuperar'],['importado','recuperar'],['impressao_pendente','recuperar']]){
     p.contexto.etapaTeste=etapa;assert.equal(vm.runInContext('acaoDoPedido({etapa:etapaTeste})[0]',p.contexto),modo);
   }
   assert.equal(vm.runInContext("acaoDoPedido({etapa:'pronto_importar',erro:''})",p.contexto),null);
@@ -610,7 +552,7 @@ test('importação informa zero, singular e plural de aptos e antecede resultado
   assert.equal(p.obter('importar-aptos').textContent,'Nenhum pedido apto');
   assert.equal(p.obter('importar-aptos').disabled,true);
   p.renderizar({...p.estado,pedidos:['2026-11111','2026-22222'].map(pedido=>({pedido,etapa:'pronto_importar',erro:''}))});
-  assert.equal(p.obter('importar-aptos').textContent,'Importar 2 pedidos aptos');
+  assert.equal(p.obter('importar-aptos').textContent,'Importar 2 pedidos');
   assert.equal(p.obter('importar-aptos').disabled,false);
   const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
   assert.ok(html.indexOf('id="titulo-importacao"')<html.indexOf('id="titulo-historico"'));
@@ -648,8 +590,8 @@ test('situação considera pendências e ações curtas preservam operações e 
     ['importado','','Impressão pendente','Imprimir'],
     ['pdf_pronto','','Impressão pendente','Imprimir'],
     ['impressao_pendente','','Impressão pendente','Imprimir'],
-    ['impressao_iniciada','','Impressão a conferir','Reimprimir'],
-    ['impressao_incerta','','Impressão a conferir','Reimprimir'],
+    ['impressao_iniciada','','Impressão a conferir',null],
+    ['impressao_incerta','','Impressão a conferir',null],
     ['impressao_enviada','','Enviado para impressão',null],
     ['existente','','Sem ação necessária',null],
     ['existente','Divergência no histórico','Conferência pendente',null],
@@ -661,7 +603,43 @@ test('situação considera pendências e ações curtas preservam operações e 
     assert.equal(celulas[3].children[0]?.textContent||null,acao,etapa);
     if(acao)assert.match(celulas[3].children[0].atributos['aria-label'],/pedido 2026-12345/);
     if(erro)assert.ok(celulas[4].textContent.includes(erro));
-    if(etapa==='existente')assert.match(celulas[4].textContent,/Já existe no Sisplan/);
+    if(etapa==='existente'&&!erro)assert.match(celulas[4].textContent,/Já existe no Sisplan/);
+  }
+});
+
+test('observações curtas não repetem instruções e preservam avisos nas etapas incertas',()=>{
+  const p=painel();
+  const casos=[
+    ['sem_cadastro','EAN 0123456789012 (Produto sintético / Azul) sem cadastro. Confira novamente.',
+      'EAN 0123456789012 (Produto sintético / Azul) sem cadastro. Confira novamente.'],
+    ['sem_cadastro','EAN 0123456789012 sem cadastro',
+      'EAN 0123456789012 sem cadastro\nConfira novamente.'],
+    ['baixado','XML inválido. Avise o responsável.','XML inválido. Avise o responsável.'],
+    ['existente','Divergência no histórico','Divergência no histórico'],
+    ['importacao_iniciada','Cancelamento não confirmado. Avise o responsável.',
+      'Cancelamento não confirmado. Avise o responsável.\nInclusão iniciada. Confira no Sisplan.'],
+    ['gravacao_pendente','Itens e quantidades divergentes.',
+      'Itens e quantidades divergentes.\nGravação não confirmada no Sisplan.'],
+    ['aviso_pendente','Aviso desconhecido.',
+      'Aviso desconhecido.\nDuplicidade não confirmada. Confira no Sisplan.'],
+    ['impressao_incerta','Fila sem resposta.',
+      'Fila sem resposta.\nConfira a fila de impressão com o responsável.'],
+    ['baixado','','Confira os arquivos e produtos.'],
+    ['importacao_iniciada','','Inclusão iniciada. Confira no Sisplan.'],
+    ['gravacao_pendente','','Gravação não confirmada no Sisplan.'],
+    ['aviso_pendente','','Duplicidade não confirmada. Confira no Sisplan.'],
+    ['importado','','Importação confirmada. Retome a impressão.'],
+    ['pdf_pronto','','PDF pronto. Retome a impressão.'],
+    ['impressao_pendente','','Retome a impressão.'],
+  ];
+  for(const etapa of ['importado','pdf_pronto','impressao_pendente','impressao_iniciada','impressao_incerta']){
+    const erro='Impressão não confirmada. Confira a fila de impressão com o responsável.';
+    casos.push([etapa,erro,erro]);
+  }
+  for(const [etapa,erro,esperado] of casos){
+    p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa,erro}]});
+    const observacao=p.obter('linhas').children[0].children[0].children[4].textContent;
+    assert.equal(observacao,esperado,etapa);
   }
 });
 
@@ -824,5 +802,15 @@ test('importar sobe suavemente após iniciar com entrada aberta ou recolhida',as
     assert.equal(p.obter('preparacao').open,aberta);
     await p.obter('importar-aptos').onclick();
     assert.equal(p.rolagens.length,1);
+  }
+});
+
+test('interface não oferece seletor, revisão ou ação de reimpressão',()=>{
+  const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
+  assert.ok(!/Reimprimir|data-modo|painel-conferencia|aba-conferencia|imprimir-sem-numero/.test(html));
+  const p=painel();
+  for(const etapa of ['impressao_iniciada','impressao_incerta','impressao_enviada']){
+    p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa,erro:''}]});
+    assert.equal(p.obter('linhas').children[0].children[0].children[3].children.length,0);
   }
 });

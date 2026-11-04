@@ -6,9 +6,9 @@ const demonstracao=document.querySelector('meta[name="havan-demo"]').content==='
 let salvamentoTema=Promise.resolve(true);
 const headers = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'X-Havan-Pagina': crypto.randomUUID()};
 const fases = {INICIANDO:'Iniciando',PRONTO:'Pronto',EXECUTANDO:'Em andamento',PAUSADO:'Aguardando sua escolha',PARANDO:'Parando com segurança',CONCLUIDO:'Finalizado',INTERROMPIDO:'Parado',FALHA:'Precisa de atenção',ENCERRANDO:'Encerrando',ENCERRADO:'Encerrado'};
-let modo='preparar', estado=null, enviando=false, encerrado=false, encerramentoPedido=false, pagina=0, erroVisivel='', tabelaAnterior='', atividadeAnterior='', presenca=null;
+let estado=null, enviando=false, encerrado=false, encerramentoPedido=false, pagina=0, erroVisivel='', tabelaAnterior='', atividadeAnterior='', presenca=null;
 let estadoAnterior='', saindo=false;
-let conferencia=null, escopo='todos', conectado=false, inicioIncerto=false, ultimoLote='';
+let escopo='todos', conectado=false, inicioIncerto=false, ultimoLote='';
 let cenariosDemo=[];
 let consultandoImpressoras=false;
 const etapasImportadas=['importado','pdf_pronto','impressao_pendente','impressao_iniciada','impressao_incerta','impressao_enviada'];
@@ -38,48 +38,6 @@ function contarPedidos(){
   el('pedidos').setAttribute('aria-invalid',String(a.invalidos.length>0));
   return a;
 }
-function abrirAba(nome, foco=false){
-  for(const aba of ['pedidos','conferencia']){
-    const ativa=aba===nome;
-    el('aba-'+aba).setAttribute('aria-selected',String(ativa));
-    el('aba-'+aba).setAttribute('tabindex',ativa?'0':'-1');
-    el('painel-'+aba).hidden=!ativa;
-  }
-  if(foco)el('aba-'+nome).focus();
-}
-function invalidarConferencia(texto='Confira os pedidos para revisar o lote antes de iniciar.', preservar=false){
-  conferencia=null;el('confirmar-copia').checked=false;
-  el('conferencia-conteudo').hidden=!preservar;el('conferencia-vazia').hidden=false;el('conferencia-vazia').textContent=texto;
-}
-function proximaAcao(p){
-  if(modo==='reimprimir')return 'Verificar gravação no Sisplan e enviar outra cópia.';
-  if(!p)return 'Consultar duplicidade, baixar arquivos e conferir os EANs. A importação será solicitada depois.';
-  if(['impressao_enviada','existente'].includes(p.etapa))return 'Conferir correspondência no Sisplan; não reincluir nem reimprimir.';
-  if(p.etapa==='sem_cadastro')return 'Após corrigir o cadastro, validar os produtos novamente.';
-  if(etapasAtencao.includes(p.etapa))return 'Conferir a situação; nenhuma repetição automática de ação incerta.';
-  return 'Conferir arquivos e produtos antes de liberar a importação.';
-}
-async function conferirPedidos(){
-  if(inicioBloqueado())return;
-  const entrada=el('pedidos').value, operacao=modo;
-  invalidarConferencia();enviando=true;mensagem('');atualizarBotoes();
-  try{
-    const c=await api('/api/conferir',{modo:operacao,pedidos:operacao==='retomar'?'':entrada});
-    if(modo!==operacao||el('pedidos').value!==entrada)return;
-    conferencia=c;
-    const frag=document.createDocumentFragment();
-    for(const item of c.pedidos){
-      const tr=document.createElement('tr'),numero=document.createElement('td'),detalhe=document.createElement('td'),acao=document.createElement('small');
-      numero.textContent=item.pedido;detalhe.textContent=item.salvo?item.salvo.rotulo+(item.salvo.numero?' · Sisplan '+item.salvo.numero:''):'Não consta no histórico local';
-      acao.textContent=proximaAcao(item.salvo);detalhe.append(acao);tr.append(numero,detalhe);frag.append(tr);
-    }
-    el('itens-conferencia').replaceChildren(frag);
-    el('resumo-conferencia').textContent=`${c.pedidos.length} pedido(s) para ${modo==='reimprimir'?'reimprimir':'baixar e conferir'}`;
-    el('conferencia-vazia').hidden=true;el('conferencia-conteudo').hidden=false;
-    el('confirmacao-reimpressao').hidden=modo!=='reimprimir';abrirAba('conferencia',true);
-  }catch(erro){mensagem(erro.message);}finally{enviando=false;atualizarBotoes();}
-}
-
 async function api(caminho, dados) {
   const resposta = await fetch(caminho, {method:dados===undefined?'GET':'POST',headers,body:dados===undefined?undefined:JSON.stringify(dados),cache:'no-store'});
   const conteudo = await resposta.json();
@@ -87,37 +45,18 @@ async function api(caminho, dados) {
   return conteudo;
 }
 function mensagem(texto) { el('mensagem-acao').textContent=texto; }
-function mudarModo(novo) {
-  if (enviando || estado?.ocupada) return;
-  el('preparacao').open=true;
-  modo=['normal','retomar'].includes(novo)?'preparar':novo;
-  mensagem('');el('confirmar-copia').checked=false;
-  invalidarConferencia();abrirAba('pedidos');
-  document.querySelectorAll('[data-modo]').forEach(b=>b.checked=b.dataset.modo===modo);
-  el('campo-pedidos').hidden=false;el('pedidos').required=true;
-  el('retomada').hidden=true;el('limpar').hidden=false;
-  el('abas-preparacao').hidden=modo!=='reimprimir';
-  el('confirmacao-reimpressao').hidden=modo!=='reimprimir';
-  el('ajuda-modo').textContent=modo==='reimprimir'?'':'Pedidos existentes serão separados antes do download. Os demais terão arquivos e EANs conferidos.';
-  el('conferir').title=modo==='reimprimir'?'':el('ajuda-modo').textContent;
-  el('conferir').textContent=modo==='reimprimir'?'Conferir reimpressão':'Baixar e conferir';
-  el('iniciar').textContent=modo==='reimprimir'?'Reimprimir pedidos':'Baixar e conferir';
-  atualizarBotoes();
-}
 function inicioBloqueado() { return enviando||!conectado||inicioIncerto||!estado||estado.ocupada||estado.bloqueado||encerrado||estado.encerrando; }
 function atualizarBotoes() {
   const bloqueado=inicioBloqueado();
   for(const id of ['lista-impressoras','atualizar-impressoras'])el(id).disabled=bloqueado||consultandoImpressoras;
   el('confirmar-impressora').disabled=bloqueado||consultandoImpressoras||!el('lista-impressoras').value;
-  document.querySelectorAll('[data-modo]').forEach(b=>b.disabled=bloqueado);
   document.querySelectorAll('[data-fila]').forEach(b=>b.disabled=!estado||estado.ocupada||estado.encerrando||encerrado||estado.fase==='INICIANDO');
   document.querySelectorAll('[data-acao-pedido]').forEach(b=>b.disabled=bloqueado);
   const entrada=analisarEntrada(el('pedidos').value);
   el('conferir').disabled=bloqueado||!entrada.pedidos.length||entrada.invalidos.length>0;
   atualizarImportacao();
-  el('iniciar').disabled=bloqueado||!conferencia||(modo==='reimprimir'&&!el('confirmar-copia').checked);
   el('limpar').disabled=bloqueado||!el('pedidos').value;
-  el('pedidos').disabled=bloqueado; el('confirmar-copia').disabled=bloqueado;
+  el('pedidos').disabled=bloqueado;
   el('parar').hidden=!estado?.ocupada||['INICIANDO','ENCERRANDO','PARANDO'].includes(estado?.fase);
   el('parar').disabled=enviando||!conectado; el('encerrar').disabled=encerrado||enviando||estado?.encerrando;
   ['repetir','pular','parar-erro'].forEach(id=>el(id).disabled=enviando||!conectado);
@@ -135,7 +74,7 @@ function pedidosDoEscopo(){
 }
 function atualizarImportacao(){
   const quantidade=pedidosDoEscopo().filter(apto).length;
-  const rotulo=quantidade?`Importar ${quantidade} ${quantidade===1?'pedido apto':'pedidos aptos'}`:'Nenhum pedido apto';
+  const rotulo=quantidade?`Importar ${quantidade} ${quantidade===1?'pedido':'pedidos'}`:'Nenhum pedido apto';
   if(el('importar-aptos').textContent!==rotulo)el('importar-aptos').textContent=rotulo;
   el('importar-aptos').disabled=inicioBloqueado()||!quantidade;
   const aviso='Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.';
@@ -153,12 +92,11 @@ function acaoDoPedido(p){
   if(p.etapa==='baixado'||p.etapa==='pronto_importar'&&p.erro)return ['revalidar','Conferir arquivos e produtos'];
   if(p.etapa==='para_baixar')return p.erro==='Pedido não encontrado no Portal Havan.'?null:['preparar','Baixar e conferir'];
   if(['importacao_iniciada','gravacao_pendente','aviso_pendente'].includes(p.etapa))return ['recuperar','Conferir gravação no Sisplan'];
-  if(['impressao_iniciada','impressao_incerta'].includes(p.etapa))return ['reimprimir','Conferir reimpressão'];
   if(['importado','pdf_pronto','impressao_pendente'].includes(p.etapa))return ['recuperar','Retomar impressão'];
   return null;
 }
 function apresentacaoPedido(p){
-  const motivos={existente:'Já existe no Sisplan.',baixado:'Arquivos baixados; confira arquivos e produtos.',sem_cadastro:'Cadastre os produtos indicados no Sisplan e confira novamente.',importacao_iniciada:'A inclusão foi iniciada e precisa ser conferida no Sisplan.',gravacao_pendente:'A gravação ainda não foi confirmada no Sisplan.',aviso_pendente:'O aviso recebido não comprova duplicidade. Confira a existência no banco.',importado:'Importação confirmada; falta concluir a impressão.',pdf_pronto:'PDF pronto; falta concluir a impressão.',impressao_pendente:'Retome a impressão do pedido já importado.',impressao_iniciada:'Confira a impressora antes de revisar e confirmar outra cópia.',impressao_incerta:'Confira a impressora antes de revisar e confirmar outra cópia.'};
+  const motivos={existente:'Já existe no Sisplan.',baixado:'Confira os arquivos e produtos.',sem_cadastro:'Confira novamente.',importacao_iniciada:'Inclusão iniciada. Confira no Sisplan.',gravacao_pendente:'Gravação não confirmada no Sisplan.',aviso_pendente:'Duplicidade não confirmada. Confira no Sisplan.',importado:'Importação confirmada. Retome a impressão.',pdf_pronto:'PDF pronto. Retome a impressão.',impressao_pendente:'Retome a impressão.',impressao_iniciada:'Confira a fila de impressão com o responsável.',impressao_incerta:'Confira a fila de impressão com o responsável.'};
   const rotulos={para_baixar:'Aguardando preparação',baixado:'Conferência pendente',sem_cadastro:'Cadastro pendente',pronto_importar:'Pronto para importar',importacao_iniciada:'Inclusão a conferir',gravacao_pendente:'Inclusão a conferir',aviso_pendente:'Existência a conferir',importado:'Impressão pendente',pdf_pronto:'Impressão pendente',impressao_pendente:'Impressão pendente',impressao_iniciada:'Impressão a conferir',impressao_incerta:'Impressão a conferir',impressao_enviada:'Enviado para impressão',existente:'Sem ação necessária'};
   let situacao=rotulos[p.etapa]||p.rotulo||'Conferir situação';
   if(p.erro){
@@ -168,7 +106,14 @@ function apresentacaoPedido(p){
   const falhaResultado=['falhou','rejeitado'].includes(p.resultado);
   if(falhaResultado&&!p.erro)situacao='Conferência pendente';
   const resultado=p.resultado&&rotuloResultado(p.resultado)!==p.rotulo?rotuloResultado(p.resultado):'';
-  const observacao=[p.erro||'',motivos[p.etapa]||'',!p.erro&&(falhaResultado||!rotulos[p.etapa])?resultado:''].filter(Boolean).join('\n');
+  let motivo=motivos[p.etapa]||'';
+  if(p.erro){
+    // O erro específico prevalece sobre informações genéricas de arquivos ou existência.
+    // Nas etapas incertas, a orientação só sai se já estiver na mensagem.
+    if(['baixado','existente'].includes(p.etapa)||p.erro.includes(motivo))motivo='';
+    if(['importado','pdf_pronto','impressao_pendente','impressao_iniciada','impressao_incerta'].includes(p.etapa)&&p.erro.includes('Confira a fila de impressão com o responsável.'))motivo='';
+  }
+  const observacao=[p.erro||'',motivo,!p.erro&&(falhaResultado||!rotulos[p.etapa])?resultado:''].filter(Boolean).join('\n');
   return {situacao,observacao:observacao.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')||'—'};
 }
 function renderizarTabela() {
@@ -196,9 +141,9 @@ function renderizarTabela() {
         if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
         const acao=acaoDoPedido(p);
         if(i===3&&acao){
-          const [operacao,rotulo]=acao,botao=document.createElement('button');botao.type='button';botao.textContent=operacao==='preparar'?'Preparar':operacao==='reimprimir'?'Reimprimir':rotulo==='Retomar impressão'?'Imprimir':'Conferir';
+          const [operacao,rotulo]=acao,botao=document.createElement('button');botao.type='button';botao.textContent=operacao==='preparar'?'Preparar':rotulo==='Retomar impressão'?'Imprimir':'Conferir';
           botao.setAttribute('data-acao-pedido',p.pedido);botao.setAttribute('aria-label',botao.textContent+' — '+rotulo+' — pedido '+p.pedido);
-          botao.disabled=inicioBloqueado();botao.onclick=()=>operacao==='reimprimir'?prepararReimpressao(p.pedido):executarEtapa(operacao,[p.pedido]);td.append(botao);
+          botao.disabled=inicioBloqueado();botao.onclick=()=>executarEtapa(operacao,[p.pedido]);td.append(botao);
         }
         tr.append(td);
       });linhas.append(tr);
@@ -227,7 +172,6 @@ function renderizar(s) {
   el('grupos-estados').setAttribute('data-finalizado',String(!s.ocupada&&Boolean(s.lote?.length)));
   el('impressora-atual').textContent=s.impressora||'Nenhuma impressora selecionada.';
   if(anoAnterior!==s.ano){contarPedidos();el('dica-pedidos').textContent=`Separe por vírgula ou linha. Sem o ano, será utilizado ${s.ano}.`;}
-  if(conferencia&&(s.revisao!==conferencia.revisao||s.ocupada||s.impressora!==impressoraAnterior))invalidarConferencia('A situação mudou. Confira novamente os pedidos antes de iniciar.');
   if(s.execucao&&s.execucao!==ultimoLote){
     ultimoLote=s.execucao;escopo='lote';pagina=0;el('filtro').value='todos';
     const preparacao=el('preparacao');
@@ -268,7 +212,7 @@ function renderizar(s) {
     el('erro-pedido').textContent='Pedido: '+s.erro.pedido;el('erro-mensagem').textContent=s.erro.mensagem;
     el('repetir').hidden=!s.erro.repetir;el('pular').hidden=!s.erro.pular;
     el('repetir').textContent=s.erro.reconectar?'Reconectar e continuar':'Corrigi o problema · tentar novamente';
-    el('erro-seguranca').textContent=s.erro.configuracao?'Pare este processamento. Os ajustes do arquivo serão aplicados na próxima solicitação desta etapa.':s.erro.repetir?'Nenhuma nova tentativa será feita sem sua escolha.':s.erro.pular?'Confira a impressão antes de usar Reimprimir para enviar outra cópia.':'Solicite ajuda ao responsável para conferir o Sisplan antes de iniciar outra inclusão.';
+    el('erro-seguranca').textContent=s.erro.configuracao?'Pare este processamento. Os ajustes do arquivo serão aplicados na próxima solicitação desta etapa.':s.erro.repetir?'Nenhuma nova tentativa será feita sem sua escolha.':s.erro.pular?'Confira a fila de impressão com o responsável.':'Solicite ajuda ao responsável para conferir o Sisplan antes de iniciar outra inclusão.';
     if(erroVisivel!==s.erro.id){erroVisivel=s.erro.id;el('titulo-erro').focus();}
   } else erroVisivel='';
   const atividade=JSON.stringify(s.mensagens);
@@ -278,23 +222,19 @@ function renderizar(s) {
 async function atualizar() {
   if(encerrado||saindo)return;
   try{const s=await api('/api/estado');conectado=true;inicioIncerto=false;renderizar(s);atualizarBotoes();el('conexao').hidden=true;}
-  catch(_){conectado=false;estadoAnterior='';invalidarConferencia('A conexão foi interrompida. Reconecte e confira novamente o lote.');el('conexao').hidden=false;const texto=encerramentoPedido?'Aplicação encerrada. Você pode fechar esta aba.':'Atualização interrompida. Os últimos dados permanecem visíveis. Aguarde a reconexão e confira o andamento antes de reenviar pedidos.';if(el('conexao').textContent!==texto)el('conexao').textContent=texto;if(encerramentoPedido){encerrado=true;pararPresenca();}atualizarBotoes();}
+  catch(_){conectado=false;estadoAnterior='';mensagem('A conexão foi interrompida. Reconecte e confira novamente o lote.');el('conexao').hidden=false;const texto=encerramentoPedido?'Aplicação encerrada. Você pode fechar esta aba.':'Atualização interrompida. Os últimos dados permanecem visíveis. Aguarde a reconexão e confira o andamento antes de reenviar pedidos.';if(el('conexao').textContent!==texto)el('conexao').textContent=texto;if(encerramentoPedido){encerrado=true;pararPresenca();}atualizarBotoes();}
   if(!encerrado&&!saindo)setTimeout(atualizar,1000);
 }
 async function acao(caminho,dados){
   if(enviando)return;enviando=true;mensagem('');atualizarBotoes();
   try{await api(caminho,dados);renderizar(await api('/api/estado'));}
-  catch(erro){mensagem(erro.message);if(caminho==='/api/iniciar'){invalidarConferencia('Confira o andamento e revise novamente o lote antes de iniciar.');if(!erro.status){inicioIncerto=true;invalidarConferencia('Envio sem confirmação. Aguarde a atualização do andamento antes de conferir outro lote.');}}}
+  catch(erro){mensagem(erro.message);if(caminho==='/api/iniciar'){mensagem('Confira o andamento e revise novamente o lote antes de iniciar.');if(!erro.status){inicioIncerto=true;mensagem('Envio sem confirmação. Aguarde a atualização do andamento antes de conferir outro lote.');}}}
   finally{enviando=false;atualizarBotoes();}
-}
-async function prepararReimpressao(pedido){
-  if(inicioBloqueado())return;
-  mudarModo('reimprimir');el('pedidos').value=pedido;contarPedidos();await conferirPedidos();el('titulo-entrada').scrollIntoView?.({behavior:'smooth',block:'start'});
 }
 async function executarEtapa(operacao,pedidos){
   if(inicioBloqueado()||!pedidos.length)return;
   const lista=[...new Set(pedidos)].join('\n');
-  invalidarConferencia();enviando=true;mensagem('');atualizarBotoes();
+  enviando=true;mensagem('');atualizarBotoes();
   let iniciando=false;
   try{
     const c=await api('/api/conferir',{modo:operacao,pedidos:lista});
@@ -310,18 +250,10 @@ async function executarEtapa(operacao,pedidos){
 }
 el('formulario').addEventListener('submit',async e=>{
   e.preventDefault();
-  if(modo==='reimprimir'){await conferirPedidos();return;}
   const entrada=contarPedidos();if(entrada.invalidos.length)return;
   await executarEtapa('preparar',entrada.pedidos);
 });
 el('importar-aptos').onclick=()=>executarEtapa('importar',pedidosDoEscopo().filter(apto).map(p=>p.pedido));
-el('iniciar').onclick=async()=>{
-  if(inicioBloqueado()||!conferencia)return;
-  if(modo==='reimprimir'&&!el('confirmar-copia').checked){mensagem('Confirme que deseja enviar outra cópia.');el('confirmar-copia').focus();return;}
-  const id=conferencia.id,confirmado=el('confirmar-copia').checked;
-  invalidarConferencia('Solicitação enviada. Confira o resultado da operação.',true);
-  await acao('/api/iniciar',{modo,pedidos:modo==='retomar'?'':el('pedidos').value,confirmado,conferencia:id,solicitacao:crypto.randomUUID(),impressora:estado?.impressora});
-};
 const contemLetras=texto=>/[\p{L}\p{M}]/u.test(texto);
 let entradaAnterior={valor:'',inicio:0,fim:0};
 el('pedidos').addEventListener('beforeinput',e=>{
@@ -338,17 +270,10 @@ el('pedidos').addEventListener('input',()=>{
     campo.value=entradaAnterior.valor;campo.setSelectionRange(entradaAnterior.inicio,entradaAnterior.fim);return;
   }
   entradaAnterior={valor:campo.value,inicio:campo.selectionStart,fim:campo.selectionEnd};
-  invalidarConferencia();contarPedidos();atualizarBotoes();
+  contarPedidos();atualizarBotoes();
 });
-el('confirmar-copia').addEventListener('change',atualizarBotoes);
-el('limpar').onclick=()=>{if(inicioBloqueado())return;el('pedidos').value='';invalidarConferencia();contarPedidos();mensagem('');atualizarBotoes();el('pedidos').focus();};
-el('editar').onclick=()=>abrirAba('pedidos',true);
-for(const nome of ['pedidos','conferencia']){
-  el('aba-'+nome).onclick=()=>abrirAba(nome);
-  el('aba-'+nome).addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();abrirAba(e.key==='Home'?'pedidos':e.key==='End'?'conferencia':nome==='pedidos'?'conferencia':'pedidos',true);}});
-}
+el('limpar').onclick=()=>{if(inicioBloqueado())return;el('pedidos').value='';contarPedidos();mensagem('');atualizarBotoes();el('pedidos').focus();};
 for(const nome of ['lote','todos'])el('escopo-'+nome).onclick=()=>{escopo=nome;pagina=0;el('escopo-lote').setAttribute('aria-pressed',String(nome==='lote'));el('escopo-todos').setAttribute('aria-pressed',String(nome==='todos'));renderizarTabela();};
-document.querySelectorAll('[data-modo]').forEach(b=>b.onchange=()=>{if(b.checked)mudarModo(b.dataset.modo);});
 document.querySelectorAll('[data-fila]').forEach(b=>b.onclick=()=>{if(b.disabled)return;el('preparacao').open=false;atualizarLayout();el('filtro').value=el('filtro').value===b.dataset.fila?'todos':b.dataset.fila;pagina=0;renderizarTabela();b.focus();el('titulo-historico').scrollIntoView({behavior:'smooth',block:'start'});});
 el('limpar-filtros').onclick=()=>{el('busca').value='';el('filtro').value='todos';pagina=0;renderizarTabela();};
 for(const id of ['busca','filtro'])el(id).addEventListener('input',()=>{pagina=0;renderizarTabela();});
@@ -359,7 +284,7 @@ el('encerrar').onclick=async()=>{
   if(!confirm('Encerrar Pedidos Havan? Se houver uma ação em andamento, vamos finalizá-la com segurança e preservar as pendências.'))return;
   encerramentoPedido=true;
   if(desktop&&!await salvamentoTema){encerramentoPedido=false;mensagem('Não foi possível salvar o tema. Tente alternar o tema novamente antes de encerrar.');return;}
-  try{await api('/api/encerrar',{});el('status').textContent='Encerrando com segurança. Aguarde a conclusão da etapa atual.';el('encerrar').disabled=true;el('iniciar').disabled=true;}
+  try{await api('/api/encerrar',{});el('status').textContent='Encerrando com segurança. Aguarde a conclusão da etapa atual.';el('encerrar').disabled=true;}
   catch(erro){encerramentoPedido=false;mensagem(erro.message);}
 };
 el('baixar-log').onclick=async()=>{
@@ -407,7 +332,7 @@ el('confirmar-impressora').onclick=async()=>{
   enviando=true;atualizarBotoes();el('erro-impressora').textContent='';
   try{
     await api('/api/impressora',{impressora:el('lista-impressoras').value});
-    invalidarConferencia();renderizar(await api('/api/estado'));
+    renderizar(await api('/api/estado'));
     el('aviso-impressora').textContent='Impressora selecionada.';
   }catch(erro){el('erro-impressora').textContent=erro.message;}
   finally{enviando=false;atualizarBotoes();}
@@ -419,7 +344,7 @@ if(demonstracao){
   el('demo-exemplo').onclick=()=>{
     if(inicioBloqueado())return;
     const c=cenariosDemo.find(c=>c.id===el('demo-cenario').value);if(!c)return;
-    mudarModo(c.modo);el('pedidos').value=c.entrada;contarPedidos();atualizarBotoes();
+    el('preparacao').open=true;mensagem('');el('pedidos').value=c.entrada;contarPedidos();atualizarBotoes();
     menu.open=false;el('pedidos').focus();
   };
   (async()=>{

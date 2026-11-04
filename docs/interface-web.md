@@ -68,9 +68,8 @@ Arquivos baixados ainda exigem conferência; importação confirmada e PDF pront
 aparecem como **Impressão pendente**. Envio iniciado sem confirmação fica como
 **Impressão a conferir**, sem presumir que a impressão continua em andamento.
 
-Os botões da coluna Ação usam **Preparar**, **Conferir**, **Imprimir** e
-**Reimprimir**, com descrição completa para leitores de tela. Reimprimir abre
-a revisão e continua exigindo confirmação explícita de outra cópia.
+Os botões da coluna Ação usam **Preparar**, **Conferir** e **Imprimir**,
+com descrição completa para leitores de tela. Não há função de reimpressão.
 
 As próximas ações ficam na linha do pedido (as descrições abaixo explicam os botões):
 
@@ -81,7 +80,7 @@ As próximas ações ficam na linha do pedido (as descrições abaixo explicam o
 | Download ausente ou inválido | **Baixar e conferir** obtém os arquivos novamente. |
 | Inclusão incerta | **Conferir gravação no Sisplan** reconcilia a gravação; não abre nova inclusão. Enquanto houver inclusão incerta, a importação de novos pedidos fica bloqueada. |
 | Importado, impressão pendente | **Retomar impressão**, sem reincluir o pedido. |
-| Impressão incerta ou outra cópia desejada | **Conferir reimpressão** / **Reimprimir** exige revisão e confirmação explícita de outra cópia. |
+| Impressão incerta | Confira a fila de impressão com o responsável. Não há ação de reenvio. |
 
 A faixa **Importar no Sisplan** antecede a área **2. Conferir resultados**.
 Após iniciar a importação, a página sobe suavemente até o topo, preservando a entrada expandida ou
@@ -120,7 +119,7 @@ retorno de sucesso do SumatraPDF, sem comprovar a saída física do papel.
 
 `preparar` baixa e valida; `revalidar` só confere arquivos locais e cadastro;
 `importar` aceita apenas pedidos `pronto_importar` sem erro; `recuperar` aceita
-somente etapas pós-inclusão/incertas; `reimprimir` exige confirmação de cópia.
+somente etapas pós-inclusão/incertas. Solicitações de reimpressão são recusadas.
 Todas as ações passam por `/api/conferir` (snapshot local) e `/api/iniciar`, com
 revisão e identificador de solicitação. A consulta local não substitui a validação
 real no serviço. Os modos HTTP antigos `normal` e `retomar` ficam limitados à
@@ -227,7 +226,7 @@ aprovado e a cor já atribuída ao projeto, **#6D28D9**. Incluem SVG, ICO e PNG
 - Inspeção no navegador usa SQLite temporário e pedidos fictícios. Não acessa
   o histórico operacional, banco, portal, Sisplan, impressora ou Teams.
 - Conferidos os temas claro/escuro, layout estreito sem transbordamento da
-  página, assinatura, pausa com decisão manual e confirmação de reimpressão.
+  página, assinatura, pausa com decisão manual e bloqueio de reenvio de impressão incerta.
 - Análise estática de `main.py`, `havan.py` e `src/`: zero erros e avisos.
   Sintaxe JavaScript e `git diff --check` aprovados.
 
@@ -263,7 +262,7 @@ com hashes conferidos. A aplicação continua independente e no navegador.
 
 ### Preparar, conferir e executar
 
-1. Escolha Inserir, Retomar ou Reimprimir. Cole os pedidos separados por vírgula
+1. Informe os pedidos para baixar e conferir. Cole os pedidos separados por vírgula
    ou linha. O contador mostra pedidos válidos únicos, completando o ano conforme
    o servidor. Repetições e inválidos são informados separadamente; nenhum item
    inválido é descartado silenciosamente para permitir execução parcial.
@@ -271,8 +270,7 @@ com hashes conferidos. A aplicação continua independente e no navegador.
    a situação no histórico local e a próxima ação prevista. Não consulta banco,
    portal ou arquivos de negócio, não cadastra pedidos e não autoriza inclusão
    incerta. “Não consta no histórico local” não significa ausência no Sisplan.
-3. Revise e use Inserir e processar, Retomar pendências ou Reimprimir pedidos.
-   Reimpressão continua exigindo a confirmação de outra cópia. Importar novamente
+3. Revise os resultados e use Importar pedidos ou as ações de conferência na lista. Importar novamente
    prepara e confere apenas aquele pedido, sem iniciar automaticamente.
 4. Alterar entrada/modo, mudar o histórico ou iniciar outra execução invalida a
    conferência. Uma execução nova sempre exige uma revisão nova. A consulta ao
@@ -297,7 +295,7 @@ bem-sucedidas. Finalização com pendências tem rótulo próprio e resumo por r
 Durante pausa ou interrupção, a posição conhecida é preservada.
 
 **Lote atual** contém os pedidos da última execução desta sessão, inclusive
-reimpressões ainda sem registro local. **Todos os pedidos salvos** conserva o
+pedidos ainda sem registro local. **Todos os pedidos salvos** conserva o
 histórico persistido. Filas e filtro Exigem atenção usam o escopo selecionado;
 atenção é uma visão sobreposta, não uma quinta etapa somável às outras. No lote,
 a observação também informa o resultado desta execução, distinguindo-o da etapa

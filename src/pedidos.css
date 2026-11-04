@@ -26,32 +26,16 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 @media(prefers-color-scheme:dark){:root:not([data-tema]){--contorno-controle:#8293ac}}
 .controles-cabecalho #tema,.controles-cabecalho #tema:hover:enabled,
 .configuracoes>summary,.configuracoes>summary:hover{border-color:var(--contorno-controle)}
-.modos{display:inline-grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;max-width:100%;vertical-align:top}
-.modos label{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;margin:0;padding:8px 12px;border:1px solid var(--contorno-controle);background:var(--cartao);font-size:14px;font-weight:600;cursor:pointer;user-select:none}
-.modos label:first-child{border-radius:7px 0 0 7px}
-.modos label:last-child{border-radius:0 7px 7px 0;border-left:0}
-.modos label:has(input:checked){color:var(--marca);background:var(--suave)}
-.modos input{width:16px;height:16px;margin:0;padding:0;flex-shrink:0;accent-color:var(--marca)}
-.modos label:has(input:disabled){opacity:.55;cursor:default}
-.modos label:has(input:focus-visible){box-shadow:inset 0 -3px 0 currentColor}
-.modos input:focus-visible{box-shadow:none}
-.conteudo-preparacao{container-type:inline-size}
-.faixa-operacao{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:end;gap:12px;margin:12px 0 16px;border-bottom:1px solid transparent}
-.faixa-operacao:has([data-modo=reimprimir]:checked){border-bottom-color:var(--borda)}
-.faixa-operacao .modos{margin:0 0 8px}
-.espaco-abas{min-width:0;min-height:44px}
-.faixa-operacao .abas{justify-content:flex-end;flex-wrap:nowrap;margin:0;border-bottom:0}
-@container(max-width:500px){.faixa-operacao{grid-template-columns:minmax(0,1fr);gap:0}.faixa-operacao .modos{justify-self:start}}
-@media(forced-colors:active){.modos label:has(input:focus-visible){background:Highlight;color:HighlightText}}
-
 /* A conferência permanece à vista; preparação e telemetria abrem sob demanda. */
 .preparacao>summary{font-size:18px;font-weight:600;cursor:pointer;min-height:44px;padding:8px 0}
 .conteudo-preparacao{padding-top:4px}
 .principal:has(.preparacao:not([open])){grid-template-columns:minmax(0,1fr);gap:12px}
 .principal:has(.preparacao:not([open])) .acompanhamento{border-left:0;border-top:1px solid var(--borda);padding:16px 0 0}
 :root[data-tema=claro] .principal .acompanhamento{border-color:var(--contorno-controle)}
-.detalhes-processamento{margin-top:12px}
-.detalhes-processamento>summary{cursor:pointer;color:var(--muted);font-size:14px;min-height:44px;padding:10px 0}
+.detalhes-processamento{margin-top:4px}
+.detalhes-processamento>summary{cursor:pointer;color:var(--muted);font-size:14px;min-height:44px;padding:6px 0}
+.detalhes-processamento progress{margin:4px 0}
+.detalhes-processamento .indicadores{margin-top:8px}
 .indicadores{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:12px}
 .indicadores>div{display:flex;align-items:baseline;gap:6px;border:0;background:transparent;padding:0}
 .indicadores strong{font-size:18px}

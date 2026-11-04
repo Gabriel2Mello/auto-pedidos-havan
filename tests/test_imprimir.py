@@ -47,7 +47,7 @@ class ImpressaoTests(unittest.TestCase):
     def test_pdf_existente_pode_ser_reimpresso_sem_arquivo_original(self) -> None:
         adicionar_numero(self.origem, self.final, self.numero)
         self.origem.unlink()
-        processar_impressao(self.pedido, self.numero, self.historico, forcar=True)
+        processar_impressao(self.pedido, self.numero, self.historico)
         self.enviar.assert_called_once_with(self.final)
 
     def test_falha_de_pdf_nao_envia_impressao_e_permanece_pendente(self) -> None:
@@ -65,11 +65,6 @@ class ImpressaoTests(unittest.TestCase):
         self.enviar.reset_mock()
         self.assertEqual(processar_impressao(self.pedido, self.numero, self.historico), 'impressao_incerta')
         self.enviar.assert_not_called()
-        self.assertEqual(
-            processar_impressao(self.pedido, self.numero, self.historico, forcar=True),
-            'impressao_enviada',
-        )
-        self.enviar.assert_called_once()
 
     def test_falha_definitiva_de_envio_pode_ser_retomada(self) -> None:
         self.enviar.return_value = ResultadoImpressao('pendente', 'Executável indisponível')

@@ -29,6 +29,27 @@ def mensagem_observacao(texto: str, pedido: str) -> str:
         'Não foi possível baixar os arquivos do pedido. Verifique o portal ou a conexão.',
         'Não foi possível baixar os arquivos do pedido. Verifique o portal',
     )
+    for orientacao in (
+        '. Pedido salvo. Após cadastrar os produtos, '
+        'use Conferir cadastro novamente e depois Importe os pedidos aptos.',
+        '. Use Conferir cadastro novamente após corrigir.',
+        '. Use Conferir cadastro novamente para simular o cadastro corrigido.',
+    ):
+        if texto.endswith(orientacao):
+            texto = texto[:-len(orientacao)] + '. Confira novamente.'
+            break
+    texto = re.sub(
+        r'Código de barras não cadastrado: (\d+) (\([^;\n]*\))',
+        r'EAN \1 \2 sem cadastro', texto,
+    )
+    texto = texto.replace(
+        'O Sisplan encontrou produto sem cadastro. Confira novamente.',
+        'Produto sem cadastro no Sisplan. Confira novamente.',
+    )
+    impressao = 'A impressão do pedido não foi concluída com segurança. Confira a impressora.'
+    if texto in (impressao, impressao + ' O pedido está salvo para retomar ou reimprimir.',
+                 impressao + ' Confira o andamento com o responsável antes de continuar.'):
+        texto = 'Impressão não confirmada. Confira a fila de impressão com o responsável.'
     return texto[:1].upper() + texto[1:]
 
 

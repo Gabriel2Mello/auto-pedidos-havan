@@ -18,15 +18,15 @@ logger = get_logger(__name__)
 
 
 def processar_impressao(
-    pedido: str, numero: str, historico: EstadoPedidos, forcar: bool = False,
+    pedido: str, numero: str, historico: EstadoPedidos,
 ) -> str:
     registro = historico.obter(pedido)
     if registro is None or registro.numero != numero or registro.etapa == 'gravacao_pendente':
         raise EstadoError('Impressão bloqueada: pedido sem gravação confirmada no histórico.')
-    if registro.etapa == 'impressao_enviada' and not forcar:
+    if registro.etapa == 'impressao_enviada':
         return 'impressao_enviada'
-    if registro.etapa in ('impressao_iniciada', 'impressao_incerta') and not forcar:
-        motivo = 'Envio anterior incerto; confira a fila antes de usar --reimprimir.'
+    if registro.etapa in ('impressao_iniciada', 'impressao_incerta'):
+        motivo = 'Envio anterior incerto; confira a fila de impressão com o responsável.'
         historico.salvar(replace(registro, etapa='impressao_incerta', erro=motivo))
         logger.warning('Pedido %s: %s', pedido, motivo)
         return 'impressao_incerta'

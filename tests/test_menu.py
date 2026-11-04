@@ -16,6 +16,15 @@ from src.erros import (SessaoPortalExpiradaError)
 
 
 class MenuTests(unittest.TestCase):
+    def test_cli_recusa_reimpressao_sem_abrir_historico(self) -> None:
+        with patch('main.setup_logging'), patch('sys.argv', ['main.py', '--reimprimir', '12345']), \
+             patch('main.EstadoPedidos') as historico, patch('main.processar_pedidos') as processar:
+            with self.assertRaises(SystemExit) as erro:
+                main.main()
+            self.assertEqual(erro.exception.code, 2)
+        historico.assert_not_called()
+        processar.assert_not_called()
+
     def setUp(self) -> None:
         self.enterContext(patch('sincronizar_estatisticas.ler_configuracao', return_value=None))
         patch_relogio = patch('src.pedidos.datetime', wraps=datetime)
@@ -51,11 +60,6 @@ class MenuTests(unittest.TestCase):
             self.assertEqual(historico.pendentes(), pedidos)
         self.assertIn('Não entendi estes números: abcde', saida.getvalue())
 
-    def test_reimprimir_pede_numeros_sem_criar_fila_para_importar(self) -> None:
-        with EstadoPedidos(self.caminho) as historico, redirect_stdout(io.StringIO()):
-            with patch('builtins.input', side_effect=['3', '2026-109335']):
-                self.assertEqual(escolher_operacao(historico), ('reimprimir', ['2026-109335']))
-            self.assertEqual(historico.pendentes(), [])
 
     def test_opcao_invalida_e_retomada_vazia_voltam_ao_menu(self) -> None:
         saida = io.StringIO()
@@ -130,6 +134,6 @@ class MenuTests(unittest.TestCase):
             with self.subTest(situacao=situacao), patch('main.setup_logging'), \
                     patch('main.set_app_id'), patch('main.EstadoPedidos'), \
                     patch('main.processar_pedidos', return_value=ResumoExecucao({'2026-12345': situacao})), \
-                    patch('sys.argv', ['main.py', '--reimprimir', '12345']), \
+                    patch('sys.argv', ['main.py', '--retomar']), \
                     patch('builtins.input', return_value=''):
                 self.assertEqual(main.main(), esperado)

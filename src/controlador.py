@@ -199,7 +199,7 @@ class EstadoInterface:
     def conferir(self, dados: dict[str, object]) -> dict[str, object]:
         """Revisa somente entrada e snapshot local, sem consultar integrações."""
         modo, entrada = dados.get('modo'), dados.get('pedidos', '')
-        if modo not in ('normal', 'retomar', 'reimprimir', 'preparar', 'revalidar', 'importar', 'recuperar') or not isinstance(entrada, str):
+        if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar') or not isinstance(entrada, str):
             raise ValueError('Informe o modo e a lista de pedidos.')
         pedidos = analisar_entrada_pedidos(entrada, permitir_vazio=modo == 'retomar')
         with self.trava:
@@ -219,13 +219,11 @@ class EstadoInterface:
     def iniciar(self, dados: dict[str, object]) -> None:
         modo = dados.get('modo')
         entrada, solicitacao = dados.get('pedidos', ''), dados.get('solicitacao', '')
-        if modo not in ('normal', 'retomar', 'reimprimir', 'preparar', 'revalidar', 'importar', 'recuperar'):
-            raise ValueError('Escolha Baixar e conferir, Importar, Conferir cadastro, Recuperar ou Reimprimir.')
+        if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar'):
+            raise ValueError('Escolha Baixar e conferir, Importar, Conferir cadastro, ou Recuperar.')
         if not isinstance(entrada, str) or not isinstance(solicitacao, str) or not 1 <= len(solicitacao) <= 100:
             raise ValueError('Solicitação inválida. Atualize a página e tente novamente.')
         pedidos = analisar_entrada_pedidos(entrada, permitir_vazio=modo == 'retomar')
-        if modo == 'reimprimir' and dados.get('confirmado') is not True:
-            raise ValueError('Confirme o envio de outra cópia antes de reimprimir.')
         # Clientes antigos também ficam limitados à preparação; nunca importam implicitamente.
         modo_executor = 'preparar' if modo in ('normal', 'retomar') else modo
         trabalho = Trabalho(modo_executor, pedidos)
@@ -243,7 +241,7 @@ class EstadoInterface:
                 # Relê TOML/preferência ao aceitar o lote e preserva o snapshot.
                 trabalho.configuracao = Configuracao.carregar()
                 self.impressora = trabalho.configuracao.impressora
-            if 'impressora' in dados and modo_executor in ('importar', 'recuperar', 'reimprimir'):
+            if 'impressora' in dados and modo_executor in ('importar', 'recuperar'):
                 if dados['impressora'] != self.impressora:
                     raise ConflitoInterface('A impressora mudou. Confira a seleção e prepare o lote novamente.')
                 if modo_executor != 'recuperar' and (not self.impressora or self.impressora not in self.listar_filas()):

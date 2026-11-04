@@ -52,7 +52,7 @@ class TestSimulacao(unittest.TestCase):
         for c in cenarios:
             with self.subTest(cenario=c['id']):
                 self.assertTrue(c['orientacao'])
-                self.assertIn(c['modo'], ('normal', 'reimprimir'))
+                self.assertEqual(c['modo'], 'normal')
                 if c['id'] == 'entrada':
                     with self.assertRaises(ValueError):
                         analisar_entrada_pedidos(c['entrada'], ano=2027)
@@ -74,21 +74,7 @@ class TestSimulacao(unittest.TestCase):
         self.assertEqual(resumo.situacoes[pedido], 'existente')
         self.assertNotIn((pedido, 'impressao_iniciada'), self.etapas)
 
-    def test_existente_e_reimpressao_explicita_seguem_fluxos_distintos(self):
-        pedido = self.pedido('999001')
-        self.historico.salvar(EstadoPedido(pedido, '8001', 'impressao_enviada'))
-        self.assertEqual(self.executar(['999001']).situacoes[pedido], 'existente')
-        self.etapas.clear()
-        resumo = self.executar(['999001'], modo='reimprimir')
-        self.assertEqual(resumo.situacoes[pedido], 'impressao_enviada')
-        self.assertEqual(resumo.importados, set())
-        self.assertNotIn((pedido, 'baixado'), self.etapas)
-        self.assertNotIn((pedido, 'gravacao_pendente'), self.etapas)
 
-    def test_reimpressao_sem_gravacao_e_rejeitada_sem_criar_historico(self):
-        resumo = self.executar(['999099'], modo='reimprimir')
-        self.assertEqual(resumo.situacoes[self.pedido('999099')], 'rejeitado')
-        self.assertEqual(self.historico.listar(), [])
 
     def test_cadastro_fica_pendente_e_nova_solicitacao_simula_correcao(self):
         pedido = self.pedido('999003')
@@ -150,7 +136,6 @@ class TestSimulacao(unittest.TestCase):
         self.assertEqual(resumo.situacoes[pedido], 'existente')
         self.assertEqual(resumo.importados, set())
         self.assertNotIn((pedido, 'impressao_iniciada'), self.etapas)
-        self.assertEqual(self.executar(['999008'], modo='reimprimir').importados, set())
 
     def test_cancelamento_incompleto_nao_libera_retomada_nem_outro_pedido(self):
         pedido = self.pedido('999014')
@@ -169,7 +154,7 @@ class TestSimulacao(unittest.TestCase):
         self.assertEqual(resumo.importados, set())
         self.assertEqual(resumo.situacoes[self.pedido('999012')], 'impressao_enviada')
 
-    def test_impressao_incerta_exige_reimpressao_explicita(self):
+    def test_impressao_incerta_nao_reenvia_automaticamente(self):
         pedido = self.pedido('999011')
         self.executar(['999011'], decisao='pular')
         self.etapas.clear()
@@ -177,10 +162,6 @@ class TestSimulacao(unittest.TestCase):
         self.assertEqual(self.decidir.call_args.args[2:], (False, True))
         self.assertEqual(resumo.situacoes[pedido], 'impressao_incerta')
         self.assertNotIn((pedido, 'impressao_iniciada'), self.etapas)
-        resumo = self.executar(['999011'], modo='reimprimir')
-        self.assertEqual(resumo.importados, set())
-        self.assertEqual(resumo.situacoes[pedido], 'impressao_enviada')
-
     def test_parada_durante_download_preserva_etapa_baixada(self):
         self.parar_na_etapa = 'baixado'
         self.executar(['999016', '999017'])

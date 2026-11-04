@@ -33,7 +33,6 @@ def escolher_operacao(historico: EstadoPedidos) -> tuple[Modo, list[str]] | None
             print(f'Existem {pendentes} pedido(s) pendente(s). Escolha 2 para retomar.')
         print('1 - Inserir pedidos')
         print(f'2 - Retomar ({pendentes} pendentes)')
-        print('3 - Reimprimir pedidos')
         print('0 - Sair')
         dica = ' (Enter para retomar)' if pendentes else ''
         escolha = input(f'Escolha uma opção{dica}: ').strip()
@@ -44,15 +43,13 @@ def escolher_operacao(historico: EstadoPedidos) -> tuple[Modo, list[str]] | None
                 return 'retomar', []
             print('Não existem pedidos pendentes.')
             continue
-        if escolha in ('1', '3'):
+        if escolha == '1':
             pedidos = ler_pedidos()
             if not pedidos:
                 continue
-            modo: Modo = 'normal' if escolha == '1' else 'reimprimir'
-            if modo == 'normal':
-                historico.adicionar_pedidos(pedidos)
-            return modo, pedidos
-        print('Opção inválida. Digite 1, 2, 3 ou 0.')
+            historico.adicionar_pedidos(pedidos)
+            return 'normal', pedidos
+        print('Opção inválida. Digite 1, 2 ou 0.')
 
 
 def perguntar_apos_erro(
@@ -66,8 +63,6 @@ def perguntar_apos_erro(
     elif not pode_repetir:
         print('Uma nova tentativa automática poderia repetir uma inclusão ou impressão. '
               'Confira o Sisplan ou a impressora com o responsável.')
-        if pode_continuar:
-            print('Para enviar outra cópia, confira a impressão e use a opção 3 - Reimprimir no menu.')
     while True:
         if pode_repetir:
             if isinstance(erro, SessaoPortalExpiradaError):

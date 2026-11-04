@@ -51,7 +51,7 @@ class PreferenciaTests(unittest.TestCase):
     def test_adaptador_passa_configuracao_congelada_ao_servico(self):
         config = replace(CONFIG, impressora='Fila do lote')
         with usar_configuracao(config), patch('src.servico_pedidos.processar_pedidos') as processar:
-            executar_fluxo([], 'reimprimir', historico=None,
+            executar_fluxo([], 'recuperar', historico=None,
                            ao_erro=lambda *args: 'encerrar',
                            ao_progresso=lambda *args: None, parar=lambda: False)
         self.assertIs(processar.call_args.kwargs['contexto'].configuracao, config)
@@ -123,8 +123,14 @@ class ImpressoraHTTPTests(interface.BaseInterface):
         self.assertIn('indisponível', self.estado.listar_impressoras()['aviso_impressora'])
 
     def test_troca_invalida_conferencia_e_lote_mantem_impressora(self):
-        dados = {'modo':'reimprimir', 'pedidos':'12345', 'solicitacao':'teste-fila',
-                 'confirmado':True, 'impressora':'Fila A'}
+        def preparar(pedidos, modo, *, historico, **kwargs):
+            for pedido in pedidos:
+                historico.salvar(interface.EstadoPedido(pedido, '', 'pronto_importar'))
+            return interface.ResumoExecucao(dict.fromkeys(pedidos, 'pronto_importar'))
+        self.executor = preparar
+        self.iniciar(pedidos='12345')
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        dados = {'modo':'importar', 'pedidos':'12345', 'solicitacao':'teste-fila', 'impressora':'Fila A'}
         dados['conferencia'] = self.estado.conferir(dados)['id']
         self.estado.selecionar_impressora('Fila B')
         self.assertEqual(self.requisitar('/api/iniciar', dados)[0], 409)

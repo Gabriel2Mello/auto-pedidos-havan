@@ -38,7 +38,6 @@ def executar_console_pedidos() -> int:
     parser = argparse.ArgumentParser(description='Automação de pedidos Havan')
     modos = parser.add_mutually_exclusive_group()
     modos.add_argument('--retomar', action='store_true', help='Retoma a fila pendente.')
-    modos.add_argument('--reimprimir', metavar='PEDIDOS', help='Reenvia a impressão dos pedidos informados.')
     modos.add_argument('--reiniciar', metavar='PEDIDOS', help='Uso do responsável: nova tentativa após cancelar a inclusão anterior.')
     args = parser.parse_args()
     modo_cli: Modo | None = None
@@ -46,9 +45,6 @@ def executar_console_pedidos() -> int:
     try:
         if args.retomar:
             modo_cli = 'retomar'
-        elif args.reimprimir is not None:
-            modo_cli = 'reimprimir'
-            pedidos_cli = analisar_entrada_pedidos(args.reimprimir)
         elif args.reiniciar is not None:
             modo_cli = 'reiniciar'
             pedidos_cli = analisar_entrada_pedidos(args.reiniciar)

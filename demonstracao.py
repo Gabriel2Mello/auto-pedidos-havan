@@ -20,7 +20,7 @@ def cenarios_interface():
         ('entrada', 'Entrada inválida e repetida', 'normal', '999002\n999002\nINVALIDO\n999015',
          'Confira a contagem. A entrada inválida bloqueia Baixar e conferir. Remova INVALIDO e prepare a lista; os repetidos são contados uma vez.'),
         ('existente', 'Pedido já existente', 'normal', '999001',
-         'Baixar e conferir reconhece o existente sem download, nova inclusão ou impressão. Compare com Reimprimir.'),
+         'Baixar e conferir reconhece o existente sem download, nova inclusão ou impressão.'),
         ('cadastro', 'Produto sem cadastro e nova tentativa', 'normal', '999003\n999015',
          'Baixe e confira. Filtre Produtos sem cadastro e use Conferir cadastro novamente: simula cadastro corrigido e libera a importação, que exige outro clique.'),
         ('download', 'Falha de download e decisões', 'normal', '999004\n999015',
@@ -31,12 +31,10 @@ def cenarios_interface():
          'A consulta falha antes da inclusão. Tentar novamente simula a rede restabelecida; continuar para outro pedido fica bloqueado.'),
         ('retomada', 'Retomar de etapas diferentes', 'normal', '999009\n999010',
          'Baixe e confira e importe os aptos. Um pedido ficará com impressão pendente. Use Retomar impressão na linha, sem nova inclusão.'),
-        ('reimprimir', 'Reimpressão com confirmação', 'reimprimir', '999001',
-         'Conferir não envia nada. Iniciar só é liberado ao confirmar outra cópia. A execução reimprime sem contabilizar inclusão.'),
         ('impressao-pendente', 'Impressão pendente recuperável', 'normal', '999012',
          'Baixe, confira e importe. A impressora falha após a gravação. Tente novamente ou pare e use Retomar impressão na linha, sem nova inclusão.'),
         ('impressao-incerta', 'Impressão incerta sem reenvio automático', 'normal', '999011',
-         'Baixe, confira e importe. Deixe pendente na pausa; Conferir reimpressão exige confirmação explícita de outra cópia.'),
+         'Baixe, confira e importe. Deixe pendente na pausa; Confira a fila de impressão com o responsável.'),
         ('gravacao', 'Gravação incerta e conferência posterior', 'normal', '999007\n999015',
          'Após baixar, conferir e importar, repetir e pular ficam bloqueados. Pare e use Conferir gravação no Sisplan na linha, sem reincluir.'),
         ('aviso', 'Aviso pendente e existência confirmada', 'normal', '999008\n999015',
@@ -103,73 +101,67 @@ def _processar(pedido, modo, historico, resumo, salvar, parar):
         raise FalhaSimulada(PedidoRejeitadoError('Pedido não está pronto para importar.'), False, True)
     if modo == 'recuperar' and (registro is None or registro.etapa in (*ETAPAS_INICIAIS, *ETAPAS_FINAIS)):
         raise FalhaSimulada(PedidoRejeitadoError('Recuperar não pode incluir pedidos novos.'), False, False)
-    if modo == 'reimprimir':
-        if not existente and (registro is None or registro.etapa in ETAPAS_INICIAIS or codigo == '999014'):
-            raise FalhaSimulada(PedidoRejeitadoError('Demonstração: pedido sem gravação confirmada para reimprimir.'), True, True, 'rejeitado')
-        salvar('importado', numero)
-        resumo.retomados.add(pedido)
-    else:
-        if registro is None:
-            raise RuntimeError('Pedido de demonstração não foi preservado na fila.')
-        if registro.etapa in ETAPAS_FINAIS:
+    if registro is None:
+        raise RuntimeError('Pedido de demonstração não foi preservado na fila.')
+    if registro.etapa in ETAPAS_FINAIS:
+        resumo.situacoes[pedido] = 'existente'
+        return
+    if registro.etapa in INCLUSOES_INCERTAS:
+        if codigo == '999014':
+            raise FalhaSimulada(SisplanError('Demonstração: cancelamento ainda não confirmado.'), False, False, 'gravacao_pendente')
+        if registro.etapa == 'aviso_pendente':
+            salvar('existente', numero)
             resumo.situacoes[pedido] = 'existente'
             return
-        if registro.etapa in INCLUSOES_INCERTAS:
-            if codigo == '999014':
-                raise FalhaSimulada(SisplanError('Demonstração: cancelamento ainda não confirmado.'), False, False, 'gravacao_pendente')
-            if registro.etapa == 'aviso_pendente':
-                salvar('existente', numero)
-                resumo.situacoes[pedido] = 'existente'
+        salvar('importado', numero)
+        resumo.retomados.add(pedido)
+    elif registro.etapa in ('impressao_iniciada', 'impressao_incerta'):
+        salvar('impressao_incerta', numero)
+        raise FalhaSimulada(PedidoRejeitadoError('Demonstração: confira a fila de impressão com o responsável.'), False, True, 'impressao_incerta')
+    elif registro.etapa in ETAPAS_INICIAIS:
+        if existente:
+            salvar('existente', numero)
+            resumo.situacoes[pedido] = 'existente'
+            return
+        if any(p != pedido for p in historico.inclusoes_incertas()):
+            raise FalhaSimulada(EstadoError('Há uma inclusão sintética anterior sem conferência.'), False, False)
+        if modo != 'importar' and not registro.erro:
+            erros = {'999004': (PedidoRejeitadoError('Demonstração: falha temporária no download.'), True),
+                     '999005': (SessaoPortalExpiradaError(), False),
+                     '999006': (BancoSisplanError('Demonstração: banco indisponível antes de incluir.'), False)}
+            if codigo in erros:
+                erro, pular = erros[codigo]
+                raise FalhaSimulada(erro, True, pular)
+        preparar_pendencia = registro.etapa == 'para_baixar'
+        if registro.etapa == 'para_baixar':
+            salvar('baixado', '')
+            if codigo == '999009':
+                resumo.situacoes[pedido] = 'aguardando'
                 return
-            salvar('importado', numero)
-            resumo.retomados.add(pedido)
-        elif registro.etapa in ('impressao_iniciada', 'impressao_incerta'):
-            salvar('impressao_incerta', numero)
-            raise FalhaSimulada(PedidoRejeitadoError('Demonstração: confira a fila e use Reimprimir para enviar outra cópia.'), False, True, 'impressao_incerta')
-        elif registro.etapa in ETAPAS_INICIAIS:
-            if existente:
-                salvar('existente', numero)
-                resumo.situacoes[pedido] = 'existente'
-                return
-            if any(p != pedido for p in historico.inclusoes_incertas()):
-                raise FalhaSimulada(EstadoError('Há uma inclusão sintética anterior sem conferência.'), False, False)
-            if modo != 'importar' and not registro.erro:
-                erros = {'999004': (PedidoRejeitadoError('Demonstração: falha temporária no download.'), True),
-                         '999005': (SessaoPortalExpiradaError(), False),
-                         '999006': (BancoSisplanError('Demonstração: banco indisponível antes de incluir.'), False)}
-                if codigo in erros:
-                    erro, pular = erros[codigo]
-                    raise FalhaSimulada(erro, True, pular)
-            preparar_pendencia = registro.etapa == 'para_baixar'
-            if registro.etapa == 'para_baixar':
-                salvar('baixado', '')
-                if codigo == '999009':
-                    resumo.situacoes[pedido] = 'aguardando'
-                    return
-            if modo != 'importar' and codigo == '999003' and registro.etapa != 'sem_cadastro':
-                salvar('sem_cadastro', '')
-                raise FalhaSimulada(ProdutoSemCadastroError('Demonstração: produto sem cadastro. Use Conferir cadastro novamente para simular o cadastro corrigido.'), True, True, 'sem_cadastro')
-            if parar():
-                return
-            salvar('importacao_iniciada', '')
-            if codigo == '999014':
-                raise FalhaSimulada(SisplanError('Demonstração: cancelamento por produto sem cadastro não confirmado.'), False, False, 'gravacao_pendente')
-            salvar('gravacao_pendente', numero)
-            if codigo in ('999007', '999008'):
-                if codigo == '999008':
-                    salvar('aviso_pendente', '')
-                raise FalhaSimulada(GravacaoNaoConfirmadaError('Demonstração: conferência no banco pendente.'), False, False, 'gravacao_pendente')
-            # Uma parada não deixa a gravação artificialmente incerta.
-            salvar('importado', numero)
-            resumo.importados.add(pedido)
-            if (preparar_pendencia or modo == 'importar') and codigo == '999010':
-                resumo.situacoes[pedido] = 'impressao_pendente'
-                return
-        else:
-            resumo.retomados.add(pedido)
-        if codigo == '999012' and historico.obter(pedido).etapa == 'importado' and not registro.erro:
-            salvar('impressao_pendente', numero)
-            raise FalhaSimulada(PedidoRejeitadoError('Demonstração: impressora indisponível antes do envio.'), True, True, 'impressao_pendente')
+        if modo != 'importar' and codigo == '999003' and registro.etapa != 'sem_cadastro':
+            salvar('sem_cadastro', '')
+            raise FalhaSimulada(ProdutoSemCadastroError('Demonstração: produto sem cadastro. Use Conferir cadastro novamente para simular o cadastro corrigido.'), True, True, 'sem_cadastro')
+        if parar():
+            return
+        salvar('importacao_iniciada', '')
+        if codigo == '999014':
+            raise FalhaSimulada(SisplanError('Demonstração: cancelamento por produto sem cadastro não confirmado.'), False, False, 'gravacao_pendente')
+        salvar('gravacao_pendente', numero)
+        if codigo in ('999007', '999008'):
+            if codigo == '999008':
+                salvar('aviso_pendente', '')
+            raise FalhaSimulada(GravacaoNaoConfirmadaError('Demonstração: conferência no banco pendente.'), False, False, 'gravacao_pendente')
+        # Uma parada não deixa a gravação artificialmente incerta.
+        salvar('importado', numero)
+        resumo.importados.add(pedido)
+        if (preparar_pendencia or modo == 'importar') and codigo == '999010':
+            resumo.situacoes[pedido] = 'impressao_pendente'
+            return
+    else:
+        resumo.retomados.add(pedido)
+    if codigo == '999012' and historico.obter(pedido).etapa == 'importado' and not registro.erro:
+        salvar('impressao_pendente', numero)
+        raise FalhaSimulada(PedidoRejeitadoError('Demonstração: impressora indisponível antes do envio.'), True, True, 'impressao_pendente')
     if parar():
         resumo.situacoes[pedido] = 'impressao_pendente'
         return
@@ -178,13 +170,15 @@ def _processar(pedido, modo, historico, resumo, salvar, parar):
         resumo.situacoes[pedido] = 'impressao_pendente'
         return
     salvar('impressao_iniciada', numero)
-    if codigo == '999011' and modo != 'reimprimir':
+    if codigo == '999011':
         salvar('impressao_incerta', numero)
-        raise FalhaSimulada(PedidoRejeitadoError('Demonstração: retorno do envio incerto; confira a fila antes de reimprimir.'), False, True, 'impressao_incerta')
+        raise FalhaSimulada(PedidoRejeitadoError('Demonstração: retorno do envio incerto; confira a fila de impressão com o responsável.'), False, True, 'impressao_incerta')
     salvar('impressao_enviada', numero)
     resumo.situacoes[pedido] = 'impressao_enviada'
 
 def simular(pedidos, modo, *, historico, ao_erro, ao_progresso, parar):
+    if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'reiniciar'):
+        raise ValueError('Operação não disponível.')
     resumo = ResumoExecucao(dict.fromkeys(pedidos, 'aguardando'))
     for indice, pedido in enumerate(pedidos, 1):
         if parar():

@@ -43,7 +43,7 @@ def main():
 
                         def preparar(modo, entrada=''):
                             aguardar('!estado.ocupada && !enviando')
-                            w.evaluate_js(f'mudarModo({json.dumps(modo)});'
+                            w.evaluate_js("document.getElementById('preparacao').open=true;"
                                           f"document.getElementById('pedidos').value={json.dumps(entrada)};"
                                           "document.getElementById('pedidos').dispatchEvent(new Event('input'))")
 
@@ -72,14 +72,6 @@ def main():
                             w.evaluate_js(f'document.querySelector({json.dumps(seletor)}).click()')
                             aguardar(f'estado.execucao !== {json.dumps(anterior)} && !enviando')
 
-                        def reimprimir(entrada):
-                            preparar('reimprimir',entrada)
-                            w.evaluate_js("document.getElementById('conferir').click()")
-                            aguardar('conferencia !== null && !enviando')
-                            assert w.evaluate_js("document.getElementById('iniciar').disabled")
-                            w.evaluate_js("document.getElementById('confirmar-copia').checked=true;document.getElementById('confirmar-copia').dispatchEvent(new Event('change'))")
-                            clicar_iniciar('iniciar')
-
                         def sem_recorte():
                             assert w.evaluate_js('document.documentElement.scrollWidth<=innerWidth+1 && document.documentElement.clientWidth===innerWidth')
 
@@ -95,6 +87,8 @@ def main():
                             aguardar("['CONCLUIDO','INTERROMPIDO'].includes(estado.fase) && !enviando")
 
                         aguardar('estado && conectado && cenariosDemo.length>0')
+                        assert w.evaluate_js("document.querySelector('[data-modo]')===null && document.getElementById('painel-conferencia')===null")
+                        resultados.append('formulário único, sem seletor ou revisão de reimpressão')
                         assert w.evaluate_js("document.getElementById('demo-roteiro')===null")
                         for largura in (1180, 760, 480):
                             w.resize(largura,820)
@@ -143,7 +137,7 @@ def main():
                         assert w.evaluate_js("!document.getElementById('acompanhamento').hidden && !document.getElementById('detalhes-processamento').hidden && document.getElementById('identificacao').getBoundingClientRect().height>0")
                         resultados.append('execução finalizada mantém faixa do último processado e detalhes com entrada expandida')
                         assert w.evaluate_js("document.querySelector('.importacao-lote').getBoundingClientRect().bottom <= document.getElementById('titulo-historico').getBoundingClientRect().top")
-                        assert w.evaluate_js("document.getElementById('importar-aptos').textContent==='Importar 2 pedidos aptos'")
+                        assert w.evaluate_js("document.getElementById('importar-aptos').textContent==='Importar 2 pedidos'")
                         resultados.append('faixa de importação acima dos resultados com contagem natural dos aptos')
                         assert w.evaluate_js("estado.modo==='preparar' && estado.resumo.importacoes_confirmadas===0")
                         assert w.evaluate_js("estado.pedidos.filter(p=>p.etapa==='pronto_importar').length===2 && estado.pedidos.find(p=>p.pedido.endsWith('999003')).etapa==='sem_cadastro' && estado.resultados_lote[estado.lote.find(p=>p.endsWith('999004'))]==='falhou'")
@@ -185,9 +179,7 @@ def main():
                         selecionar('existente');baixar();terminar()
                         assert w.evaluate_js('estado.resumo.importacoes_confirmadas===0 && estado.resumo.existente===1')
                         assert w.evaluate_js("document.getElementById('importar-aptos').disabled")
-                        reimprimir('999001');terminar()
-                        assert w.evaluate_js('estado.resumo.importacoes_confirmadas===0 && estado.resumo.impressao_enviada===1')
-                        resultados.append('existente separado sem importação e reimpressão exige confirmação')
+                        resultados.append('existente separado sem nova importação ou impressão')
 
                         for cenario in ('portal','banco'):
                             selecionar(cenario);baixar();aguardar("estado.fase==='PAUSADO'")
@@ -212,14 +204,8 @@ def main():
                         selecionar('impressao-incerta');baixar();terminar();importar();aguardar("estado.fase==='PAUSADO'")
                         assert w.evaluate_js("document.getElementById('repetir').hidden")
                         responder('pular');terminar()
-                        w.evaluate_js("document.querySelector('[data-acao-pedido$=\"-999011\"]').click()")
-                        aguardar('conferencia!==null && !enviando')
-                        assert w.evaluate_js("modo==='reimprimir' && document.getElementById('iniciar').disabled")
-                        assert w.evaluate_js("estado.pedidos.find(p=>p.pedido.endsWith('999011')).etapa==='impressao_incerta'")
-                        w.evaluate_js("document.getElementById('confirmar-copia').checked=true;document.getElementById('confirmar-copia').dispatchEvent(new Event('change'))")
-                        clicar_iniciar('iniciar');terminar()
-                        assert w.evaluate_js('estado.resumo.importacoes_confirmadas===0 && estado.resumo.impressao_enviada===1')
-                        resultados.append('impressão incerta abre revisão e exige confirmação explícita da outra cópia')
+                        assert w.evaluate_js("document.querySelector('[data-acao-pedido$=\"-999011\"]')===null")
+                        resultados.append('impressão incerta sem ação de reenvio')
 
                         for cenario,sufixo in (('gravacao','999007'),('aviso','999008')):
                             selecionar(cenario);baixar();terminar();importar();aguardar("estado.fase==='PAUSADO'")
@@ -244,21 +230,6 @@ def main():
                         assert w.evaluate_js("document.getElementById('quantidade').textContent==='Nenhum pedido nesta seleção'")
                         limpar_filtros()
                         resultados.append('60 existentes: paginação, busca, grupos e rolagem curta/longa sem deslocar largura')
-
-                        preparar('reimprimir','999001')
-                        w.evaluate_js("document.getElementById('conferir').click()")
-                        aguardar('conferencia!==null && !enviando')
-                        largura_conferencia=w.evaluate_js("document.querySelector('.rolagem-conferencia').getBoundingClientRect().width")
-                        assert w.evaluate_js("document.querySelector('.rolagem-conferencia').scrollHeight<=document.querySelector('.rolagem-conferencia').clientHeight")
-                        preparar('reimprimir','\n'.join(str(n) for n in range(999100,999160)))
-                        w.evaluate_js("document.getElementById('conferir').click()")
-                        aguardar('conferencia!==null && !enviando')
-                        assert w.evaluate_js("document.querySelector('.rolagem-conferencia').scrollHeight>document.querySelector('.rolagem-conferencia').clientHeight")
-                        assert abs(w.evaluate_js("document.querySelector('.rolagem-conferencia').getBoundingClientRect().width")-largura_conferencia)<1
-                        assert w.evaluate_js("document.getElementById('iniciar').disabled")
-                        w.evaluate_js("document.getElementById('pedidos').value+='\\n999016';document.getElementById('pedidos').dispatchEvent(new Event('input'))")
-                        assert w.evaluate_js('conferencia===null')
-                        resultados.append('revisão curta/longa de reimpressão estável; edição invalida autorização')
 
                         from System import Action
                         w.native.Invoke(Action(lambda:setattr(w.native.webview,'ZoomFactor',1.25)))

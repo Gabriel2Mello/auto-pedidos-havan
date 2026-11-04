@@ -120,6 +120,8 @@ def processar_pedidos(
     ao_progresso: AoProgresso | None = None, parar: Callable[[], bool] | None = None,
     contexto: ContextoExecucao | None = None,
 ) -> ResumoExecucao:
+    if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'reiniciar'):
+        raise ValueError('Operação não disponível.')
     contexto = contexto or ContextoExecucao(Configuracao.carregar())
     resumo = ResumoExecucao(dict.fromkeys(numero_pedidos, 'aguardando'))
     execucao_metricas = uuid4().hex
@@ -223,14 +225,11 @@ def processar_um_pedido(
     resumo: ResumoExecucao, recursos: RecursosExecucao,
     encontrados: list[PedidoExistente] | None = None,
 ) -> None:
+    if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'reiniciar'):
+        raise ValueError('Operação não disponível.')
     registro = historico.obter(pedido)
     if encontrados is None:
         encontrados = banco.consultar_pedidos([pedido]).get(pedido, [])
-    if modo == 'reimprimir':
-        if len(encontrados) != 1:
-            raise PedidoRejeitadoError('Não encontrei uma gravação única desse pedido no Sisplan para reimprimir.')
-        retomar_impressao(pedido, encontrados[0].numero, banco, historico, resumo, forcar=True, parar=recursos.parar, integracoes=recursos.contexto.integracoes)
-        return
     if registro is None:
         raise EstadoError('Pedido não está na fila salva. Volte ao menu e escolha Inserir.')
     if modo in ('preparar', 'revalidar'):
@@ -267,7 +266,7 @@ def processar_um_pedido(
     if registro.etapa in ('impressao_enviada', 'existente'):
         if encontrados and (not registro.numero or any(p.numero == registro.numero for p in encontrados)):
             resumo.situacoes[pedido] = 'existente'
-            logger.info('Pedido %s já processado; consulte Reimprimir se precisar de outra cópia.', pedido)
+            logger.info('Pedido %s já processado; nenhuma nova impressão será enviada.', pedido)
             return
         raise GravacaoNaoConfirmadaError('O histórico e o Sisplan não correspondem. Avise o responsável.')
     if not encontrados:
@@ -283,7 +282,7 @@ def processar_um_pedido(
 
 def retomar_impressao(
     pedido: str, numero: str, banco: BancoSisplan, historico: EstadoPedidos,
-    resumo: ResumoExecucao, forcar: bool = False,
+    resumo: ResumoExecucao,
     parar: Callable[[], bool] | None = None,
     integracoes: Integracoes | None = None,
 ) -> None:
@@ -291,7 +290,7 @@ def retomar_impressao(
     if registro is not None and registro.numero and registro.numero != numero:
         raise EstadoError('O número interno diverge do histórico. Avise o responsável.')
     # Aviso pendente vem de uma inclusão cancelada: confirmar a existência para
-    # reimprimir não comprova uma nova inclusão feita por esta automação.
+    # uma impressão não comprova uma nova inclusão feita por esta automação.
     inclusao_incerta = registro is not None and registro.etapa in ('importacao_iniciada', 'gravacao_pendente')
     if inclusao_incerta:
         itens = historico.obter_itens_esperados(pedido)
@@ -310,18 +309,18 @@ def retomar_impressao(
     if parar is not None and parar():
         resumo.situacoes[pedido] = 'impressao_pendente'
         return
-    enviar_impressao(pedido, numero, historico, resumo, forcar=forcar, integracoes=integracoes)
+    enviar_impressao(pedido, numero, historico, resumo, integracoes=integracoes)
 
 
 def enviar_impressao(
-    pedido: str, numero: str, historico: EstadoPedidos, resumo: ResumoExecucao, forcar: bool = False,
+    pedido: str, numero: str, historico: EstadoPedidos, resumo: ResumoExecucao,
     integracoes: Integracoes | None = None,
 ) -> None:
-    resumo.situacoes[pedido] = (integracoes or Integracoes()).imprimir(pedido, numero, historico, forcar=forcar)
+    resumo.situacoes[pedido] = (integracoes or Integracoes()).imprimir(pedido, numero, historico)
     if resumo.situacoes[pedido] != 'impressao_enviada':
         raise PedidoRejeitadoError(
             f'A impressão do pedido {pedido} não foi concluída com segurança. '
-            'Confira a impressora. O pedido está salvo para retomar ou reimprimir.'
+            'Confira a impressora. Confira o andamento com o responsável antes de continuar.'
         )
 
 

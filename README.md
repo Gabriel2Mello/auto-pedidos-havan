@@ -13,8 +13,7 @@ O modo navegador continua disponível por `havan.py --web`.
 O painel separa **Informar pedidos → Baixar e conferir → Importar aptos**.
 Duplicidades, EANs sem cadastro e outras pendências ficam separados para correção;
 a importação exige uma ação explícita e reconfere duplicidade e produtos.
-Pedidos prontos permanecem salvos ao reabrir. Recuperação de impressão e
-reimpressão têm ações próprias por pedido. Há busca por número Havan/Sisplan,
+Pedidos prontos permanecem salvos ao reabrir. Recuperação de impressão tem ação própria por pedido. Há busca por número Havan/Sisplan,
 cinco grupos de conferência, decisões após erro e diagnóstico. Tem temas
 claro/escuro, assinatura g2mello e ícone Nunes violeta.
 O tema inicial é escuro; a escolha manual fica salva no mesmo navegador,
@@ -50,7 +49,7 @@ disponível. A centralização das configurações é uma entrega futura.
 │
 [Impressão Silenciosa] 🖨️ [Marca D'água PDF] 🔑 [Captura ID Interno] ◀─ [GUI Sisplan]
 ```
-1.  **Entrada de Dados e duplicidade:** O menu oferece Inserir, Retomar e Reimprimir. Ao inserir, o robô salva a lista completa antes de acessar portal ou Sisplan. Entradas parciais são expandidas usando o ano vigente (ex: `12345` vira `2026-12345`). Remove repetições; se houver números inválidos no menu, pede a correção da lista. Antes do download, consulta os pedidos Havan existentes no Sisplan, considerando matriz e filial, informa seus números internos e os ignora.
+1.  **Entrada de Dados e duplicidade:** O menu oferece Inserir e Retomar. Ao inserir, o robô salva a lista completa antes de acessar portal ou Sisplan. Entradas parciais são expandidas usando o ano vigente (ex: `12345` vira `2026-12345`). Remove repetições; se houver números inválidos no menu, pede a correção da lista. Antes do download, consulta os pedidos Havan existentes no Sisplan, considerando matriz e filial, informa seus números internos e os ignora.
 2.  **Fase Web (Concorrente):** Realiza o bypass de segurança e autenticação no Portal Havan. Localiza os cards dos pedidos via seletores CSS, captura os links e efetua o download simultâneo do PDF (Ordem de Compra) e do RAR (Arquivo de Integração).
 3.  **Processamento de Dados:** Descompacta o XML diretamente em memória, confere o número do pedido, os campos e datas e todos os códigos de barras de todas as variações. Pedido com XML inválido, barra ausente ou cadastro ambíguo é ignorado por inteiro antes da inclusão. Extrai metadados logísticos (Datas, Itens, Operação) e aplica as regras de campanhas promocionais e de Filial/Matriz (`PRODUTOS_GOVERNADOR`).
 4.  **Automação do ERP (Sisplan):** Vincula-se à instância aberta do Sisplan, inicia o modo de inclusão na tela *1002 - Pedido por Grade*, preenche campos de cadastro, dispara a janela nativa de busca do Windows (`#32770`) para carregar o XML e captura o **Número Interno**. Após gravar, aguarda até dez segundos para conferir no banco o número Havan, o número interno e a presença de itens vinculados por `ID_PED`. Somente depois confirma a importação e envia os avisos promocionais. Falha ao interagir com uma janela encontrada interrompe o lote; ausência esperada de aviso permite continuar.
@@ -154,21 +153,19 @@ Credenciais e integrações sensíveis continuam em variáveis de ambiente:
 
 ---
 
-## Retomada e reimpressão
+## Retomada
 
 Ao abrir sem argumentos de terminal, o operador recebe o menu:
 
 ```text
 1 - Inserir pedidos
 2 - Retomar (quantidade de pendentes)
-3 - Reimprimir pedidos
 0 - Sair
 ```
 
 Se houver pendências, o programa informa a quantidade e oferece Enter para
 retomar. O menu volta a aparecer após o processamento, sem exigir que o usuário
-saiba usar comandos de terminal. Em Reimprimir, os números são digitados
-manualmente e a existência no Sisplan é conferida antes do envio.
+saiba usar comandos de terminal.
 
 As etapas de cada pedido são salvas em `estado-pedidos.sqlite3`, na pasta da
 aplicação, com número interno, empresa, PDF gerado, erro e data da atualização.
@@ -218,7 +215,7 @@ mensagem curta e opções conforme a etapa:
 Se a inclusão no Sisplan ficou incerta ou o histórico não pôde ser salvo,
 repetir e continuar ficam bloqueados. O operador deve solicitar ajuda ao
 responsável. Outra inclusão não começa enquanto houver uma inclusão anterior
-sem conferência. Uma impressão incerta exige conferência e uso manual de Reimprimir.
+sem conferência. Uma impressão incerta exige conferência da fila com o responsável e não pode ser reenviada pela automação.
 
 Os detalhes técnicos ficam em `auto-pedidos.log`, com código de execução,
 pedido, etapa, dados do ambiente e pilha da exceção. A tela não exibe a pilha
@@ -239,8 +236,7 @@ Itens ausentes, excedentes ou quantidades diferentes bloqueiam a impressão e
 ficam detalhados no log. A retomada de uma inclusão incerta usa os itens
 preservados, mesmo que o XML ou o cadastro de barras tenham mudado. Pendências
 de versões anteriores sem esses itens precisam do XML válido e do cadastro
-correspondente para reconstruir a conferência. Pedidos já confirmados e
-reimpressões de pedidos antigos mantêm a conferência de existência e número
+correspondente para reconstruir a conferência. Pedidos já confirmados mantêm a conferência de existência e número
 interno, sem exigir que o saldo atual corresponda ao XML original.
 
 O histórico recebe uma tabela adicional de itens esperados automaticamente,
@@ -265,23 +261,12 @@ retomar todas as etapas pendentes registradas por esta versão:
 python main.py --retomar
 ```
 
-Para reimprimir explicitamente um pedido, inclusive anterior ao histórico local:
-
-```powershell
-python main.py --reimprimir "2026-109335"
-```
-
-O robô confere o número interno no banco e pode reutilizar o PDF numerado já
-existente quando seu título corresponde ao número confirmado. Se necessário,
-gera esse PDF a partir da ordem de compra original. Reimprimir não acessa o
-portal nem inicia a interface do Sisplan e não exige UnRAR ou credenciais do
-portal. Retomar usa apenas as dependências das etapas pendentes. Vários números
-podem ser separados por vírgula. No executável, passe os mesmos argumentos ao
-arquivo `.exe` atualizado.
+A automação não oferece reimpressão. Os PDFs numerados já gerados permanecem
+na pasta de cada pedido. A retomada conclui apenas impressões ainda não enviadas.
 
 Timeout, retorno de erro do Sumatra ou interrupção durante o envio deixam a
-impressão **incerta**. Ela não será reenviada automaticamente: confira a fila e
-use `--reimprimir` se precisar enviá-la novamente. Falha antes de iniciar o
+impressão **incerta**. Ela não será reenviada pela automação: confira a fila
+de impressão com o responsável. Falha antes de iniciar o
 programa, como executável ausente, deixa a impressão pendente e permite retomada.
 
 Antes de cada nova inclusão, o robô consulta os cinco pedidos com número interno
@@ -394,7 +379,7 @@ o contexto por lote e as evidências de 156 testes estão em
 
 ## Estatísticas no Hub Nunes
 
-As inclusões são registradas após a confirmação no Sisplan; retomadas de inclusão incerta só contam após confirmação e sem duplicar. Já existentes e pedidos com falha são contados por pedido em cada lote. Retomar impressão ou reimprimir não cria outra inclusão.
+As inclusões são registradas após a confirmação no Sisplan; retomadas de inclusão incerta só contam após confirmação e sem duplicar. Já existentes e pedidos com falha são contados por pedido em cada lote. Retomar impressão não cria outra inclusão.
 
 O registro funciona na interface web e no console, mesmo com o hub fechado. O módulo `metricas_nunes.py` é distribuído a partir do Hub Nunes; seu README documenta armazenamento, recuperação, filtros e exportação. Feche e reabra esta ferramenta após atualizar. O histórico começa com esta versão e não importa operações anteriores. Falhas na estatística não repetem nem interrompem operações concluídas; uma fila local recupera gravações transitórias e falhas de persistência são registradas no log. Antes de rodar a suíte completa, use um terminal exclusivo de testes e configure NUNES_METRICAS_DADOS para uma pasta temporária; o README do Hub Nunes contém o comando de isolamento.
 
@@ -404,7 +389,7 @@ O registro funciona na interface web e no console, mesmo com o hub fechado. O m�
 `havan.py` e `main.py` sincronizam as métricas persistidas de pedidos inseridos,
 já existentes e falhas por lote. O histórico local anterior ao vínculo também
 é enviado. A identidade e o instante original são preservados; reenvios da
-mesma métrica não aumentam a contagem. Retomar impressão ou reimprimir continua
+mesma métrica não aumentam a contagem. Retomar impressão continua
 sem criar outra inclusão. As estatísticas não executam operações de negócio.
 
 Com a central já preparada, execute na pasta `nunes-estatisticas`, uma vez:
@@ -463,10 +448,6 @@ ambiguidade ou indisponibilidade do banco preservam a pendência e bloqueiam
 outras inclusões. O painel identifica **Aviso: conferir existência no banco**.
 Ao abrir o histórico, registros antigos `existente` sem número interno voltam
 a `aviso_pendente`, preservando os dados e eventual diagnóstico anterior.
-
-Uma reimpressão solicitada nesse estado também exige gravação única confirmada
-no banco e não gera métrica de nova inclusão nem exige reconstruir os itens
-do XML da inclusão cancelada.
 
 Use **Retomar** para consultar novamente. Se encontrar uma correspondência
 única, a pendência termina sem inclusão, impressão ou métrica de nova inclusão.

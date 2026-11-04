@@ -70,6 +70,15 @@ class BaseInterface(unittest.TestCase):
 
 
 class InterfaceTests(BaseInterface):
+    def test_reimpressao_removida_e_recusada_antes_do_executor(self) -> None:
+        dados = {'modo': 'reimprimir', 'pedidos': '12345', 'solicitacao': 'removida'}
+        with self.assertRaises(ValueError):
+            self.estado.conferir(dados)
+        with self.assertRaises(ValueError):
+            self.estado.iniciar(dados)
+        self.assertEqual(self.chamadas, [])
+        self.assertEqual(self.estado.situacao()['pendentes'], 0)
+
     def test_observacao_padroniza_historico_sem_alterar_diagnostico_salvo(self) -> None:
         original = 'Não consegui baixar os arquivos do pedido 2026-12345. Verifique o portal ou a conexão.'
         def executar(pedidos, modo, *, historico, **kwargs):
@@ -176,13 +185,6 @@ class InterfaceTests(BaseInterface):
         self.assertEqual(self.chamadas, [])
         self.assertEqual(self.estado.situacao()['pendentes'], 0)
 
-    def test_reimpressao_exige_confirmacao_e_nao_cria_fila_de_importacao(self) -> None:
-        with self.assertRaises(ValueError):
-            self.iniciar(modo='reimprimir')
-        self.iniciar(modo='reimprimir', confirmado=True)
-        self.assertTrue(self.executado.wait(2))
-        self.assertEqual(self.chamadas[0][0][1], 'reimprimir')
-        self.assertEqual(self.estado.situacao()['pendentes'], 0)
 
     def test_clique_repetido_nao_repete_operacao_mesmo_apos_concluir(self) -> None:
         self.iniciar()
@@ -528,7 +530,7 @@ class ConferenciaTests(BaseInterface):
         with self.assertRaises(ConflitoInterface):
             self.estado.iniciar(dados)
         dados['conferencia'] = self.estado.conferir(dados)['id']
-        for alteracao in ({'pedidos': '99999'}, {'modo': 'reimprimir', 'confirmado': True}):
+        for alteracao in ({'pedidos': '99999'}, {'modo': 'preparar'}):
             with self.assertRaises(ConflitoInterface):
                 self.estado.iniciar(dados | alteracao)
         self.assertEqual(self.chamadas, [])

@@ -45,20 +45,8 @@
     <details id="preparacao" class="preparacao" open>
       <summary id="titulo-entrada">1. Informar pedidos</summary>
       <div class="conteudo-preparacao">
-      <div class="faixa-operacao">
-      <div class="modos" role="radiogroup" aria-label="Operação">
-        <label><input type="radio" name="modo" value="preparar" data-modo="preparar" checked>Novos pedidos</label>
-        <label><input type="radio" name="modo" value="reimprimir" data-modo="reimprimir">Reimprimir</label>
-      </div>
-      <div class="espaco-abas">
-      <div id="abas-preparacao" class="abas" hidden role="tablist" aria-label="Preparação do lote">
-        <button id="aba-pedidos" type="button" role="tab" aria-selected="true" aria-controls="painel-pedidos" tabindex="0">Pedidos</button>
-        <button id="aba-conferencia" type="button" role="tab" aria-selected="false" aria-controls="painel-conferencia" tabindex="-1">Conferência</button>
-      </div>
-      </div>
-      </div>
       <p id="ajuda-modo" class="dica" hidden>Pedidos existentes serão separados antes do download. Os demais terão arquivos e EANs conferidos.</p>
-      <section id="painel-pedidos" role="tabpanel" aria-labelledby="aba-pedidos">
+      <section id="painel-pedidos" aria-label="Pedidos para conferir">
         <form id="formulario">
           <div id="campo-pedidos">
             <span id="rotulo-pedidos">Pedidos</span>
@@ -66,19 +54,8 @@
             <p id="dica-pedidos" class="dica">Separe por vírgula ou linha. Sem o ano, será utilizado o ano atual.</p>
             <p id="validacao-pedidos" class="dica" role="status"></p>
           </div>
-          <div id="retomada" class="orientacao" hidden>Confira as pendências e suas etapas salvas antes de continuar. Inclusões e impressões incertas conservam suas proteções.</div>
           <div class="acoes enviar"><button type="submit" id="conferir" title="Pedidos existentes serão separados antes do download. Os demais terão arquivos e EANs conferidos." aria-describedby="ajuda-modo" class="botao-principal" disabled>Baixar e conferir</button><button type="button" id="limpar">Limpar</button></div>
         </form>
-      </section>
-      <section id="painel-conferencia" role="tabpanel" aria-labelledby="aba-conferencia" hidden>
-        <p id="conferencia-vazia" class="vazio">Confira os pedidos para revisar o lote antes de iniciar.</p>
-        <div id="conferencia-conteudo" hidden>
-          <p id="resumo-conferencia" class="status-curto" role="status"></p>
-          <p class="dica">Revisão da lista e do histórico local. A existência no Sisplan e os arquivos serão verificados durante o processamento.</p>
-          <div class="rolagem-conferencia" tabindex="0" role="region" aria-label="Pedidos conferidos"><table class="tabela-conferencia"><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Histórico / próxima ação</th></tr></thead><tbody id="itens-conferencia"></tbody></table></div>
-          <label id="confirmacao-reimpressao" class="confirmacao" hidden><input id="confirmar-copia" type="checkbox"><span>Conferi a impressão anterior e quero enviar outra cópia.</span></label>
-          <div class="acoes enviar"><button type="button" id="iniciar" class="botao-principal" disabled>Baixar e conferir</button><button type="button" id="editar">Voltar à lista</button></div>
-        </div>
       </section>
       </div>
     </details>

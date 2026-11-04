@@ -10,10 +10,9 @@ navegador. `main.py` continua sendo a entrada de console.
 - **testar interface.cmd** abre **Pedidos Havan · Demonstração**, com histórico,
   log, tema e geometria temporários. Pode ser usada junto da aplicação normal.
 - Na demonstração, abra o ícone **Configurações**, ao lado do tema,
-  escolha um dos 16 cenários e clique em **Preparar cenário**. Isso apenas preenche
+  escolha um dos 15 cenários e clique em **Preparar cenário**. Isso apenas preenche
   a lista e seleciona a operação; **Baixar e conferir** e **Importar aptos**
-  são ações separadas. Em Reimprimir, a revisão e a confirmação de cópia continuam
-  obrigatórias. O roteiro e o resultado esperado ficam apenas no menu de
+  são ações separadas. O painel não oferece reimpressão. O roteiro e o resultado esperado ficam apenas no menu de
   configurações, junto do cenário selecionado.
 
 A demonstração não cria `IntegracaoLocal`, não reserva Sisplan, não inicia
@@ -37,13 +36,13 @@ conferir não importa; só o botão Importar aptos faz a inclusão sintética.
   pedidos permitem conferir paginação, filtros, busca e rolagem.
 - **Banco/portal:** a consulta interrompida pede decisão e não vira “sem cadastro”.
 - **Impressão pendente:** prepare e importe primeiro; depois recupere a impressão
-  pela linha sem nova inclusão. Impressão incerta exige confirmação de outra cópia.
+  pela linha sem nova inclusão. Impressão incerta exige conferência da fila com o responsável; não há reenvio pela automação.
 - **Gravação/aviso incerto:** prepare e importe primeiro. Pare na pausa e use
   Conferir gravação no Sisplan; a ação não reinclui o pedido.
 - **Cancelamento incerto:** permanece bloqueado mesmo após conferir gravação.
   Teste por último e reabra a demonstração para limpar o bloqueio sintético.
 - **Entrada/parada:** confira repetição, inválidos, parada segura e preservação
-  das etapas. Reimpressão continua exigindo revisão e confirmação explícita.
+  das etapas. Não há reimpressão.
 
 Os cenários compartilham o histórico da janela. Reabrir **testar interface.cmd**
 começa uma demonstração vazia de execuções anteriores. Os testes também verificam
@@ -107,7 +106,7 @@ node --test tests/test_pedidos_ui.cjs
 Validação dos cenários em 31/10/2026: **259 testes Python e 18 testes JavaScript
 aprovados**, incluindo proteção contra chamadas às integrações operacionais.
 O ensaio WebView2 real aprovou **21 verificações**: menu, entrada e conferência,
-decisões, retomadas, reimpressão, barreiras de operações incertas, paginação,
+decisões, retomadas, barreiras de operações incertas, paginação,
 tema e encerramento. A rolagem foi conferida em janela normal, maximizada e
 estreita, com lista curta/longa e zoom real de 125%, sem deslocamento horizontal
 ou espaço reservado. O ensaio registra a largura efetiva do viewport e respeita
