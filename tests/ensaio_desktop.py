@@ -32,7 +32,9 @@ def main():
                         def aguardar(js):
                             limite=time.monotonic()+20
                             while not w.evaluate_js(js):
-                                if time.monotonic()>limite: raise AssertionError(js)
+                                if time.monotonic()>limite:
+                                    contexto=w.evaluate_js("({scrollY,altura:innerHeight,documento:document.documentElement.scrollHeight,foco:document.activeElement?.id,fase:estado?.fase,ocupada:estado?.ocupada})")
+                                    raise AssertionError(f'{js}; {contexto}')
                                 time.sleep(.1)
                         def selecionar(cenario):
                             aguardar('!estado.ocupada && !enviando && conectado')
@@ -74,6 +76,21 @@ def main():
 
                         def sem_recorte():
                             assert w.evaluate_js('document.documentElement.scrollWidth<=innerWidth+1 && document.documentElement.clientWidth===innerWidth')
+
+                        def protocolo(metodo,parametros):
+                            from System import Action
+                            tarefas=[]
+                            w.native.Invoke(Action(lambda:tarefas.append(w.native.webview.CoreWebView2.CallDevToolsProtocolMethodAsync(metodo,json.dumps(parametros)))))
+                            assert tarefas[0].Wait(5000)
+
+                        def roda(x,y,delta=150):
+                            protocolo('Input.dispatchMouseEvent',dict(type='mouseMoved',x=x,y=y))
+                            protocolo('Input.dispatchMouseEvent',dict(type='mouseWheel',x=x,y=y,deltaX=0,deltaY=delta))
+                            time.sleep(.3)
+
+                        def roda_sobre(seletor):
+                            ponto=w.evaluate_js(f"(()=>{{const r=document.querySelector({json.dumps(seletor)}).getBoundingClientRect();return {{x:r.left+r.width/2,y:Math.max(1,r.top)+Math.min(80,r.height/2,innerHeight-Math.max(1,r.top)-2)}}}})()")
+                            roda(ponto['x'],ponto['y'])
 
                         def limpar_filtros():
                             w.evaluate_js("document.getElementById('busca').value='';document.getElementById('filtro').value='todos';document.getElementById('busca').dispatchEvent(new Event('input'))")
@@ -141,26 +158,52 @@ def main():
                         resultados.append('faixa de importação acima dos resultados com contagem natural dos aptos')
                         assert w.evaluate_js("estado.modo==='preparar' && estado.resumo.importacoes_confirmadas===0")
                         assert w.evaluate_js("estado.pedidos.filter(p=>p.etapa==='pronto_importar').length===2 && estado.pedidos.find(p=>p.pedido.endsWith('999003')).etapa==='sem_cadastro' && estado.resultados_lote[estado.lote.find(p=>p.endsWith('999004'))]==='falhou'")
-                        assert w.evaluate_js("document.getElementById('n-prontos').textContent==='2' && document.getElementById('n-sem_cadastro').textContent==='1' && document.getElementById('n-outras').textContent==='1'")
+                        assert w.evaluate_js("document.getElementById('n-prontos').textContent==='2' && document.getElementById('n-pendencias').textContent==='2'")
+                        assert w.evaluate_js("JSON.stringify([...document.querySelectorAll('[data-fila] span')].map(e=>e.textContent))===JSON.stringify(['Importar','Importados','Pendências','Já existentes'])")
                         assert w.evaluate_js("document.getElementById('preparacao').open && !document.getElementById('aviso-erro').hidden===false")
                         resultados.append('preparo separa aptos, EAN ausente e download falho sem importar nem pausar por pedido')
-                        w.evaluate_js("document.querySelector('[data-fila=sem_cadastro]').click()")
-                        aguardar("!document.getElementById('preparacao').open && document.getElementById('grupos-estados').parentElement.id==='grupos-resultados'")
-                        assert w.evaluate_js("document.getElementById('filtro').value==='sem_cadastro' && document.activeElement.dataset.fila==='sem_cadastro'")
+                        assert w.evaluate_js("document.querySelectorAll('#linhas-sumario tr').length===4 && document.querySelector('#sumario-pedidos .tabela-sumario th').textContent==='Pedido / Sisplan'")
+                        assert w.evaluate_js("document.querySelector('.filas').getBoundingClientRect().bottom <= document.getElementById('sumario-pedidos').getBoundingClientRect().top && document.getElementById('sumario-pedidos').getBoundingClientRect().bottom <= document.querySelector('.importacao-lote').getBoundingClientRect().top")
+                        for largura in (1180,760,480):
+                            w.resize(largura,820);time.sleep(.2);sem_recorte()
+                            assert w.evaluate_js("(()=>{const a=document.querySelector('.rolagem-sumario'),r=a.getBoundingClientRect();return a.scrollWidth<=a.clientWidth+1 && [...a.querySelectorAll('td')].every(e=>e.getBoundingClientRect().right<=r.right+1)})()")
+                        w.resize(1180,820)
+                        resultados.append('sumário compacto abaixo dos cartões: quatro pedidos, importação próxima e sem recorte em três larguras')
+                        assert w.evaluate_js("document.getElementById('preparacao').open && getComputedStyle(document.querySelector('.principal')).gridTemplateColumns.split(' ').length===2 && document.getElementById('pedidos').rows===6 && !document.getElementById('alternar-sumario') && !document.getElementById('resultados-detalhados')")
+                        entrada=w.evaluate_js("document.getElementById('pedidos').value")
+                        w.evaluate_js("document.getElementById('pedidos').value=Array.from({length:60},(_,i)=>'2026-'+(999100+i)).join('\\n');document.getElementById('pedidos').dispatchEvent(new Event('input'));window.scrollTo({top:0,behavior:'instant'});document.getElementById('pedidos').scrollTop=100")
+                        time.sleep(.2)
+                        topo=w.evaluate_js('scrollY');editor=w.evaluate_js("document.getElementById('pedidos').scrollTop")
+                        roda_sobre('#pedidos')
+                        assert w.evaluate_js("document.getElementById('pedidos').scrollTop")>editor
+                        assert abs(w.evaluate_js('scrollY')-topo)<1
+                        w.evaluate_js("document.getElementById('pedidos').scrollTop=document.getElementById('pedidos').scrollHeight")
+                        time.sleep(.2)
+                        ponto=w.evaluate_js("(()=>{const a=document.getElementById('pedidos').getBoundingClientRect();const e=[...document.querySelectorAll('.barra-rolagem-polegar')].find(e=>{const r=e.getBoundingClientRect();return r.width && r.left>a.right-15 && r.right<=a.right+1 && r.top>=a.top && r.bottom<=a.bottom+1});if(!e)return null;const r=e.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()")
+                        assert ponto is not None
+                        roda(ponto['x'],ponto['y']);aguardar(f'scrollY>{topo}')
+                        w.evaluate_js(f"document.getElementById('pedidos').value={json.dumps(entrada)};document.getElementById('pedidos').dispatchEvent(new Event('input'));document.getElementById('pedidos').scrollTop=0")
+                        resultados.append('roda real no editor preserva rolagem local; puxador no limite libera a página')
+                        w.evaluate_js("document.querySelector('[data-fila=pendencias]').click()")
+                        aguardar("!document.getElementById('preparacao').open && document.getElementById('grupos-estados').parentElement.id==='grupos-acompanhamento'")
+                        assert w.evaluate_js("document.getElementById('filtro').value==='pendencias' && document.activeElement.id==='titulo-historico'")
+                        aguardar("(()=>{const r=document.activeElement.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight})()")
+                        assert w.evaluate_js("document.querySelectorAll('#linhas tr').length===2 && document.querySelectorAll('[data-fila]').length===4 && new Set([...document.querySelectorAll('[data-fila]')].map(e=>e.getBoundingClientRect().top)).size===1")
                         w.evaluate_js("document.getElementById('busca').value='inexistente';document.getElementById('busca').dispatchEvent(new Event('input'));document.getElementById('limpar-filtros').click()")
                         assert w.evaluate_js("document.getElementById('busca').value==='' && document.getElementById('filtro').value==='todos' && escopo==='lote' && pagina===0")
-                        resultados.append('cartão recolhe entrada com foco preservado; limpar filtros mantém escopo e mostra todos os grupos')
+                        resultados.append('cartão abre detalhes com foco visível no título; limpar filtros mantém escopo e mostra todos os grupos')
                         assert w.evaluate_js("[...document.querySelectorAll('[data-fila]')].every(b=>!b.disabled)")
                         w.evaluate_js("document.getElementById('preparacao').open=false")
-                        aguardar("!document.getElementById('acompanhamento').hidden && document.getElementById('grupos-estados').parentElement.id==='grupos-resultados'")
+                        aguardar("!document.getElementById('acompanhamento').hidden && document.getElementById('grupos-estados').parentElement.id==='grupos-acompanhamento'")
                         assert w.evaluate_js("document.querySelector('.filas').getBoundingClientRect().bottom <= document.querySelector('.filtros').getBoundingClientRect().top")
                         assert w.evaluate_js("document.getElementById('identificacao').getBoundingClientRect().height>0 && document.getElementById('numero-atual').textContent.endsWith('999015')")
-                        resultados.append('entrada recolhida após término mantém faixa do último pedido e grupos acima da busca')
+                        assert w.evaluate_js("!document.getElementById('sumario-pedidos').hidden && document.querySelectorAll('#linhas-sumario tr').length===4")
+                        resultados.append('entrada recolhida após término mantém faixa, cartões e sumário juntos')
                         importar();terminar()
                         w.evaluate_js("document.getElementById('preparacao').open=true")
                         aguardar("document.getElementById('grupos-estados').parentElement.id==='grupos-acompanhamento'")
                         assert w.evaluate_js("estado.resumo.importacoes_confirmadas===2 && estado.resumo.impressao_enviada===2")
-                        assert w.evaluate_js("pedidosDoEscopo().length===4 && document.getElementById('n-sem_cadastro').textContent==='1' && document.getElementById('n-outras').textContent==='1' && document.getElementById('n-importados').textContent==='2'")
+                        assert w.evaluate_js("pedidosDoEscopo().length===4 && document.getElementById('n-pendencias').textContent==='2' && document.getElementById('n-importados').textContent==='2'")
                         resultados.append('importação explícita só dos aptos e pendências preservadas no escopo de conferência')
                         acao_pedido('999003');terminar()
                         assert w.evaluate_js("estado.modo==='revalidar' && estado.resumo.importacoes_confirmadas===0 && estado.pedidos.find(p=>p.pedido.endsWith('999003')).etapa==='pronto_importar'")
@@ -185,7 +228,7 @@ def main():
                             selecionar(cenario);baixar();aguardar("estado.fase==='PAUSADO'")
                             assert w.evaluate_js("[...document.querySelectorAll('[data-fila]')].every(b=>b.disabled)")
                             w.evaluate_js("document.getElementById('preparacao').open=false")
-                            aguardar("document.getElementById('grupos-estados').parentElement.id==='grupos-resultados'")
+                            aguardar("document.getElementById('grupos-estados').parentElement.id==='grupos-acompanhamento'")
                             assert w.evaluate_js("!document.getElementById('acompanhamento').hidden && !document.getElementById('aviso-erro').hidden")
                             assert w.evaluate_js("document.getElementById('pular').hidden && !document.getElementById('repetir').hidden")
                             if cenario=='portal':
@@ -217,26 +260,60 @@ def main():
 
                         selecionar('paginacao');baixar();terminar()
                         assert w.evaluate_js("estado.resumo.existente===60 && estado.resumo.importacoes_confirmadas===0")
+                        assert w.evaluate_js("document.querySelectorAll('#linhas-sumario tr').length===60 && document.querySelector('.rolagem-sumario').scrollHeight>document.querySelector('.rolagem-sumario').clientHeight && getComputedStyle(document.querySelector('.rolagem-sumario')).overflowY==='auto'")
+                        largura_sumario=w.evaluate_js("document.querySelector('.rolagem-sumario').getBoundingClientRect().width")
                         assert w.evaluate_js("document.querySelector('.rolagem-historico').scrollHeight>document.querySelector('.rolagem-historico').clientHeight")
                         largura_historico=w.evaluate_js("document.querySelector('.rolagem-historico').getBoundingClientRect().width")
+                        for seletor in ('.rolagem-sumario','.rolagem-historico'):
+                            w.evaluate_js(f"document.querySelector({json.dumps(seletor)}).scrollIntoView({{block:'start',behavior:'instant'}});document.querySelector({json.dumps(seletor)}).scrollTop=100")
+                            time.sleep(.2)
+                            topo=w.evaluate_js('scrollY');interno=w.evaluate_js(f"document.querySelector({json.dumps(seletor)}).scrollTop")
+                            roda_sobre(seletor)
+                            aguardar(f"document.querySelector({json.dumps(seletor)}).scrollTop>{interno}")
+                            assert abs(w.evaluate_js('scrollY')-topo)<1
                         w.evaluate_js("document.getElementById('proxima').click()")
                         assert w.evaluate_js("document.getElementById('quantidade').textContent==='51–60 de 60 pedidos' && !document.getElementById('paginacao-controles').hidden")
                         w.evaluate_js("document.getElementById('busca').value='999159';document.getElementById('busca').dispatchEvent(new Event('input'))")
                         assert w.evaluate_js("document.getElementById('quantidade').textContent==='1 pedido' && document.getElementById('paginacao-controles').hidden && !document.getElementById('limpar-filtros').hidden")
                         assert w.evaluate_js("document.querySelector('.rolagem-historico').scrollHeight<=document.querySelector('.rolagem-historico').clientHeight")
                         assert abs(w.evaluate_js("document.querySelector('.rolagem-historico').getBoundingClientRect().width")-largura_historico)<1
+                        assert w.evaluate_js("document.querySelectorAll('#linhas-sumario tr').length===60")
+                        assert abs(w.evaluate_js("document.querySelector('.rolagem-sumario').getBoundingClientRect().width")-largura_sumario)<1
+                        w.evaluate_js("document.querySelector('.rolagem-sumario').focus();document.querySelector('.rolagem-sumario').scrollTop=0;document.querySelector('.rolagem-sumario').scrollIntoView({block:'start',behavior:'instant'})")
+                        time.sleep(.2)
+                        topo=w.evaluate_js('scrollY')
+                        protocolo('Input.dispatchKeyEvent',dict(type='keyDown',key='PageDown',code='PageDown',windowsVirtualKeyCode=34))
+                        protocolo('Input.dispatchKeyEvent',dict(type='keyUp',key='PageDown',code='PageDown',windowsVirtualKeyCode=34))
+                        aguardar("document.querySelector('.rolagem-sumario').scrollTop>0")
+                        assert abs(w.evaluate_js('scrollY')-topo)<1
                         limpar_filtros()
                         w.evaluate_js("document.querySelector('[data-fila=prontos]').click()")
                         assert w.evaluate_js("document.getElementById('quantidade').textContent==='Nenhum pedido nesta seleção'")
                         limpar_filtros()
-                        resultados.append('60 existentes: paginação, busca, grupos e rolagem curta/longa sem deslocar largura')
+                        resultados.append('60 existentes: layout anterior, páginas de cinquenta, busca, roda real e PageDown nas tabelas')
+
+                        w.maximize();time.sleep(.3);sem_recorte()
+                        assert w.evaluate_js("getComputedStyle(document.querySelector('.rolagem-sumario')).overflowY==='auto'")
+                        w.restore();w.resize(1180,820)
+                        resultados.append('lista longa maximizada mantém regiões de rolagem sem faixa reservada')
 
                         from System import Action
                         w.native.Invoke(Action(lambda:setattr(w.native.webview,'ZoomFactor',1.25)))
                         w.resize(760,540);time.sleep(.3);sem_recorte()
-                        w.evaluate_js("document.getElementById('demo-configuracoes').open=true")
-                        assert w.evaluate_js("(()=>{const r=document.querySelector('.menu-configuracoes').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1})()")
+                        assert w.evaluate_js("document.querySelector('.rolagem-sumario').scrollWidth<=document.querySelector('.rolagem-sumario').clientWidth+1")
+                        w.evaluate_js("window.scrollTo({top:0,behavior:'instant'});document.getElementById('demo-configuracoes').open=true")
+                        time.sleep(.2)
+                        assert w.evaluate_js("(()=>{const r=document.querySelector('.menu-configuracoes').getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1})()")
+                        w.evaluate_js("document.querySelector('.menu-configuracoes').scrollTop=document.querySelector('.menu-configuracoes').scrollHeight")
+                        time.sleep(.2)
+                        topo=w.evaluate_js('scrollY');roda_sobre('.menu-configuracoes')
+                        assert abs(w.evaluate_js('scrollY')-topo)<1
                         resultados.append('zoom real 125% em janela estreita sem recorte ou faixa reservada')
+                        w.evaluate_js("document.getElementById('demo-configuracoes').open=false")
+                        w.native.Invoke(Action(lambda:setattr(w.native.webview,'ZoomFactor',2)))
+                        time.sleep(.3);sem_recorte()
+                        assert w.evaluate_js("document.querySelector('.rolagem-sumario').scrollWidth<=document.querySelector('.rolagem-sumario').clientWidth+1")
+                        resultados.append(f'zoom real 200% com viewport {w.evaluate_js("innerWidth")}: campos refluem sem rolagem horizontal')
                         w.native.Invoke(Action(lambda:setattr(w.native.webview,'ZoomFactor',1)))
                         w.resize(1180,820)
 

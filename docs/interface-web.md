@@ -46,7 +46,10 @@ também precisa dos arquivos HTML/CSS/JS e ícones no pacote de distribuição.
    no banco e separa os já existentes antes do download. Para os novos, confere
    XML/PDF e todos os EANs. Esta etapa não abre a inclusão no Sisplan nem imprime;
    não exige impressora ou Sumatra configurados.
-3. Em **2. Conferir resultados**, revise uma única lista com cinco filtros:
+3. No **Sumário dos pedidos**, abaixo dos cartões, confira pedido Havan,
+   número Sisplan, situação e próximo passo. As ações de preparação, conferência
+   e recuperação também ficam nessa tabela compacta. Use **2. Conferir resultados**
+   para consultar observações, erros, buscar e filtrar a lista pelos grupos:
    **Prontos para importar**, **Produtos sem cadastro**, **Outras pendências**,
    **Já existentes** e **Importados**. EAN ausente ou ambíguo bloqueia o pedido
    inteiro; os outros pedidos continuam sendo conferidos. Falha de banco, sessão
@@ -82,22 +85,36 @@ As próximas ações ficam na linha do pedido (as descrições abaixo explicam o
 | Importado, impressão pendente | **Retomar impressão**, sem reincluir o pedido. |
 | Impressão incerta | Confira a fila de impressão com o responsável. Não há ação de reenvio. |
 
-A faixa **Importar no Sisplan** antecede a área **2. Conferir resultados**.
+A faixa **Importar no Sisplan** fica logo abaixo do sumário, antes de
+**2. Conferir resultados**.
 Após iniciar a importação, a página sobe suavemente até o topo, preservando a entrada expandida ou
 recolhida, para acompanhar o pedido. O botão informa quantos pedidos estão aptos e fica desabilitado com o texto
 **Nenhum pedido apto** quando não há aptos no escopo. Observações que apenas
 repetem a situação salva são omitidas; erros e resultados diferentes permanecem.
 
 A entrada permanece à esquerda durante a execução e pode ser recolhida pelo título.
-Os cinco grupos de estados aparecem uma única vez, abaixo da faixa do pedido,
-e continuam filtrando a tabela de resultados no escopo selecionado.
+Os quatro cartões **Importar**, **Importados**, **Pendências** e **Já existentes**
+aparecem uma única vez, abaixo da faixa do pedido, seguidos pelo sumário compacto,
+e continuam filtrando a tabela detalhada no escopo
+selecionado. O sumário e a importação usam todos os pedidos desse escopo (lote em
+conferência ou histórico completo), independentemente da busca, filtro e página
+dos detalhes. O cabeçalho do sumário identifica esse alcance. Pedidos ainda sem
+registro local também aparecem durante a conferência. Listas longas têm rolagem
+sobreposta, sem reservar faixa; em colunas estreitas, os campos se empilham com
+rótulos. Inclusões e impressões incertas preservam suas orientações e bloqueios.
+Ao navegar para os detalhes de um pedido ou grupo, o foco acompanha o título.
+O cartão **Pendências** soma os grupos **Produtos sem cadastro** e **Outras
+pendências**, que continuam disponíveis separadamente no filtro detalhado.
+Os cartões ficam em uma linha quando há espaço e em duas colunas nas áreas estreitas.
 O mostrador exibe o pedido atual e a última etapa salva. Ao terminar, mantém o
 último pedido processado nesta execução, inclusive quando ficou pendente,
 identificado pelo estado salvo. Os detalhes ficam expansíveis após o término; decisões de segurança permanecem visíveis.
 Durante a execução, o botão de parada e a orientação ficam na mesma linha
 quando há espaço, com quebra em janelas menores. Ao recolher a entrada, a faixa do último pedido permanece visível após o término.
-O acompanhamento só fica oculto quando ainda não há pedido para exibir. Os cinco grupos
-passam para a conferência, acima da busca. Durante execução, pausa por erro ou
+O acompanhamento só fica oculto quando ainda não há pedido para exibir. Nesse caso,
+os quatro cartões passam para a conferência, acima da busca. Com pedidos no escopo,
+cartões, sumário e importação permanecem juntos mesmo com a entrada recolhida.
+Durante execução, pausa por erro ou
 falha, o acompanhamento continua acessível. A seleção de escopo fica junto aos
 filtros, alinhada à direita quando há espaço. **Limpar filtros** limpa a busca,
 seleciona todos os grupos e retorna à primeira página, preservando o escopo.
@@ -255,8 +272,15 @@ O painel mantém sua identidade violeta, com cabeçalho compacto, preparação �
 esquerda, acompanhamento à direita e histórico em largura completa. Em telas
 estreitas, as áreas são empilhadas e cada pedido conserva seus rótulos. O rodapé
 tem divisória em toda a largura, assinatura alinhada ao conteúdo e Encerrar.
-As regiões de lista, conferência, histórico e atividade usam rolagem sobreposta,
-sem reservar espaço. `src/rolagem.js` é uma adaptação local da Impressão de OPs;
+Página, campo de pedidos, sumário, histórico e menu usam rolagem sobreposta,
+sem reservar espaço. A roda movimenta cada região enquanto há conteúdo naquela
+direção; sobre o puxador no limite, o evento fica livre para continuar na página.
+O menu mantém a rolagem contida, sem mover o conteúdo atrás dele. Ctrl+roda
+conserva o zoom e o arraste dos puxadores continua disponível.
+As barras são medidas em uma única fase e desenhadas depois por transformações,
+sem alternar mudanças de estilo e leituras de posição entre as regiões. A pintura
+dos indicadores fica isolada e estilos idênticos não são reescritos durante o scroll.
+`src/rolagem.js` é uma adaptação local da Impressão de OPs;
 os ícones `tema-lua.svg` e `tema-lua-sol.svg` foram copiados daquela referência,
 com hashes conferidos. A aplicação continua independente e no navegador.
 

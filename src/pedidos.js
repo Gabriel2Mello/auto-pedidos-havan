@@ -7,7 +7,8 @@ let salvamentoTema=Promise.resolve(true);
 const headers = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'X-Havan-Pagina': crypto.randomUUID()};
 const fases = {INICIANDO:'Iniciando',PRONTO:'Pronto',EXECUTANDO:'Em andamento',PAUSADO:'Aguardando sua escolha',PARANDO:'Parando com segurança',CONCLUIDO:'Finalizado',INTERROMPIDO:'Parado',FALHA:'Precisa de atenção',ENCERRANDO:'Encerrando',ENCERRADO:'Encerrado'};
 let estado=null, enviando=false, encerrado=false, encerramentoPedido=false, pagina=0, erroVisivel='', tabelaAnterior='', atividadeAnterior='', presenca=null;
-let estadoAnterior='', saindo=false;
+let estadoAnterior='', saindo=false, sumarioAnterior='';
+const tamanhoPagina=50;
 let escopo='todos', conectado=false, inicioIncerto=false, ultimoLote='';
 let cenariosDemo=[];
 let consultandoImpressoras=false;
@@ -83,6 +84,7 @@ function atualizarImportacao(){
 function correspondeFiltro(p,filtro){
   if(filtro==='todos')return true;
   if(filtro==='pendentes')return p.pendente;
+  if(filtro==='pendencias')return ['sem_cadastro','outras'].includes(grupoPedido(p));
   if(filtro==='atencao')return exigeAtencao(p);
   if(['prontos','sem_cadastro','outras','existentes','importados'].includes(filtro))return grupoPedido(p)===filtro;
   return p.fila===filtro;
@@ -116,19 +118,58 @@ function apresentacaoPedido(p){
   const observacao=[p.erro||'',motivo,!p.erro&&(falhaResultado||!rotulos[p.etapa])?resultado:''].filter(Boolean).join('\n');
   return {situacao,observacao:observacao.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')||'—'};
 }
+function criarAcaoPedido(p,acao){
+  const [operacao,rotulo]=acao,botao=document.createElement('button');
+  botao.type='button';botao.textContent=operacao==='preparar'?'Preparar':rotulo==='Retomar impressão'?'Imprimir':'Conferir';
+  botao.setAttribute('data-acao-pedido',p.pedido);botao.setAttribute('aria-label',botao.textContent+' — '+rotulo+' — pedido '+p.pedido);
+  botao.disabled=inicioBloqueado();botao.onclick=()=>executarEtapa(operacao,[p.pedido]);
+  return botao;
+}
+function renderizarSumario(base){
+  el('sumario-pedidos').hidden=!base.length;
+  const chave=JSON.stringify([base,escopo,estado?.ocupada]);
+  if(chave===sumarioAnterior)return;
+  sumarioAnterior=chave;
+  el('alcance-sumario').textContent=`${escopo==='lote'?'Lote em conferência':'Todos os pedidos salvos'} · ${base.length} ${base.length===1?'pedido':'pedidos'}${estado?.ocupada?' · em andamento':''}`;
+  const linhas=document.createDocumentFragment();
+  for(const p of base){
+    const tr=document.createElement('tr'),pedido=document.createElement('td'),situacao=document.createElement('td'),passo=document.createElement('td');
+    const numero=document.createElement('strong'),sisplan=document.createElement('span'),etiqueta=document.createElement('span');
+    numero.textContent=p.pedido;sisplan.textContent='Sisplan: '+(p.numero||'—');sisplan.className='dica';pedido.append(numero,sisplan);
+    const apresentacao=apresentacaoPedido(p),atencao=exigeAtencao(p)||['falhou','rejeitado'].includes(p.resultado);
+    etiqueta.textContent=p.etapa==='existente'&&!atencao?'Já existe no Sisplan':apresentacao.situacao;
+    etiqueta.className='situacao'+(atencao?' atencao':['existente','impressao_enviada'].includes(p.etapa)?' concluido':'');situacao.append(etiqueta);
+    const acao=acaoDoPedido(p);
+    if(acao){
+      const orientacao=document.createElement('p');orientacao.textContent=acao[1];passo.append(orientacao,criarAcaoPedido(p,acao));
+    }else if(apto(p)&&!atencao)passo.textContent='Importar pelo botão abaixo.';
+    else if(!atencao&&['existente','impressao_enviada'].includes(p.etapa))passo.textContent='Nenhuma ação.';
+    else if(['impressao_iniciada','impressao_incerta'].includes(p.etapa))passo.textContent='Confira a fila de impressão com o responsável.';
+    else{
+      const detalhe=document.createElement('button');detalhe.type='button';detalhe.textContent='Ver detalhes';
+      detalhe.setAttribute('aria-label','Ver detalhes do pedido '+p.pedido);
+      detalhe.onclick=()=>{el('busca').value=p.pedido;el('filtro').value='todos';pagina=0;renderizarTabela();abrirResultados();};
+      passo.append(detalhe);
+    }
+    [pedido,situacao,passo].forEach((td,i)=>td.setAttribute('data-rotulo',['Pedido / Sisplan','Situação','Próximo passo'][i]));
+    tr.append(pedido,situacao,passo);linhas.append(tr);
+  }
+  el('linhas-sumario').replaceChildren(linhas);
+}
 function renderizarTabela() {
   const filtro=el('filtro').value, busca=el('busca').value.trim().toLowerCase();
   const semFiltros=filtro==='todos'&&!busca;
   if(semFiltros&&document.activeElement===el('limpar-filtros'))el('busca').focus();
   el('limpar-filtros').hidden=semFiltros;
   const base=pedidosDoEscopo();
-  for(const grupo of ['prontos','sem_cadastro','outras','existentes','importados'])el('n-'+grupo).textContent=estado?.fase==='INICIANDO'||estado?.bloqueado&&!base.length?'—':base.filter(p=>grupoPedido(p)===grupo).length;
+  renderizarSumario(base);
+  for(const grupo of ['prontos','importados','pendencias','existentes'])el('n-'+grupo).textContent=estado?.fase==='INICIANDO'||estado?.bloqueado&&!base.length?'—':base.filter(p=>correspondeFiltro(p,grupo)).length;
   atualizarImportacao();
   document.querySelectorAll('[data-fila]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.fila===filtro)));
   el('alcance').textContent=escopo==='todos'?'Estados salvos de todos os pedidos.':'Lote em conferência: inclui os pedidos separados durante o preparo.';
   const lista=base.filter(p=>correspondeFiltro(p,filtro)&&(`${p.pedido} ${p.numero}`.toLowerCase().includes(busca)));
-  pagina=Math.min(pagina,Math.max(0,Math.ceil(lista.length/50)-1));
-  const inicio=pagina*50, visiveis=lista.slice(inicio,inicio+50), chave=JSON.stringify([visiveis,filtro,busca,pagina,escopo,estado?.fase]);
+  pagina=Math.min(pagina,Math.max(0,Math.ceil(lista.length/tamanhoPagina)-1));
+  const inicio=pagina*tamanhoPagina, visiveis=lista.slice(inicio,inicio+tamanhoPagina), chave=JSON.stringify([visiveis,filtro,busca,pagina,escopo,estado?.fase]);
   if(chave!==tabelaAnterior){
     tabelaAnterior=chave;
     const linhas=document.createDocumentFragment();
@@ -141,9 +182,7 @@ function renderizarTabela() {
         if(i===2){const span=document.createElement('span');span.textContent=texto;span.className='situacao'+(['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'].includes(p.etapa)?' atencao':['impressao_enviada','existente'].includes(p.etapa)?' concluido':'');td.append(span);}else td.textContent=texto;
         const acao=acaoDoPedido(p);
         if(i===3&&acao){
-          const [operacao,rotulo]=acao,botao=document.createElement('button');botao.type='button';botao.textContent=operacao==='preparar'?'Preparar':rotulo==='Retomar impressão'?'Imprimir':'Conferir';
-          botao.setAttribute('data-acao-pedido',p.pedido);botao.setAttribute('aria-label',botao.textContent+' — '+rotulo+' — pedido '+p.pedido);
-          botao.disabled=inicioBloqueado();botao.onclick=()=>executarEtapa(operacao,[p.pedido]);td.append(botao);
+          td.append(criarAcaoPedido(p,acao));
         }
         tr.append(td);
       });linhas.append(tr);
@@ -151,17 +190,19 @@ function renderizarTabela() {
     if(!visiveis.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.className='vazio';td.textContent=estado?.fase==='INICIANDO'?'Carregando o histórico…':estado?.bloqueado?'Histórico indisponível. Confira o aviso de andamento.':busca?'Nenhum pedido corresponde à busca.':escopo==='lote'&&!estado?.lote?.length?'Nenhum lote iniciado nesta sessão.':!base.length?'Nenhum pedido salvo. Prepare o primeiro lote.':'Nenhum pedido nesta seleção.';tr.append(td);linhas.append(tr);}
     el('linhas').replaceChildren(linhas);
   }
-  el('quantidade').textContent=lista.length>50?`${inicio+1}–${Math.min(inicio+50,lista.length)} de ${lista.length} pedidos`:lista.length?`${lista.length} ${lista.length===1?'pedido':'pedidos'}`:'Nenhum pedido nesta seleção';
-  if(lista.length<=50&&[el('anterior'),el('proxima')].includes(document.activeElement))el('busca').focus();
-  el('paginacao-controles').hidden=lista.length<=50;
-  el('anterior').disabled=pagina===0;el('proxima').disabled=inicio+50>=lista.length;
+  el('quantidade').textContent=lista.length>tamanhoPagina?`${inicio+1}–${Math.min(inicio+tamanhoPagina,lista.length)} de ${lista.length} pedidos`:lista.length?`${lista.length} ${lista.length===1?'pedido':'pedidos'}`:'Nenhum pedido nesta seleção';
+  if(lista.length<=tamanhoPagina&&[el('anterior'),el('proxima')].includes(document.activeElement))el('busca').focus();
+  el('paginacao-controles').hidden=lista.length<=tamanhoPagina;
+  el('anterior').disabled=pagina===0;el('proxima').disabled=inicio+tamanhoPagina>=lista.length;
+  atualizarLayout();
 }
 function atualizarLayout(){
   const recolhida=!el('preparacao').open;
-  const destino=el(recolhida?'grupos-resultados':'grupos-acompanhamento');
+  const comSumario=!el('sumario-pedidos').hidden;
+  const destino=el(recolhida&&!comSumario?'grupos-resultados':'grupos-acompanhamento');
   const grupos=el('grupos-estados');
   if(grupos.parentElement!==destino)destino.append(grupos);
-  el('acompanhamento').hidden=recolhida&&el('identificacao').hidden&&!estado?.ocupada&&!estado?.erro&&!estado?.bloqueado&&!['FALHA','ENCERRANDO'].includes(estado?.fase);
+  el('acompanhamento').hidden=recolhida&&!comSumario&&el('identificacao').hidden&&!estado?.ocupada&&!estado?.erro&&!estado?.bloqueado&&!['FALHA','ENCERRANDO'].includes(estado?.fase);
 }
 el('preparacao').addEventListener('toggle',atualizarLayout);
 function renderizar(s) {
@@ -217,7 +258,7 @@ function renderizar(s) {
   } else erroVisivel='';
   const atividade=JSON.stringify(s.mensagens);
   if(atividade!==atividadeAnterior){atividadeAnterior=atividade;const frag=document.createDocumentFragment();for(const texto of s.mensagens??[]){const li=document.createElement('li');li.textContent=texto;frag.append(li);}el('atividade').replaceChildren(frag);}
-  atualizarBotoes();renderizarTabela();atualizarLayout();
+  atualizarBotoes();renderizarTabela();
 }
 async function atualizar() {
   if(encerrado||saindo)return;
@@ -273,8 +314,9 @@ el('pedidos').addEventListener('input',()=>{
   contarPedidos();atualizarBotoes();
 });
 el('limpar').onclick=()=>{if(inicioBloqueado())return;el('pedidos').value='';contarPedidos();mensagem('');atualizarBotoes();el('pedidos').focus();};
+function abrirResultados(){el('titulo-historico').focus();el('titulo-historico').scrollIntoView({behavior:'smooth',block:'start'});}
 for(const nome of ['lote','todos'])el('escopo-'+nome).onclick=()=>{escopo=nome;pagina=0;el('escopo-lote').setAttribute('aria-pressed',String(nome==='lote'));el('escopo-todos').setAttribute('aria-pressed',String(nome==='todos'));renderizarTabela();};
-document.querySelectorAll('[data-fila]').forEach(b=>b.onclick=()=>{if(b.disabled)return;el('preparacao').open=false;atualizarLayout();el('filtro').value=el('filtro').value===b.dataset.fila?'todos':b.dataset.fila;pagina=0;renderizarTabela();b.focus();el('titulo-historico').scrollIntoView({behavior:'smooth',block:'start'});});
+document.querySelectorAll('[data-fila]').forEach(b=>b.onclick=()=>{if(b.disabled)return;el('preparacao').open=false;atualizarLayout();el('filtro').value=el('filtro').value===b.dataset.fila?'todos':b.dataset.fila;pagina=0;renderizarTabela();abrirResultados();});
 el('limpar-filtros').onclick=()=>{el('busca').value='';el('filtro').value='todos';pagina=0;renderizarTabela();};
 for(const id of ['busca','filtro'])el(id).addEventListener('input',()=>{pagina=0;renderizarTabela();});
 el('anterior').onclick=()=>{pagina--;renderizarTabela();};el('proxima').onclick=()=>{pagina++;renderizarTabela();};

@@ -15,31 +15,34 @@
     (alvo.matches('dialog,.menu-configuracoes') ? alvo : document.body).append(trilho);
     alvo.classList.add('rolagem-sobreposta');
     const pagina = alvo === document.documentElement;
-    const margemExterna = false;
     let percurso = 0, maximo = 0, arraste = null;
-    function atualizar() {
+    function medir() {
       const rect = alvo.getBoundingClientRect();
       const altura = pagina ? innerHeight : alvo.clientHeight;
       const topo = pagina ? 0 : Math.max(0, rect.top + alvo.clientTop);
       const fim = pagina ? innerHeight : Math.min(innerHeight, rect.top + alvo.clientTop + altura);
       const visivel = Math.max(0, fim - topo);
       maximo = Math.max(0, alvo.scrollHeight - altura);
-      trilho.hidden = !maximo || !visivel || (!pagina && getComputedStyle(alvo).overflowY === 'visible');
-      if (!pagina && alvo.closest('details') && !alvo.closest('details').open) trilho.hidden = true;
-      if (!pagina && alvo.closest('dialog') && !alvo.closest('dialog').open) trilho.hidden = true;
-      if (trilho.hidden) return;
+      const detalhes = alvo.closest('details'), dialogo = alvo.closest('dialog');
+      const oculta = !maximo || !visivel || (!pagina && getComputedStyle(alvo).overflowY === 'visible')
+        || (!pagina && detalhes && !detalhes.open) || (!pagina && dialogo && !dialogo.open);
+      if (oculta) return {oculta:true};
       const tamanho = Math.min(visivel, Math.max(32, visivel * altura / alvo.scrollHeight));
       percurso = visivel - tamanho;
-      const larguraBarra = trilho.getBoundingClientRect().width;
+      // A largura CSS também está disponível quando o trilho está oculto.
+      const larguraBarra = parseFloat(getComputedStyle(trilho).width) || 10;
       const limiteDireito = document.documentElement.clientWidth - larguraBarra;
-      trilho.style.top = topo + 'px';
-      // Nas colunas, ocupa o espaço já existente fora da região rolável.
-      trilho.style.left = (pagina ? limiteDireito : margemExterna
-        ? Math.min(rect.right, limiteDireito)
-        : rect.right - alvo.clientLeft - larguraBarra) + 'px';
-      trilho.style.height = visivel + 'px';
-      polegar.style.height = tamanho + 'px';
-      polegar.style.top = (percurso * alvo.scrollTop / maximo) + 'px';
+      return {oculta:false,topo,esquerda:pagina?limiteDireito:rect.right-alvo.clientLeft-larguraBarra,
+        altura:visivel,tamanho,posicao:percurso*alvo.scrollTop/maximo};
+    }
+    function desenhar(medida) {
+      if (trilho.hidden !== medida.oculta) trilho.hidden = medida.oculta;
+      if (medida.oculta) return;
+      const definir = (estilo, propriedade, valor) => {if(estilo[propriedade]!==valor)estilo[propriedade]=valor;};
+      definir(trilho.style,'transform',`translate(${medida.esquerda}px, ${medida.topo}px)`);
+      definir(trilho.style,'height',medida.altura+'px');
+      definir(polegar.style,'height',medida.tamanho+'px');
+      definir(polegar.style,'transform',`translateY(${medida.posicao}px)`);
     }
     polegar.addEventListener('pointerdown', evento => {
       if (evento.button !== 0 || !evento.isPrimary) return;
@@ -56,18 +59,25 @@
       polegar.addEventListener(nome, () => { arraste = null; });
     }
     polegar.addEventListener('wheel', evento => {
-      if (evento.ctrlKey) return;
-      evento.preventDefault();
+      if (evento.ctrlKey || !evento.cancelable) return;
       const fator = evento.deltaMode === 1 ? 20 : evento.deltaMode === 2 ? (pagina ? innerHeight : alvo.clientHeight) : 1;
-      alvo.scrollBy({top:evento.deltaY * fator, left:evento.deltaX * fator});
+      const y=evento.deltaY*fator,x=evento.deltaX*fator;
+      const podeRolar=(delta,posicao,maximo)=>delta<0?posicao>1:delta>0&&posicao<maximo-1;
+      // No limite, deixa o navegador continuar a página. O menu preserva
+      // sua contenção nativa; Ctrl+roda continua disponível para zoom.
+      if(!podeRolar(y,alvo.scrollTop,alvo.scrollHeight-alvo.clientHeight)&&!podeRolar(x,alvo.scrollLeft,alvo.scrollWidth-alvo.clientWidth))return;
+      evento.preventDefault();
+      alvo.scrollBy({top:y,left:x});
     }, {passive:false});
-    return {alvo, atualizar};
+    return {alvo, medir, desenhar};
   });
   function agendar() {
     if (quadro) return;
     quadro = requestAnimationFrame(() => {
       quadro = 0;
-      barras.forEach(barra => barra.atualizar());
+      // Todas as leituras precedem as escritas, evitando recálculos entre barras.
+      const medidas = barras.map(barra => barra.medir());
+      barras.forEach((barra, indice) => barra.desenhar(medidas[indice]));
     });
   }
   const tamanhos = new ResizeObserver(agendar);

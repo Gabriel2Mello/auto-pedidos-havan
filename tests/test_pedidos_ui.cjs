@@ -30,7 +30,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
       set cookie(valor) { if(falhaCookie)throw Error('Cookies indisponíveis');cookie=valor; },
       getElementById: obter, querySelector: seletor => ({content:seletor==='meta[name="havan-demo"]'&&demonstracao?'1':'token-local'}),
       addEventListener: () => {},
-      querySelectorAll: seletor => seletor==='[data-fila]'?['prontos','sem_cadastro','outras','existentes','importados'].map(nome=>{const b=obter('fila-'+nome);b.dataset={fila:nome};return b;}):seletor==='[data-acao-pedido]'?criados.filter(e=>'data-acao-pedido' in e.atributos):[], documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
+      querySelectorAll: seletor => seletor==='[data-fila]'?['prontos','importados','pendencias','existentes'].map(nome=>{const b=obter('fila-'+nome);b.dataset={fila:nome};return b;}):seletor==='[data-acao-pedido]'?criados.filter(e=>'data-acao-pedido' in e.atributos):[], documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
       createElement: () => {const e=new Elemento();criados.push(e);return e;}, createDocumentFragment: () => new Elemento(),
     },
     crypto: {randomUUID}, AbortController,
@@ -336,7 +336,7 @@ test('lote e histórico possuem contagens separadas e finalização não esconde
   Object.assign(p.estado,{execucao:'lote',lote:['2026-12345'],fase:'CONCLUIDO',resultados_lote:{'2026-12345':'sem_cadastro'}});
   p.renderizar(p.estado);
   assert.equal(p.obter('n-importados').textContent,0);
-  assert.equal(p.obter('n-sem_cadastro').textContent,1);
+  assert.equal(p.obter('n-pendencias').textContent,1);
   assert.equal(p.obter('fase').textContent,'Finalizado com pendências');
   p.obter('escopo-todos').onclick();
   assert.equal(p.obter('n-importados').textContent,1);
@@ -443,8 +443,8 @@ test('faixa de importação não reescreve aviso e rótulo idênticos ao atualiz
   const aviso=p.obter('alcance-importacao'),botao=p.obter('importar-aptos');
   const escritasAviso=aviso.escritas,escritasBotao=botao.escritas;
   p.renderizar({...p.estado,mensagem:'Outra atualização ociosa.'});
-  p.obter('fila-outras').onclick();
-  p.obter('fila-outras').onclick();
+  p.obter('fila-pendencias').onclick();
+  p.obter('fila-pendencias').onclick();
   assert.equal(aviso.escritas,escritasAviso);
   assert.equal(botao.escritas,escritasBotao);
   p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa:'pronto_importar',erro:''}]});
@@ -459,7 +459,7 @@ test('importação usa aptos do lote em conferência e preserva escopo apesar de
   p.renderizar({...p.estado,execucao:'importacao-anterior',modo:'importar',lote:['2026-10000'],lote_preparacao:['2026-10000','2026-20000','2026-30000'],pedidos:[criar('2026-10000','pronto_importar'),criar('2026-20000','sem_cadastro'),criar('2026-30000','pronto_importar','Consulta falhou'),criar('2026-40000','pronto_importar')]});
   p.obter('filtro').value='sem_cadastro';p.obter('busca').value='20000';vm.runInContext('renderizarTabela()',p.contexto);
   assert.equal(p.obter('linhas').children[0].children.length,1);
-  assert.equal(p.obter('n-sem_cadastro').textContent,1);
+  assert.equal(p.obter('n-pendencias').textContent,2);
   assert.equal(p.obter('importar-aptos').textContent,'Importar 1 pedido');
   assert.equal(p.obter('alcance-importacao').textContent,'Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.');
   p.contexto.fetch=async(url,opcoes)=>{chamadas.push({url,body:opcoes.body&&JSON.parse(opcoes.body)});return {ok:true,json:async()=>url==='/api/conferir'?{id:'importar-revisao'}:url==='/api/estado'?p.estado:{ok:true}};};
@@ -540,10 +540,29 @@ test('último processado mantém pendência final e ignora outras execuções',(
 test('grupos de estados aparecem uma vez no acompanhamento, fora da entrada',()=>{
   const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
   const aside=html.slice(html.indexOf('<aside'),html.indexOf('</aside>'));
-  for(const grupo of ['prontos','sem_cadastro','outras','existentes','importados']){
+  for(const grupo of ['prontos','importados','pendencias','existentes']){
     assert.equal(html.split(`id="n-${grupo}"`).length-1,1);
     assert.ok(aside.includes(`id="n-${grupo}"`));
   }
+  assert.deepEqual([...html.matchAll(/data-fila="([^"]+)"/g)].map(m=>m[1]),['prontos','importados','pendencias','existentes']);
+  const cartoes=aside.slice(aside.indexOf('id="grupos-estados"'),aside.indexOf('id="sumario-pedidos"'));
+  assert.deepEqual([...cartoes.matchAll(/<span>([^<]+)<\/span>/g)].map(m=>m[1]),['Importar','Importados','Pendências','Já existentes']);
+});
+
+test('cartão Pendências soma cadastro e outras pendências sem perder filtros específicos',()=>{
+  const p=painel(),pedidos=['pronto_importar','importado','sem_cadastro','para_baixar','existente'].map((etapa,i)=>({pedido:'2026-'+(10000+i),etapa,erro:''}));
+  p.renderizar({...p.estado,pedidos});
+  assert.deepEqual(['prontos','importados','pendencias','existentes'].map(g=>p.obter('n-'+g).textContent),[1,1,2,1]);
+  p.obter('fila-pendencias').onclick();
+  assert.equal(p.obter('linhas').children[0].children.length,2);
+  assert.equal(p.obter('linhas-sumario').children[0].children.length,5);
+  for(const filtro of ['sem_cadastro','outras']){
+    p.obter('filtro').value=filtro;vm.runInContext('renderizarTabela()',p.contexto);
+    assert.equal(p.obter('linhas').children[0].children.length,1);
+    assert.equal(p.obter('n-pendencias').textContent,2);
+  }
+  const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
+  for(const filtro of ['pendencias','sem_cadastro','outras'])assert.ok(html.includes(`option value="${filtro}"`));
 });
 
 
@@ -665,11 +684,12 @@ test('entrada recolhida move grupos sem duplicar e preserva decisões e execuç�
 test('cartão recolhe entrada e filtra; limpar filtros conserva escopo e reinicia página',()=>{
   const p=painel(),pedido='2026-11111';p.obter('preparacao').open=true;
   p.renderizar({...p.estado,execucao:'lote',lote:[pedido],pedidos:[{pedido,etapa:'pronto_importar',erro:''}]});
-  p.obter('fila-sem_cadastro').onclick();
+  p.obter('fila-pendencias').onclick();
   assert.equal(p.obter('preparacao').open,false);
-  assert.equal(p.obter('filtro').value,'sem_cadastro');
-  assert.equal(p.obter('fila-sem_cadastro').atributos['aria-pressed'],'true');
-  assert.ok(p.obter('grupos-resultados').children.includes(p.obter('grupos-estados')));
+  assert.equal(p.obter('filtro').value,'pendencias');
+  assert.equal(p.obter('fila-pendencias').atributos['aria-pressed'],'true');
+  assert.ok(p.obter('grupos-acompanhamento').children.includes(p.obter('grupos-estados')));
+  assert.equal(p.obter('sumario-pedidos').hidden,false);
   p.obter('busca').value='inexistente';
   vm.runInContext('pagina=2',p.contexto);
   p.obter('limpar-filtros').onclick();
@@ -677,7 +697,7 @@ test('cartão recolhe entrada e filtra; limpar filtros conserva escopo e reinici
   assert.equal(p.obter('filtro').value,'todos');
   assert.equal(vm.runInContext('pagina',p.contexto),0);
   assert.equal(vm.runInContext('escopo',p.contexto),'lote');
-  assert.equal(p.obter('fila-sem_cadastro').atributos['aria-pressed'],'false');
+  assert.equal(p.obter('fila-pendencias').atributos['aria-pressed'],'false');
   p.obter('escopo-todos').onclick();p.obter('limpar-filtros').onclick();
   assert.equal(vm.runInContext('escopo',p.contexto),'todos');
 });
@@ -689,7 +709,7 @@ test('segundo clique no cartão remove o grupo, preserva busca e escopo e reinic
   p.obter('busca').value='2026';
   for(const escopo of ['lote','todos']){
     p.obter('escopo-'+escopo).onclick();
-    for(const grupo of ['prontos','sem_cadastro','outras','existentes','importados']){
+    for(const grupo of ['prontos','importados','pendencias','existentes']){
       const cartao=p.obter('fila-'+grupo);
       cartao.onclick();
       assert.equal(p.obter('filtro').value,grupo);
@@ -704,10 +724,10 @@ test('segundo clique no cartão remove o grupo, preserva busca e escopo e reinic
       assert.equal(p.obter('quantidade').textContent,'1 pedido');
     }
   }
-  p.obter('fila-outras').onclick();
-  p.obter('fila-sem_cadastro').onclick();
-  assert.equal(p.obter('filtro').value,'sem_cadastro');
-  assert.equal(p.obter('fila-outras').atributos['aria-pressed'],'false');
+  p.obter('fila-prontos').onclick();
+  p.obter('fila-pendencias').onclick();
+  assert.equal(p.obter('filtro').value,'pendencias');
+  assert.equal(p.obter('fila-prontos').atributos['aria-pressed'],'false');
 });
 
 test('contagem e controles acompanham filtros e número de páginas sem perder foco',()=>{
@@ -805,6 +825,93 @@ test('importar sobe suavemente após iniciar com entrada aberta ou recolhida',as
   }
 });
 
+test('sumário acompanha escopo completo sem seguir busca, filtro ou paginação dos detalhes',()=>{
+  const p=painel(),pedidos=Array.from({length:61},(_,i)=>({pedido:'2026-'+(10000+i),etapa:'existente',numero:String(9000+i),erro:''}));
+  p.renderizar({...p.estado,execucao:'conferencia',lote:pedidos.slice(0,3).map(p=>p.pedido),pedidos});
+  const linhas=()=>p.obter('linhas-sumario').children[0].children;
+  assert.equal(linhas().length,3);
+  assert.match(p.obter('alcance-sumario').textContent,/Lote em conferência · 3 pedidos/);
+  p.obter('escopo-todos').onclick();assert.equal(linhas().length,61);
+  vm.runInContext('pagina=1;renderizarTabela()',p.contexto);
+  assert.equal(p.obter('linhas').children[0].children.length,11);
+  const escritas=p.obter('linhas-sumario').escritas;
+  p.obter('busca').value='inexistente';p.obter('filtro').value='prontos';vm.runInContext('renderizarTabela()',p.contexto);
+  assert.equal(linhas().length,61);assert.equal(p.obter('linhas-sumario').escritas,escritas);
+  p.obter('preparacao').open=false;vm.runInContext('atualizarLayout()',p.contexto);
+  assert.equal(p.obter('acompanhamento').hidden,false);
+  assert.ok(p.obter('grupos-acompanhamento').children.includes(p.obter('grupos-estados')));
+});
+
+test('sumário diferencia existência, importação, impressão incerta e falha posterior',()=>{
+  const p=painel();
+  for(const [etapa,erro,situacao,passo] of [
+    ['existente','','Já existe no Sisplan','Nenhuma ação.'],
+    ['existente','Consulta falhou','Conferência pendente',null],
+    ['pronto_importar','','Pronto para importar','Importar pelo botão abaixo.'],
+    ['impressao_enviada','','Enviado para impressão','Nenhuma ação.'],
+    ['impressao_incerta','','Impressão a conferir','Confira a fila de impressão com o responsável.'],
+    ['importado','','Impressão pendente',null]
+  ]){
+    p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',numero:'11111',etapa,erro}]});
+    const celulas=p.obter('linhas-sumario').children[0].children[0].children;
+    assert.equal(celulas[0].children[1].textContent,'Sisplan: 11111');
+    assert.equal(celulas[1].children[0].textContent,situacao);
+    if(passo)assert.equal(celulas[2].textContent,passo);else assert.ok(celulas[2].children.some(e=>e.onclick));
+  }
+});
+
+test('sumário mantém pedido ainda sem registro e resultados parciais durante execução',()=>{
+  const p=painel();
+  p.renderizar({...p.estado,execucao:'preparo',fase:'EXECUTANDO',ocupada:true,lote:['2026-11111','2026-22222'],pedidos:[{pedido:'2026-11111',etapa:'pronto_importar',erro:''}]});
+  const linhas=p.obter('linhas-sumario').children[0].children;
+  assert.equal(linhas.length,2);assert.equal(linhas[1].children[0].children[0].textContent,'2026-22222');
+  assert.equal(linhas[1].children[1].children[0].textContent,'Sem registro local');
+  assert.match(p.obter('alcance-sumario').textContent,/em andamento/);
+  assert.equal(p.obter('importar-aptos').disabled,true);
+});
+
+test('sumário não sugere importar quando resultado da execução exige conferência',()=>{
+  const p=painel(),pedido='2026-12345';
+  p.renderizar({...p.estado,execucao:'e',lote:[pedido],resultados_lote:{[pedido]:'falhou'},pedidos:[{pedido,etapa:'pronto_importar',erro:''}]});
+  const celulas=p.obter('linhas-sumario').children[0].children[0].children;
+  assert.equal(celulas[1].children[0].textContent,'Conferência pendente');
+  assert.equal(celulas[2].children[0].textContent,'Ver detalhes');
+});
+
+test('ação de recuperação no sumário preserva revisão e bloqueia novos envios sem conexão',async()=>{
+  const p=painel(),pedido='2026-12345',s={...p.estado,pedidos:[{pedido,etapa:'importado',numero:'11111',erro:''}]};
+  p.renderizar(s);
+  const botao=p.obter('linhas-sumario').children[0].children[0].children[2].children[1];
+  assert.match(botao.atributos['aria-label'],/Retomar impressão/);
+  const chamadas=[];
+  p.contexto.fetch=async(url,opcoes)=>{chamadas.push([url,opcoes]);return {ok:true,json:async()=>url==='/api/conferir'?{id:'revisao-sumario'}:url==='/api/estado'?s:{ok:true}};};
+  await botao.onclick();
+  assert.deepEqual(JSON.parse(chamadas[0][1].body),{modo:'recuperar',pedidos:pedido});
+  assert.equal(JSON.parse(chamadas[1][1].body).conferencia,'revisao-sumario');
+  vm.runInContext('conectado=false;atualizarBotoes()',p.contexto);assert.equal(botao.disabled,true);
+  const quantidade=chamadas.length;await botao.onclick();assert.equal(chamadas.length,quantidade);
+});
+
+test('detalhe do sumário localiza pedido sem executar integração',()=>{
+  const p=painel(),pedido='2026-12345';
+  p.renderizar({...p.estado,pedidos:[{pedido,etapa:'existente',erro:'Falha posterior'}]});
+  p.contexto.fetch=()=>{throw Error('Detalhar não pode chamar integração');};
+  p.obter('linhas-sumario').children[0].children[0].children[2].children[0].onclick();
+  assert.equal(p.obter('busca').value,pedido);assert.equal(p.obter('filtro').value,'todos');
+  assert.equal(p.obter('linhas').children[0].children.length,1);
+});
+
+test('layout conserva entrada de seis linhas e conferência visível sem limitar o sumário',()=>{
+  const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
+  assert.match(html,/<textarea id="pedidos" rows="6"/);
+  assert.match(html,/<section class="historico" aria-labelledby="titulo-historico">/);
+  assert.ok(!html.includes('alternar-sumario')&&!html.includes('resultados-detalhados'));
+  const p=painel(),pedidos=Array.from({length:60},(_,i)=>({pedido:'2026-'+(10000+i),etapa:'existente',erro:''}));
+  p.renderizar({...p.estado,pedidos});
+  assert.equal(p.obter('linhas-sumario').children[0].children.length,60);
+  assert.equal(p.obter('linhas').children[0].children.length,50);
+});
+
 test('interface não oferece seletor, revisão ou ação de reimpressão',()=>{
   const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
   assert.ok(!/Reimprimir|data-modo|painel-conferencia|aba-conferencia|imprimir-sem-numero/.test(html));
@@ -813,4 +920,94 @@ test('interface não oferece seletor, revisão ou ação de reimpressão',()=>{
     p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa,erro:''}]});
     assert.equal(p.obter('linhas').children[0].children[0].children[3].children.length,0);
   }
+});
+
+function painelRolagem(){
+  const operacoes=[],eventos={};
+  class Regiao{
+    constructor({altura=120,largura=400,conteudo=620,topo=80,menu=false}={}){
+      this.clientHeight=altura;this.clientWidth=largura;this.scrollHeight=conteudo;this.scrollWidth=largura;
+      this.scrollTop=100;this.scrollLeft=0;this.clientTop=0;this.clientLeft=0;
+      this.rect={top:topo,bottom:topo+altura,left:20,right:20+largura,width:largura,height:altura};
+      this.style=new Proxy({},{set:(obj,chave,valor)=>{operacoes.push('escrever');obj[chave]=valor;return true;}});this.children=[];this.listeners={};this.classes=new Set();this.classList={add:c=>this.classes.add(c)};
+      this.menu=menu;this.movimentos=[];
+    }
+    append(e){this.children.push(e);}
+    matches(){return this.menu;}
+    closest(){return null;}
+    getBoundingClientRect(){operacoes.push('ler');return this.rect;}
+    setAttribute(){}
+    addEventListener(nome,fn){this.listeners[nome]=fn;}
+    setPointerCapture(id){this.capturado=id;}
+    scrollBy(opcoes){this.movimentos.push(opcoes);this.scrollTop=Math.max(0,Math.min(this.scrollHeight-this.clientHeight,this.scrollTop+opcoes.top));this.scrollLeft+=opcoes.left;}
+  }
+  const raiz=new Regiao({altura:700,largura:1000,conteudo:1400,topo:0}),editor=new Regiao(),menu=new Regiao({menu:true});
+  const body=new Regiao(),quadros=[];
+  const document={documentElement:raiz,body,fonts:{ready:{then:fn=>fn()}},addEventListener:(nome,fn)=>eventos[nome]=fn,
+    querySelectorAll:s=>s==='#pedidos,.rolagem-conferencia,.rolagem-historico,#atividade,.menu-configuracoes'?[editor,menu]:[],
+    createElement:()=>new Regiao({largura:10})};
+  const Observador=class{observe(){}};
+  const contexto=vm.createContext({document,window:{ResizeObserver:Observador,PointerEvent:class{},addEventListener(){}},
+    ResizeObserver:Observador,MutationObserver:Observador,innerHeight:700,innerWidth:1000,
+    requestAnimationFrame:fn=>quadros.push(fn),getComputedStyle:()=>{operacoes.push('ler');return {overflowY:'auto',width:'10px'};}});
+  vm.runInContext(readFileSync(join(__dirname,'../src/rolagem.js'),'utf8'),contexto);
+  const atualizar=()=>{while(quadros.length)quadros.shift()();};atualizar();operacoes.length=0;
+  const polegar=body.children[1].children[0];
+  const roda=(opcoes={})=>{
+    const e={deltaX:0,deltaY:60,deltaMode:0,ctrlKey:false,cancelable:true,impedido:false,preventDefault(){this.impedido=true;},...opcoes};
+    polegar.listeners.wheel(e);return e;
+  };
+  return {editor,raiz,polegar,roda,operacoes,eventos,atualizar};
+}
+
+test('atualização das barras mede todas as regiões antes de alterar estilos',()=>{
+  const p=painelRolagem();p.editor.scrollTop=200;p.eventos.scroll();p.atualizar();
+  const escrita=p.operacoes.indexOf('escrever');
+  assert.ok(escrita>=0);assert.ok(!p.operacoes.slice(escrita).includes('ler'));
+  assert.match(p.polegar.style.transform,/^translateY\(/);
+});
+
+test('geometria idêntica não reescreve estilos da barra',()=>{
+  const p=painelRolagem();p.eventos.scroll();p.atualizar();
+  assert.ok(!p.operacoes.includes('escrever'));
+});
+
+test('puxador cabe na parte visível de um trilho menor que 32 pixels',()=>{
+  const p=painelRolagem();p.editor.rect.top=690;p.editor.rect.bottom=810;
+  p.eventos.scroll();p.atualizar();assert.equal(p.polegar.style.height,'10px');
+});
+
+test('puxador movimenta editor enquanto há conteúdo e mantém arraste funcional',()=>{
+  const p=painelRolagem();
+  assert.equal(p.roda().impedido,true);assert.equal(p.editor.scrollTop,160);
+  p.polegar.listeners.pointerdown({button:0,isPrimary:true,clientY:100,pointerId:7,preventDefault(){}});
+  p.polegar.listeners.pointermove({clientY:122});
+  assert.ok(p.editor.scrollTop>160);assert.equal(p.polegar.capturado,7);
+  const topo=p.editor.scrollTop;p.polegar.listeners.pointerup();p.polegar.listeners.pointermove({clientY:160});
+  assert.equal(p.editor.scrollTop,topo);
+});
+
+for(const [nome,topo,delta] of [['início',0,-120],['fim',500,120],['fim fracionário',499.75,120]]){
+  test(`puxador libera a roda para o navegador no ${nome} do editor`,()=>{
+    const p=painelRolagem();p.editor.scrollTop=topo;
+    assert.equal(p.roda({deltaY:delta}).impedido,false);assert.equal(p.editor.movimentos.length,0);
+  });
+}
+
+test('puxador permite voltar pela lista ao inverter a direção no limite',()=>{
+  const p=painelRolagem();p.editor.scrollTop=500;
+  assert.equal(p.roda({deltaY:-120}).impedido,true);assert.equal(p.editor.scrollTop,380);
+});
+
+test('puxador preserva zoom, eventos não canceláveis e gesto horizontal sem excedente',()=>{
+  for(const opcoes of [{ctrlKey:true},{cancelable:false},{deltaX:40,deltaY:0}]){
+    const p=painelRolagem();assert.equal(p.roda(opcoes).impedido,false);assert.equal(p.editor.movimentos.length,0);
+  }
+});
+
+test('puxador normaliza unidades de linha e página e conserva eixo horizontal',()=>{
+  let p=painelRolagem();p.roda({deltaMode:1,deltaY:2});assert.equal(p.editor.scrollTop,140);
+  p=painelRolagem();p.roda({deltaMode:2,deltaY:1});assert.equal(p.editor.scrollTop,220);
+  p=painelRolagem();p.editor.scrollWidth=800;p.editor.scrollLeft=50;
+  assert.equal(p.roda({deltaX:60,deltaY:0}).impedido,true);assert.equal(p.editor.scrollLeft,110);
 });
