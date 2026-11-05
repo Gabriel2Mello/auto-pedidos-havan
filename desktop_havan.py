@@ -21,6 +21,14 @@ APP_ID = 'Nunes.PedidosHavan.Desktop.1'
 TEMPO_CONFIRMAR_PREFERENCIAS = 10
 
 
+def preparar_renderizacao():
+    """Evita a piscada da composição acelerada, validada no posto Windows."""
+    nome = 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'
+    argumentos = os.environ.get(nome, '')
+    if '--disable-gpu' not in argumentos.split():
+        os.environ[nome] = (argumentos + ' --disable-gpu').strip()
+
+
 class SemRedirecionamento(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -144,6 +152,7 @@ class Janela:
             raise RuntimeError('O desktop da Pedidos Havan requer Windows.')
         from dpi_windows import preparar, validar_janela
         preparar('PedidosHavanDesktop')
+        preparar_renderizacao()
         import webview
         desktop_windows.identidade_processo(self.app_id)
         webview.settings['ALLOW_DOWNLOADS'] = False

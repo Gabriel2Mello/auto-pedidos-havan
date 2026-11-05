@@ -12,6 +12,46 @@ from tests.test_interface_web import BaseInterface
 from src.resumo import ResumoExecucao
 from src.interface_web import criar_servidor
 
+
+class TestRenderizacao(unittest.TestCase):
+    def test_abertura_configura_software_antes_de_criar_webview(self):
+        class FimDoEnsaio(Exception):
+            pass
+
+        nome = 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'
+        webview = Mock(settings={})
+
+        def criar(*args, **kwargs):
+            self.assertEqual(desktop.os.environ[nome], '--disable-gpu')
+            self.assertFalse(webview.settings['ALLOW_DOWNLOADS'])
+            self.assertFalse(webview.settings['ALLOW_FILE_URLS'])
+            raise FimDoEnsaio
+
+        webview.create_window.side_effect = criar
+        with patch.dict(desktop.os.environ):
+            desktop.os.environ.pop(nome, None)
+            with patch.dict('sys.modules', {'webview': webview}), \
+                    patch('dpi_windows.preparar'), \
+                    patch('desktop_windows.identidade_processo'):
+                with self.assertRaises(FimDoEnsaio):
+                    desktop.Janela(Mock()).executar()
+        webview.create_window.assert_called_once()
+
+    def test_preserva_argumentos_e_nao_duplica_ao_preparar_novamente(self):
+        nome = 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'
+        with patch.dict(desktop.os.environ, {nome: '--lang=pt-BR'}):
+            desktop.preparar_renderizacao()
+            desktop.preparar_renderizacao()
+            self.assertEqual(desktop.os.environ[nome], '--lang=pt-BR --disable-gpu')
+
+    def test_preserva_argumento_ja_configurado(self):
+        nome = 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'
+        argumentos = '--disable-gpu --lang=pt-BR'
+        with patch.dict(desktop.os.environ, {nome: argumentos}):
+            desktop.preparar_renderizacao()
+            self.assertEqual(desktop.os.environ[nome], argumentos)
+
+
 class TestAtivacao(unittest.TestCase):
     def pedido(self, **extras):
         cabecalhos = Message()

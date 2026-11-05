@@ -95,6 +95,28 @@ locais da fonte no Hub, com hashes conferidos e destinos declarados no manifesto
 Não há importação de repositórios irmãos durante a execução. A janela conserva
 geometria e aplica o bootstrap Per-Monitor V2 antes do CLR/WinForms.
 
+## Renderização da janela
+
+A abertura desktop configura `--disable-gpu` antes de criar o WebView2.
+Essa mitigação evita a piscada durante a rolagem da página inteira que foi
+eliminada no teste manual com a GPU desativada no posto Windows. Vale para
+a abertura pelo Hub, atalho próprio e demonstração; dispensa lançador especial.
+O CSS e o processamento dos pedidos permanecem iguais.
+
+O argumento é acrescentado a `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` apenas
+no processo da aplicação e seus filhos, preservando argumentos existentes e
+sem gravar configuração no Windows. Uma instância já aberta conserva sua
+renderização: use **Encerrar**, aguarde o término completo no Hub e reabra
+pelo atalho habitual. Executáveis precisam ser reconstruídos para incorporar
+a alteração; a abertura pelos fontes já usa o comportamento atualizado.
+
+A renderização por software pode aumentar o uso de CPU. A validação manual
+isola o caminho acelerado como fator do sintoma, sem identificar sozinho
+o driver ou componente responsável. A Microsoft documenta o argumento em
+[WebView2 browser flags](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/webview-features-flags)
+e recomenda aceleração gráfica quando compatível em
+[Performance best practices](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/performance).
+
 ## Verificações
 
 ```powershell
