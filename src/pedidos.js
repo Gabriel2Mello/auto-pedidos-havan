@@ -8,7 +8,7 @@ const headers = {Authorization: 'Bearer ' + token, 'Content-Type': 'application/
 const fases = {INICIANDO:'Iniciando',PRONTO:'Pronto',EXECUTANDO:'Em andamento',PAUSADO:'Aguardando sua escolha',PARANDO:'Parando com segurança',CONCLUIDO:'Finalizado',INTERROMPIDO:'Parado',FALHA:'Precisa de atenção',ENCERRANDO:'Encerrando',ENCERRADO:'Encerrado'};
 let estado=null, enviando=false, encerrado=false, encerramentoPedido=false, pagina=0, erroVisivel='', tabelaAnterior='', atividadeAnterior='', presenca=null;
 let estadoAnterior='', saindo=false, sumarioAnterior='';
-const tamanhoPagina=50;
+const tamanhoPagina=20;
 let escopo='todos', conectado=false, inicioIncerto=false, ultimoLote='';
 let cenariosDemo=[];
 let consultandoImpressoras=false;
@@ -128,7 +128,6 @@ function criarAcaoPedido(p,acao,rotuloVisivel){
   return botao;
 }
 function renderizarSumario(base){
-  el('sumario-pedidos').hidden=!base.length;
   el('importacao-lote').hidden=!base.length;
   const chave=JSON.stringify([base,escopo,estado?.ocupada]);
   if(chave===sumarioAnterior)return;
@@ -152,7 +151,7 @@ function renderizarSumario(base){
     if(acao){
       const rotulo=acao[0]==='preparar'?'Baixar e conferir':acao[0]==='revalidar'?'Conferir novamente':acao[1]==='Retomar impressão'?'Retomar impressão':'Conferir gravação';
       acoes.append(criarAcaoPedido(p,acao,rotulo));
-    }else if((!atencao&&(apto(p)||['existente','impressao_enviada'].includes(p.etapa)))||['impressao_iniciada','impressao_incerta'].includes(p.etapa)){
+    }else if(p.erro==='Pedido não encontrado no Portal Havan.'||(!atencao&&(apto(p)||['existente','impressao_enviada'].includes(p.etapa)))||['impressao_iniciada','impressao_incerta'].includes(p.etapa)){
       const vazio=document.createElement('span');vazio.className='acao-ausente';vazio.textContent='—';vazio.setAttribute('aria-label','Nenhuma ação disponível para este pedido');acoes.append(vazio);
     }else{
       const detalhe=document.createElement('button');detalhe.type='button';detalhe.textContent='Ver detalhes';
@@ -207,7 +206,8 @@ function renderizarTabela() {
 }
 function atualizarLayout(){
   const recolhida=!el('preparacao').open;
-  const comSumario=!el('sumario-pedidos').hidden;
+  const comSumario=pedidosDoEscopo().length>0;
+  el('sumario-pedidos').hidden=recolhida||!comSumario;
   const destino=el(recolhida&&!comSumario?'grupos-resultados':'grupos-acompanhamento');
   const grupos=el('grupos-estados');
   if(grupos.parentElement!==destino)destino.append(grupos);
@@ -328,7 +328,7 @@ for(const nome of ['lote','todos'])el('escopo-'+nome).onclick=()=>{escopo=nome;p
 document.querySelectorAll('[data-fila]').forEach(b=>b.onclick=()=>{if(b.disabled)return;el('preparacao').open=false;atualizarLayout();el('filtro').value=el('filtro').value===b.dataset.fila?'todos':b.dataset.fila;pagina=0;renderizarTabela();abrirResultados();});
 el('limpar-filtros').onclick=()=>{el('busca').value='';el('filtro').value='todos';pagina=0;renderizarTabela();};
 for(const id of ['busca','filtro'])el(id).addEventListener('input',()=>{pagina=0;renderizarTabela();});
-el('anterior').onclick=()=>{pagina--;renderizarTabela();};el('proxima').onclick=()=>{pagina++;renderizarTabela();};
+el('anterior').onclick=()=>{pagina--;renderizarTabela();abrirResultados();};el('proxima').onclick=()=>{pagina++;renderizarTabela();abrirResultados();};
 for(const [id,decisao] of [['repetir','repetir'],['pular','pular'],['parar-erro','encerrar']])el(id).onclick=()=>{if(estado?.erro)acao('/api/decidir',{execucao:estado.execucao,erro:estado.erro.id,decisao});};
 el('parar').onclick=()=>{if(confirm('Parar após concluir a etapa atual com segurança? Os pedidos pendentes serão preservados.'))acao('/api/parar',{execucao:estado.execucao});};
 el('encerrar').onclick=async()=>{

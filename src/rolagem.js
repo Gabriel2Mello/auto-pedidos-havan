@@ -2,7 +2,7 @@
 // Adaptação local da rolagem da Impressão de OPs para as regiões da Havan.
 (() => {
   if (!window.ResizeObserver || !window.PointerEvent) return;
-  const alvos = [document.documentElement, ...document.querySelectorAll('#pedidos,.rolagem-conferencia,.rolagem-historico,#atividade,.menu-configuracoes')];
+  const alvos = [document.documentElement, ...document.querySelectorAll('#pedidos,.rolagem-conferencia,#atividade,.menu-configuracoes')];
   let quadro = 0;
   const barras = alvos.map(alvo => {
     const trilho = document.createElement('div'), polegar = document.createElement('div');
@@ -15,11 +15,28 @@
     (alvo.matches('dialog,.menu-configuracoes') ? alvo : document.body).append(trilho);
     alvo.classList.add('rolagem-sobreposta');
     const pagina = alvo === document.documentElement;
+    if (pagina) trilho.classList.add('barra-rolagem-pagina');
+    if (alvo.matches('.rolagem-sumario')) trilho.classList.add('barra-rolagem-sumario');
     let percurso = 0, maximo = 0, arraste = null;
+    let ocultacao = 0, sobrePolegar = false;
+    function mostrar() {
+      if (!pagina) return;
+      trilho.classList.add('ativa');
+      clearTimeout(ocultacao);
+      if (!arraste && !sobrePolegar) {
+        ocultacao = setTimeout(() => trilho.classList.remove('ativa'), 1200);
+      }
+    }
+    if (pagina) {
+      polegar.addEventListener('pointerenter', () => {sobrePolegar = true; mostrar();});
+      polegar.addEventListener('pointerleave', () => {sobrePolegar = false; mostrar();});
+      mostrar();
+    }
     function medir() {
       const rect = alvo.getBoundingClientRect();
       const altura = pagina ? innerHeight : alvo.clientHeight;
-      const topo = pagina ? 0 : Math.max(0, rect.top + alvo.clientTop);
+      const topoReal = pagina ? 0 : rect.top + alvo.clientTop;
+      const topo = Math.max(0, topoReal);
       const fim = pagina ? innerHeight : Math.min(innerHeight, rect.top + alvo.clientTop + altura);
       const visivel = Math.max(0, fim - topo);
       maximo = Math.max(0, alvo.scrollHeight - altura);
@@ -27,13 +44,22 @@
       const oculta = !maximo || !visivel || (!pagina && getComputedStyle(alvo).overflowY === 'visible')
         || (!pagina && detalhes && !detalhes.open) || (!pagina && dialogo && !dialogo.open);
       if (oculta) return {oculta:true};
-      const tamanho = Math.min(visivel, Math.max(32, visivel * altura / alvo.scrollHeight));
-      percurso = visivel - tamanho;
+      // A geometria acompanha a região inteira; só a pintura é recortada pela janela.
+      const tamanho = Math.min(altura, Math.max(32, altura * altura / alvo.scrollHeight));
+      percurso = altura - tamanho;
       // A largura CSS também está disponível quando o trilho está oculto.
       const larguraBarra = parseFloat(getComputedStyle(trilho).width) || 10;
       const limiteDireito = document.documentElement.clientWidth - larguraBarra;
-      return {oculta:false,topo,esquerda:pagina?limiteDireito:rect.right-alvo.clientLeft-larguraBarra,
-        altura:visivel,tamanho,posicao:percurso*alvo.scrollTop/maximo};
+      let esquerda = pagina ? limiteDireito : rect.right - alvo.clientLeft - larguraBarra;
+      if (alvo.matches('.rolagem-sumario')) {
+        // O afastamento de 4 px segue a referência e é medido até o traço visível.
+        const estiloPolegar = getComputedStyle(polegar);
+        const larguraPolegar = parseFloat(estiloPolegar.width);
+        const inicioPolegar = larguraBarra - larguraPolegar - parseFloat(estiloPolegar.right);
+        esquerda = Math.min(rect.right - alvo.clientLeft + 4 - inicioPolegar, limiteDireito - inicioPolegar - larguraPolegar);
+      }
+      return {oculta:false,topo,esquerda,
+        altura:visivel,tamanho,posicao:topoReal-topo+percurso*alvo.scrollTop/maximo};
     }
     function desenhar(medida) {
       if (trilho.hidden !== medida.oculta) trilho.hidden = medida.oculta;
@@ -48,6 +74,7 @@
       if (evento.button !== 0 || !evento.isPrimary) return;
       evento.preventDefault();
       arraste = {y:evento.clientY, topo:alvo.scrollTop};
+      mostrar();
       polegar.setPointerCapture(evento.pointerId);
     });
     polegar.addEventListener('pointermove', evento => {
@@ -56,7 +83,7 @@
       agendar();
     });
     for (const nome of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-      polegar.addEventListener(nome, () => { arraste = null; });
+      polegar.addEventListener(nome, () => { arraste = null; mostrar(); });
     }
     polegar.addEventListener('wheel', evento => {
       if (evento.ctrlKey || !evento.cancelable) return;
@@ -69,7 +96,7 @@
       evento.preventDefault();
       alvo.scrollBy({top:y,left:x});
     }, {passive:false});
-    return {alvo, medir, desenhar};
+    return {alvo, medir, desenhar, mostrar};
   });
   function agendar() {
     if (quadro) return;
@@ -92,7 +119,13 @@
   }
   document.addEventListener('toggle', agendar, true);
   document.addEventListener('close', agendar, true);
-  document.addEventListener('scroll', agendar, true);
+  document.addEventListener('scroll', evento => {
+    if (evento?.target === document || evento?.target === document.documentElement) barras[0].mostrar();
+    agendar();
+  }, true);
+  document.addEventListener('pointermove', evento => {
+    if (evento.clientX >= document.documentElement.clientWidth - 10) barras[0].mostrar();
+  }, {passive:true});
   document.addEventListener('input', agendar);
   window.addEventListener('resize', agendar);
   document.fonts.ready.then(agendar);

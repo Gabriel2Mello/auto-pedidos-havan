@@ -24,6 +24,7 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
     return elementos.get(id);
   };
   obter('filtro').value='todos';
+  obter('preparacao').open=true;
   const contexto = vm.createContext({
     document: {
       get cookie() { if(falhaCookie)throw Error('Cookies indisponíveis');return cookie; },
@@ -689,7 +690,7 @@ test('cartão recolhe entrada e filtra; limpar filtros conserva escopo e reinici
   assert.equal(p.obter('filtro').value,'pendencias');
   assert.equal(p.obter('fila-pendencias').atributos['aria-pressed'],'true');
   assert.ok(p.obter('grupos-acompanhamento').children.includes(p.obter('grupos-estados')));
-  assert.equal(p.obter('sumario-pedidos').hidden,false);
+  assert.equal(p.obter('sumario-pedidos').hidden,true);
   p.obter('busca').value='inexistente';
   vm.runInContext('pagina=2',p.contexto);
   p.obter('limpar-filtros').onclick();
@@ -734,11 +735,21 @@ test('contagem e controles acompanham filtros e número de páginas sem perder f
   const p=painel();
   const pedidos=Array.from({length:60},(_,i)=>({pedido:`2026-${10000+i}`,etapa:'para_baixar',rotulo:'A baixar',erro:''}));
   p.renderizar({...p.estado,pedidos});
-  assert.equal(p.obter('quantidade').textContent,'1–50 de 60 pedidos');
+  assert.equal(p.obter('quantidade').textContent,'1–20 de 60 pedidos');
   assert.equal(p.obter('paginacao-controles').hidden,false);
   assert.equal(p.obter('limpar-filtros').hidden,true);
+  let focosResultados=0,rolagensResultados=0;
+  p.obter('titulo-historico').focus=()=>focosResultados++;
+  p.obter('titulo-historico').scrollIntoView=()=>rolagensResultados++;
   p.obter('proxima').onclick();
-  assert.equal(p.obter('quantidade').textContent,'51–60 de 60 pedidos');
+  assert.equal(p.obter('quantidade').textContent,'21–40 de 60 pedidos');
+  assert.equal(p.obter('linhas').children[0].children[0].children[0].textContent,'2026-10020');
+  p.obter('proxima').onclick();
+  assert.equal(p.obter('quantidade').textContent,'41–60 de 60 pedidos');
+  assert.equal(p.obter('proxima').disabled,true);
+  p.obter('anterior').onclick();
+  assert.equal(p.obter('quantidade').textContent,'21–40 de 60 pedidos');
+  assert.equal(focosResultados,3);assert.equal(rolagensResultados,3);
   p.obter('busca').value='2026-10059';
   p.obter('busca').listeners.input[0]();
   assert.equal(p.obter('quantidade').textContent,'1 pedido');
@@ -751,7 +762,7 @@ test('contagem e controles acompanham filtros e número de páginas sem perder f
   assert.equal(focos,1);
   assert.equal(p.obter('limpar-filtros').hidden,true);
   assert.equal(p.obter('paginacao-controles').hidden,false);
-  assert.equal(p.obter('quantidade').textContent,'1–50 de 60 pedidos');
+  assert.equal(p.obter('quantidade').textContent,'1–20 de 60 pedidos');
   p.obter('busca').value='inexistente';
   p.obter('busca').listeners.input[0]();
   assert.equal(p.obter('quantidade').textContent,'Nenhum pedido nesta seleção');
@@ -833,7 +844,7 @@ test('sumário acompanha escopo completo sem seguir busca, filtro ou paginação
   assert.match(p.obter('alcance-sumario').textContent,/Lote em conferência · 3 pedidos/);
   p.obter('escopo-todos').onclick();assert.equal(linhas().length,61);
   vm.runInContext('pagina=1;renderizarTabela()',p.contexto);
-  assert.equal(p.obter('linhas').children[0].children.length,11);
+  assert.equal(p.obter('linhas').children[0].children.length,20);
   const escritas=p.obter('linhas-sumario').escritas;
   p.obter('busca').value='inexistente';p.obter('filtro').value='prontos';vm.runInContext('renderizarTabela()',p.contexto);
   assert.equal(linhas().length,61);assert.equal(p.obter('linhas-sumario').escritas,escritas);
@@ -842,9 +853,32 @@ test('sumário acompanha escopo completo sem seguir busca, filtro ou paginação
   assert.ok(p.obter('grupos-acompanhamento').children.includes(p.obter('grupos-estados')));
 });
 
+test('sumário acompanha a entrada recolhível e continua atualizado sem esconder resultados',()=>{
+  const p=painel(),pedido={pedido:'2026-11111',etapa:'existente',erro:''};
+  p.renderizar({...p.estado,pedidos:[pedido]});
+  assert.equal(p.obter('sumario-pedidos').hidden,false);
+  const alternar=aberta=>{
+    p.obter('preparacao').open=aberta;
+    p.obter('preparacao').listeners.toggle.forEach(fn=>fn());
+  };
+  alternar(false);
+  assert.equal(p.obter('sumario-pedidos').hidden,true);
+  p.renderizar({...p.estado,pedidos:[pedido,{...pedido,pedido:'2026-22222'}]});
+  assert.equal(p.obter('sumario-pedidos').hidden,true);
+  assert.equal(p.obter('linhas').children[0].children.length,2);
+  alternar(true);
+  assert.equal(p.obter('sumario-pedidos').hidden,false);
+  assert.equal(p.obter('linhas-sumario').children[0].children.length,2);
+  p.renderizar(p.estado);
+  alternar(false);alternar(true);
+  assert.equal(p.obter('sumario-pedidos').hidden,true);
+});
+
 test('sumário separa situação, orientação e ações sem repetir instruções na coluna de ações',()=>{
   const p=painel();
   for(const [etapa,erro,situacao,orientacao,acao] of [
+    ['para_baixar','Pedido não encontrado no Portal Havan.','Não disponível','Pedido não encontrado no Portal Havan.','—'],
+    ['para_baixar','Não foi possível baixar os arquivos do pedido.','Preparação pendente','Não foi possível baixar os arquivos do pedido.','Baixar e conferir'],
     ['existente','','Já existe no Sisplan',null,'—'],
     ['existente','Consulta falhou','Conferência pendente','Consulta falhou','Ver detalhes'],
     ['pronto_importar','','Pronto para importar',null,'—'],
@@ -957,7 +991,7 @@ test('layout conserva entrada de seis linhas e conferência visível sem limitar
   const p=painel(),pedidos=Array.from({length:60},(_,i)=>({pedido:'2026-'+(10000+i),etapa:'existente',erro:''}));
   p.renderizar({...p.estado,pedidos});
   assert.equal(p.obter('linhas-sumario').children[0].children.length,60);
-  assert.equal(p.obter('linhas').children[0].children.length,50);
+  assert.equal(p.obter('linhas').children[0].children.length,20);
 });
 
 test('interface não oferece seletor, revisão ou ação de reimpressão',()=>{
@@ -970,18 +1004,18 @@ test('interface não oferece seletor, revisão ou ação de reimpressão',()=>{
   }
 });
 
-function painelRolagem(){
-  const operacoes=[],eventos={};
+function painelRolagem({sumario=false}={}){
+  const operacoes=[],eventos={},temporizadores=new Map();let proximoTempo=0;
   class Regiao{
     constructor({altura=120,largura=400,conteudo=620,topo=80,menu=false}={}){
       this.clientHeight=altura;this.clientWidth=largura;this.scrollHeight=conteudo;this.scrollWidth=largura;
       this.scrollTop=100;this.scrollLeft=0;this.clientTop=0;this.clientLeft=0;
       this.rect={top:topo,bottom:topo+altura,left:20,right:20+largura,width:largura,height:altura};
-      this.style=new Proxy({},{set:(obj,chave,valor)=>{operacoes.push('escrever');obj[chave]=valor;return true;}});this.children=[];this.listeners={};this.classes=new Set();this.classList={add:c=>this.classes.add(c)};
+      this.style=new Proxy({},{set:(obj,chave,valor)=>{operacoes.push('escrever');obj[chave]=valor;return true;}});this.children=[];this.listeners={};this.classes=new Set();this.classList={add:c=>this.classes.add(c),remove:c=>this.classes.delete(c)};
       this.menu=menu;this.movimentos=[];
     }
-    append(e){this.children.push(e);}
-    matches(){return this.menu;}
+    append(e){e.parentElement=this;this.children.push(e);}
+    matches(seletor){return seletor==='.rolagem-sumario'?Boolean(this.sumario):this.menu;}
     closest(){return null;}
     getBoundingClientRect(){operacoes.push('ler');return this.rect;}
     setAttribute(){}
@@ -990,14 +1024,19 @@ function painelRolagem(){
     scrollBy(opcoes){this.movimentos.push(opcoes);this.scrollTop=Math.max(0,Math.min(this.scrollHeight-this.clientHeight,this.scrollTop+opcoes.top));this.scrollLeft+=opcoes.left;}
   }
   const raiz=new Regiao({altura:700,largura:1000,conteudo:1400,topo:0}),editor=new Regiao(),menu=new Regiao({menu:true});
+  editor.sumario=sumario;
   const body=new Regiao(),quadros=[];
   const document={documentElement:raiz,body,fonts:{ready:{then:fn=>fn()}},addEventListener:(nome,fn)=>eventos[nome]=fn,
-    querySelectorAll:s=>s==='#pedidos,.rolagem-conferencia,.rolagem-historico,#atividade,.menu-configuracoes'?[editor,menu]:[],
+    querySelectorAll:s=>s==='#pedidos,.rolagem-conferencia,#atividade,.menu-configuracoes'?[editor,menu]:[],
     createElement:()=>new Regiao({largura:10})};
   const Observador=class{observe(){}};
   const contexto=vm.createContext({document,window:{ResizeObserver:Observador,PointerEvent:class{},addEventListener(){}},
     ResizeObserver:Observador,MutationObserver:Observador,innerHeight:700,innerWidth:1000,
-    requestAnimationFrame:fn=>quadros.push(fn),getComputedStyle:()=>{operacoes.push('ler');return {overflowY:'auto',width:'10px'};}});
+    setTimeout:(fn,atraso)=>{const id=++proximoTempo;temporizadores.set(id,{fn,atraso});return id;},clearTimeout:id=>temporizadores.delete(id),
+    requestAnimationFrame:fn=>quadros.push(fn),getComputedStyle:alvo=>{
+      operacoes.push('ler');
+      return {overflowY:'auto',width:alvo.className==='barra-rolagem-polegar'?'6px':'10px',right:'2px'};
+    }});
   vm.runInContext(readFileSync(join(__dirname,'../src/rolagem.js'),'utf8'),contexto);
   const atualizar=()=>{while(quadros.length)quadros.shift()();};atualizar();operacoes.length=0;
   const polegar=body.children[1].children[0];
@@ -1005,8 +1044,43 @@ function painelRolagem(){
     const e={deltaX:0,deltaY:60,deltaMode:0,ctrlKey:false,cancelable:true,impedido:false,preventDefault(){this.impedido=true;},...opcoes};
     polegar.listeners.wheel(e);return e;
   };
-  return {editor,raiz,polegar,roda,operacoes,eventos,atualizar};
+  const inatividade=()=>{const pendentes=[...temporizadores.values()];temporizadores.clear();pendentes.forEach(t=>t.fn());};
+  return {editor,raiz,polegar,roda,operacoes,eventos,atualizar,inatividade,temporizadores,document,barras:[...body.children,...menu.children]};
 }
+
+test('barra visível do sumário fica a 4 px das linhas em larguras diferentes sem alterar a região',()=>{
+  const p=painelRolagem({sumario:true}),normal=painelRolagem();
+  assert.equal(p.barras[1].style.transform,'translate(422px, 80px)');
+  assert.equal(p.barras[1].classes.has('barra-rolagem-sumario'),true);
+  assert.equal(normal.barras[1].style.transform,'translate(410px, 80px)');
+  assert.equal(p.barras[0].style.transform,normal.barras[0].style.transform);
+  assert.equal(p.barras[2].style.transform,normal.barras[2].style.transform);
+  assert.equal(p.editor.clientWidth,normal.editor.clientWidth);
+  assert.equal(p.editor.scrollWidth,normal.editor.scrollWidth);
+  p.editor.rect.width=600;p.editor.rect.right=620;
+  p.eventos.scroll();p.atualizar();
+  assert.equal(p.barras[1].style.transform,'translate(622px, 80px)');
+});
+
+test('barra deslocada do sumário respeita a borda e não cobre a barra da página',()=>{
+  const p=painelRolagem({sumario:true});
+  p.editor.rect.width=956;p.editor.rect.right=976;
+  p.eventos.scroll();p.atualizar();
+  assert.equal(p.barras[1].style.transform,'translate(978px, 80px)');
+  assert.equal(p.barras[0].style.transform,'translate(990px, 0px)');
+  p.editor.rect.right=980;p.editor.rect.width=960;
+  p.eventos.scroll();p.atualizar();
+  assert.equal(p.barras[1].style.transform,'translate(982px, 80px)');
+  p.editor.scrollHeight=p.editor.clientHeight;p.eventos.scroll();p.atualizar();
+  assert.equal(p.barras[1].hidden,true);
+  p.editor.scrollHeight=620;p.eventos.scroll();p.atualizar();
+  assert.equal(p.barras[1].hidden,false);
+  assert.equal(p.roda().impedido,true);
+  const topo=p.editor.scrollTop;
+  p.polegar.listeners.pointerdown({button:0,isPrimary:true,clientY:100,pointerId:7,preventDefault(){}});
+  p.polegar.listeners.pointermove({clientY:122});
+  assert.ok(p.editor.scrollTop>topo);
+});
 
 test('atualização das barras mede todas as regiões antes de alterar estilos',()=>{
   const p=painelRolagem();p.editor.scrollTop=200;p.eventos.scroll();p.atualizar();
@@ -1020,9 +1094,45 @@ test('geometria idêntica não reescreve estilos da barra',()=>{
   assert.ok(!p.operacoes.includes('escrever'));
 });
 
-test('puxador cabe na parte visível de um trilho menor que 32 pixels',()=>{
+test('recorte na borda inferior não reduz o puxador para caber no trecho visível',()=>{
   const p=painelRolagem();p.editor.rect.top=690;p.editor.rect.bottom=810;
-  p.eventos.scroll();p.atualizar();assert.equal(p.polegar.style.height,'10px');
+  p.eventos.scroll();p.atualizar();
+  assert.equal(p.barras[1].style.height,'10px');
+  assert.equal(p.polegar.style.height,'32px');
+});
+
+test('rolar a página recorta o sumário sem prender o puxador ao topo ou mudar a posição interna',()=>{
+  const p=painelRolagem({sumario:true});p.editor.scrollTop=0;
+  p.eventos.scroll();p.atualizar();
+  const tamanho=p.polegar.style.height;
+  assert.equal(p.polegar.style.transform,'translateY(0px)');
+  p.editor.rect.top=-80;p.editor.rect.bottom=40;
+  p.eventos.scroll();p.atualizar();
+  assert.equal(p.barras[1].style.transform,'translate(422px, 0px)');
+  assert.equal(p.barras[1].style.height,'40px');
+  assert.equal(p.polegar.style.transform,'translateY(-80px)');
+  assert.equal(p.polegar.style.height,tamanho);
+  assert.equal(p.editor.scrollTop,0);
+  p.editor.rect.top=-130;p.editor.rect.bottom=-10;
+  p.eventos.scroll();p.atualizar();assert.equal(p.barras[1].hidden,true);
+  p.editor.rect.top=80;p.editor.rect.bottom=200;
+  p.eventos.scroll();p.atualizar();
+  assert.equal(p.barras[1].hidden,false);
+  assert.equal(p.barras[1].style.transform,'translate(422px, 80px)');
+  assert.equal(p.polegar.style.transform,'translateY(0px)');
+  assert.equal(p.polegar.style.height,tamanho);
+});
+
+test('arraste mantém a proporção quando a página recorta parte do sumário',()=>{
+  const inteiro=painelRolagem({sumario:true}),recortado=painelRolagem({sumario:true});
+  recortado.editor.rect.top=-40;recortado.editor.rect.bottom=80;
+  recortado.eventos.scroll();recortado.atualizar();
+  for(const p of [inteiro,recortado]){
+    p.polegar.listeners.pointerdown({button:0,isPrimary:true,clientY:100,pointerId:7,preventDefault(){}});
+    p.polegar.listeners.pointermove({clientY:122});
+  }
+  assert.equal(inteiro.editor.scrollTop,225);
+  assert.equal(recortado.editor.scrollTop,inteiro.editor.scrollTop);
 });
 
 test('puxador movimenta editor enquanto há conteúdo e mantém arraste funcional',()=>{

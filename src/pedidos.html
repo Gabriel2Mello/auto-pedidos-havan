@@ -17,7 +17,7 @@
     <div class="controles-cabecalho">
       <button id="tema" class="botao-icone" type="button" aria-label="Ativar tema claro" title="Alternar tema">Tema claro</button>
       <details id="demo-configuracoes" class="configuracoes">
-        <summary class="botao-icone" title="Configurações" aria-label="Configurações"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></summary>
+        <summary class="botao-icone" title="Configurações" aria-label="Configurações"><svg class="icone-controle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></summary>
         <div class="menu-configuracoes" tabindex="0" role="region" aria-label="Configurações">
           <h2>Impressora</h2>
           <p id="impressora-atual" class="dica" role="status">Carregando a seleção…</p>
@@ -97,7 +97,7 @@
     <div id="grupos-resultados"></div>
     <p id="alcance" class="sr-only">Filas do histórico completo.</p>
     <div class="filtros"><label class="sr-only" for="busca">Buscar pedido ou número Sisplan</label><input id="busca" type="search" placeholder="Buscar pedido ou nº Sisplan"><label class="sr-only" for="filtro">Filtrar pedidos</label><select id="filtro"><option value="todos">Todos os grupos</option><option value="prontos">Prontos para importar</option><option value="pendencias">Pendências</option><option value="sem_cadastro">Produtos sem cadastro</option><option value="outras">Outras pendências</option><option value="existentes">Já existentes</option><option value="importados">Importados</option><option value="atencao">Exigem atenção</option></select><button id="limpar-filtros" type="button" hidden>Limpar filtros</button></div>
-    <div class="rolagem-historico" tabindex="0" role="region" aria-label="Situações dos pedidos"><table class="tabela-historico"><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Nº Sisplan</th><th scope="col">Situação</th><th scope="col">Ação</th><th scope="col">Observação</th></tr></thead><tbody id="linhas"><tr><td colspan="5" class="vazio">Carregando os pedidos…</td></tr></tbody></table></div>
+    <div class="rolagem-historico" role="region" aria-label="Situações dos pedidos"><table class="tabela-historico"><thead><tr><th scope="col">Pedido Havan</th><th scope="col">Nº Sisplan</th><th scope="col">Situação</th><th scope="col">Ação</th><th scope="col">Observação</th></tr></thead><tbody id="linhas"><tr><td colspan="5" class="vazio">Carregando os pedidos…</td></tr></tbody></table></div>
     <div class="paginacao"><span id="quantidade" class="dica">Aguardando histórico</span><div id="paginacao-controles" class="acoes" hidden><button id="anterior" type="button" disabled>Anterior</button><button id="proxima" type="button" disabled>Próxima</button></div></div>
   </section>
 </main>

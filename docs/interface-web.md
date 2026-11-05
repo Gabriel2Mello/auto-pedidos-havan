@@ -116,8 +116,11 @@ e continuam filtrando a tabela detalhada no escopo
 selecionado. O sumário e a importação usam todos os pedidos desse escopo (lote em
 conferência ou histórico completo), independentemente da busca, filtro e página
 dos detalhes. O cabeçalho do sumário identifica esse alcance. Pedidos ainda sem
-registro local também aparecem durante a conferência. Listas longas têm rolagem
-sobreposta, sem reservar faixa; em colunas estreitas, os campos se empilham com
+registro local também aparecem durante a conferência. O sumário tem rolagem
+sobreposta, sem reservar faixa, e fica oculto ao recolher **1. Informar pedidos**.
+**2. Conferir resultados** acompanha a rolagem da página, sem barra interna, com
+20 pedidos por página. Anterior/Próxima levam o foco ao título dos resultados.
+Em colunas estreitas, os campos se empilham com
 rótulos. Inclusões e impressões incertas preservam suas orientações e bloqueios.
 Ao navegar para os detalhes de um pedido ou grupo, o foco acompanha o título.
 O cartão **Pendências** soma os grupos **Produtos sem cadastro** e **Outras
@@ -290,17 +293,33 @@ O painel mantém sua identidade violeta, com cabeçalho compacto, preparação �
 esquerda, acompanhamento à direita e histórico em largura completa. Em telas
 estreitas, as áreas são empilhadas e cada pedido conserva seus rótulos. O rodapé
 tem divisória em toda a largura, assinatura alinhada ao conteúdo e Encerrar.
-Página, campo de pedidos, sumário, histórico e menu usam rolagem sobreposta,
-sem reservar espaço. A roda movimenta cada região enquanto há conteúdo naquela
+Página, campo de pedidos, sumário e menu usam rolagem sobreposta,
+sem reservar espaço. A barra do sumário fica a 4 px CSS do fim das linhas da
+tabela, limitada para não alcançar a barra da página. Em viewports de até 430 px,
+o sumário também acompanha a página, sem barra interna. Esse afastamento
+é constante, sem porcentagens, padding adicional ou alteração da largura da tabela.
+O histórico usa somente a rolagem da página. A roda movimenta cada região enquanto há conteúdo naquela
 direção; sobre o puxador no limite, o evento fica livre para continuar na página.
+A barra da página desaparece após 1,2 segundo sem interação com ela, com fade-out
+de 250 ms. Rolar a página ou aproximar o ponteiro da borda direita (últimos 10 px)
+a exibe novamente; mover o mouse pelo restante da tela não a reativa. Durante hover ou
+arraste do indicador, ela permanece visível. Com preferência por movimento reduzido,
+a mudança de visibilidade é imediata.
 O menu mantém a rolagem contida, sem mover o conteúdo atrás dele. Ctrl+roda
 conserva o zoom e o arraste dos puxadores continua disponível.
 As barras são medidas em uma única fase e desenhadas depois por transformações,
 sem alternar mudanças de estilo e leituras de posição entre as regiões. A pintura
 dos indicadores fica isolada e estilos idênticos não são reescritos durante o scroll.
+Ao rolar a página, cada indicador interno conserva o tamanho e a posição relativos
+à sua região completa. A parte fora da janela é recortada, sem prender o puxador
+ao topo da tela, alterar a rolagem interna ou mudar a proporção do arraste.
 `src/rolagem.js` é uma adaptação local da Impressão de OPs;
 os ícones `tema-lua.svg` e `tema-lua-sol.svg` foram copiados daquela referência,
 com hashes conferidos. A aplicação continua independente e no navegador.
+Os botões de tema e configurações seguem o visual do Cofre NFe: 40 × 40 px,
+ícones de 24 px, fundo e contornos neutros nos dois temas. A animação da troca
+de tema termina sem rotação permanente do ícone. Os estilos ficam restritos aos
+botões do cabeçalho; o menu e as demais áreas conservam a identidade do Havan.
 
 ### Preparar, conferir e executar
 
