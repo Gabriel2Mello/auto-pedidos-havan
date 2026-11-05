@@ -106,7 +106,7 @@ de **2. Conferir resultados**. As orientações de inclusão ou impressão incer
 continuam visíveis no próprio sumário.
 Após iniciar a importação, a página sobe suavemente até o topo, preservando a entrada expandida ou
 recolhida, para acompanhar o pedido. O botão informa quantos pedidos estão aptos e fica desabilitado com o texto
-**Nenhum pedido apto** quando não há aptos no escopo. Observações que apenas
+**Nenhum pedido** quando não há aptos no escopo. Observações que apenas
 repetem a situação salva são omitidas; erros e resultados diferentes permanecem.
 
 A entrada permanece à esquerda durante a execução e pode ser recolhida pelo título.

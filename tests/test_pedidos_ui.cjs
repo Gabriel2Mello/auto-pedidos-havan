@@ -569,7 +569,7 @@ test('cartão Pendências soma cadastro e outras pendências sem perder filtros 
 
 test('importação informa zero, singular e plural de aptos e antecede resultados',()=>{
   const p=painel();p.renderizar(p.estado);
-  assert.equal(p.obter('importar-aptos').textContent,'Nenhum pedido apto');
+  assert.equal(p.obter('importar-aptos').textContent,'Nenhum pedido');
   assert.equal(p.obter('importar-aptos').disabled,true);
   p.renderizar({...p.estado,pedidos:['2026-11111','2026-22222'].map(pedido=>({pedido,etapa:'pronto_importar',erro:''}))});
   assert.equal(p.obter('importar-aptos').textContent,'Importar 2 pedidos');

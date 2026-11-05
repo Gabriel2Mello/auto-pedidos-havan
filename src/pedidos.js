@@ -75,7 +75,7 @@ function pedidosDoEscopo(){
 }
 function atualizarImportacao(){
   const quantidade=pedidosDoEscopo().filter(apto).length;
-  const rotulo=quantidade?`Importar ${quantidade} ${quantidade===1?'pedido':'pedidos'}`:'Nenhum pedido apto';
+  const rotulo=quantidade?`Importar ${quantidade} ${quantidade===1?'pedido':'pedidos'}`:'Nenhum pedido';
   if(el('importar-aptos').textContent!==rotulo)el('importar-aptos').textContent=rotulo;
   el('importar-aptos').disabled=inicioBloqueado()||!quantidade;
   const titulo=quantidade?`${quantidade} ${quantidade===1?'pedido pronto':'pedidos prontos'} para importar`:'Nenhum pedido pronto para importar';
