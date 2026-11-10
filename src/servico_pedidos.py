@@ -26,12 +26,15 @@ from src.contratos import AoErro, AoProgresso, Modo
 from src.prevalidacao import PedidoRejeitadoError, validar_pedido_baixado
 from src.resumo import ResumoExecucao
 from src.pedidos import ItemEsperado
-from src.erros import ConfiguracaoError, SessaoPortalExpiradaError, NumeroInternoForaSequenciaError, ProdutoSemCadastroError
+from src.erros import (
+    AbaPedidoIndisponivelError, ConfiguracaoError, NumeroInternoForaSequenciaError,
+    ProdutoSemCadastroError, SessaoPortalExpiradaError,
+)
 
 if TYPE_CHECKING:
     from cloudscraper import ScraperMock
 
-from src.etapas import INCLUSOES_INCERTAS, ETAPAS_INICIAIS
+from src.etapas import INCLUSOES_INCERTAS, INCLUSOES_LIBERAVEIS, ETAPAS_INICIAIS
 
 logger = get_logger(__name__)
 
@@ -120,8 +123,10 @@ def processar_pedidos(
     ao_progresso: AoProgresso | None = None, parar: Callable[[], bool] | None = None,
     contexto: ContextoExecucao | None = None,
 ) -> ResumoExecucao:
-    if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'reiniciar'):
+    if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'liberar', 'reiniciar'):
         raise ValueError('Operação não disponível.')
+    if modo == 'liberar' and len(numero_pedidos) != 1:
+        raise ValueError('Libere uma inclusão por vez.')
     contexto = contexto or ContextoExecucao(Configuracao.carregar())
     resumo = ResumoExecucao(dict.fromkeys(numero_pedidos, 'aguardando'))
     execucao_metricas = uuid4().hex
@@ -141,7 +146,7 @@ def processar_pedidos(
                 logger.info('Nenhum pedido pendente para processar.')
                 return resumo
             logger.debug('Lista de trabalho: modo=%s pedidos=%s', modo, ', '.join(numero_pedidos))
-            validar_configuracao(apenas_impressao=True, somente_preparacao=modo in ('preparar', 'revalidar'))
+            validar_configuracao(apenas_impressao=True, somente_preparacao=modo in ('preparar', 'revalidar', 'liberar'))
             with contexto.integracoes.banco(contexto.configuracao.banco_config, contexto.configuracao.banco_perfil) as banco, ExitStack() as pilha:
                 recursos = RecursosExecucao(pilha, contexto, parar=parar)
                 existentes_iniciais: dict[str, list[PedidoExistente]] | None = None
@@ -234,7 +239,7 @@ def processar_um_pedido(
     resumo: ResumoExecucao, recursos: RecursosExecucao,
     encontrados: list[PedidoExistente] | None = None,
 ) -> None:
-    if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'reiniciar'):
+    if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'liberar', 'reiniciar'):
         raise ValueError('Operação não disponível.')
     registro = historico.obter(pedido)
     if encontrados is None:
@@ -259,10 +264,27 @@ def processar_um_pedido(
         return
     if modo == 'recuperar' and registro.etapa in (*ETAPAS_INICIAIS, 'existente', 'impressao_enviada'):
         raise PedidoRejeitadoError('Recuperar só permite conferir inclusões incertas ou concluir impressão pendente.')
+    if modo == 'liberar':
+        if registro.etapa not in INCLUSOES_LIBERAVEIS:
+            raise PedidoRejeitadoError('Este pedido não tem uma inclusão que possa ser liberada.')
+        if encontrados:
+            historico.salvar(replace(registro, erro='O pedido consta no Sisplan. Use Conferir gravação.'))
+            resumo.situacoes[pedido] = 'gravacao_pendente'
+        elif not recursos.parada_solicitada():
+            historico.liberar_importacao(pedido)
+            resumo.situacoes[pedido] = 'liberado'
+        return
+    if modo == 'recuperar' and registro.etapa in INCLUSOES_LIBERAVEIS and not encontrados:
+        historico.salvar(replace(registro, erro=(
+            'Pedido não encontrado no Sisplan. Confira se a inclusão anterior está encerrada '
+            'e use Liberar nova tentativa.'
+        )))
+        resumo.situacoes[pedido] = 'gravacao_pendente'
+        return
     if registro.etapa == 'aviso_pendente':
         informar_existente(pedido, encontrados, historico, resumo)
         return
-    if modo == 'reiniciar' and registro.etapa in INCLUSOES_INCERTAS and not encontrados:
+    if modo == 'reiniciar' and registro.etapa in INCLUSOES_LIBERAVEIS and not encontrados:
         historico.liberar_importacao(pedido)
         registro = historico.obter(pedido)
         assert registro is not None
@@ -300,7 +322,7 @@ def retomar_impressao(
         raise EstadoError('O número interno diverge do histórico. Avise o responsável.')
     # Aviso pendente vem de uma inclusão cancelada: confirmar a existência para
     # uma impressão não comprova uma nova inclusão feita por esta automação.
-    inclusao_incerta = registro is not None and registro.etapa in ('importacao_iniciada', 'gravacao_pendente')
+    inclusao_incerta = registro is not None and registro.etapa in INCLUSOES_LIBERAVEIS
     if inclusao_incerta:
         itens = historico.obter_itens_esperados(pedido)
         if not itens:
@@ -419,8 +441,8 @@ def importar_novo(
             pedido, *recursos.sisplan, registrar_gravacao,
             referencia_numero=referencia_numero,
         )
-    except NumeroInternoForaSequenciaError:
-        # As duas inclusões foram canceladas e nenhum comando de gravação foi enviado.
+    except (AbaPedidoIndisponivelError, NumeroInternoForaSequenciaError):
+        # Nenhuma inclusão ficou aberta e nenhum comando de gravação foi enviado.
         historico.salvar(EstadoPedido(pedido, '', 'baixado'))
         raise
     if resultado.situacao == 'duplicado':

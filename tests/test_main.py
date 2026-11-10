@@ -15,7 +15,10 @@ from src.importar import ResultadoImportacao
 from src.prevalidacao import PedidoRejeitadoError
 from tests.fixtures import xml_pedido
 from src.pedidos import ItemEsperado
-from src.erros import SessaoPortalExpiradaError, NumeroInternoForaSequenciaError, ProdutoSemCadastroError, SisplanError
+from src.erros import (
+    AbaPedidoIndisponivelError, NumeroInternoForaSequenciaError, ProdutoSemCadastroError,
+    SessaoPortalExpiradaError, SisplanError,
+)
 
 
 class FluxoPrevalidacaoTests(unittest.TestCase):
@@ -389,6 +392,53 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         self.preparar()
         main.processar_pedidos(['2026-12345'], modo='reiniciar')
         self.importar.assert_called_once()
+
+    def test_conferir_inclusao_ausente_e_liberar_preserva_os_demais_aptos(self) -> None:
+        pedido, outro = '2026-12345', '2026-67890'
+        self.salvar_estado('importacao_iniciada', '')
+        self.preparar(outro)
+        with EstadoPedidos(self.estado_path) as historico:
+            historico.salvar(EstadoPedido(outro, '', 'pronto_importar'))
+            resumo = main.processar_pedidos([pedido], modo='recuperar', historico=historico)
+            self.assertEqual(resumo.situacoes[pedido], 'gravacao_pendente')
+            self.assertIn('Liberar nova tentativa', historico.obter(pedido).erro)
+            self.assertEqual(historico.inclusoes_incertas(), [pedido])
+            resumo = main.processar_pedidos([pedido], modo='liberar', historico=historico)
+            self.assertEqual(resumo.situacoes[pedido], 'liberado')
+            self.assertEqual(historico.obter(pedido), EstadoPedido(pedido, '', 'baixado'))
+            self.assertEqual(historico.obter(outro).etapa, 'pronto_importar')
+            self.assert_sem_interface()
+            main.processar_pedidos([outro], modo='importar', historico=historico)
+        self.assertEqual(self.importar.call_args.args[0], outro)
+        self.importar.assert_called_once()
+
+    def test_liberacao_consulta_o_banco_e_preserva_se_ja_gravado_ou_indisponivel(self) -> None:
+        pedido = '2026-12345'
+        self.salvar_estado('gravacao_pendente')
+        self.banco.consultar_pedidos.return_value = {pedido: [PedidoExistente('100', 2)]}
+        resumo = main.processar_pedidos([pedido], modo='liberar')
+        self.assertEqual(resumo.situacoes[pedido], 'gravacao_pendente')
+        self.banco.consultar_pedidos.assert_called_once_with([pedido])
+        self.banco.consultar_pedidos.side_effect = BancoSisplanError('Banco indisponível')
+        with self.assertRaises(BancoSisplanError):
+            main.processar_pedidos([pedido], modo='liberar')
+        with EstadoPedidos(self.estado_path) as historico:
+            self.assertEqual(historico.inclusoes_incertas(), [pedido])
+            self.assertEqual(historico.obter(pedido).numero, '100')
+        self.assert_sem_interface()
+
+    def test_falha_ao_posicionar_aba_nao_deixa_inclusao_incerta(self) -> None:
+        pedido = '2026-12345'
+        self.preparar(pedido)
+        self.importar.side_effect = AbaPedidoIndisponivelError('Posicione o Sisplan na aba Pedido.')
+        decidir = MagicMock(return_value='encerrar')
+        with EstadoPedidos(self.estado_path) as historico:
+            historico.salvar(EstadoPedido(pedido, '', 'pronto_importar'))
+            main.processar_pedidos([pedido], modo='importar', historico=historico, ao_erro=decidir)
+            self.assertEqual(historico.inclusoes_incertas(), [])
+            self.assertEqual(historico.obter(pedido).etapa, 'baixado')
+        self.assertEqual(decidir.call_args.args[2:], (True, True))
+        self.imprimir.assert_not_called()
 
     def test_resumo_separa_importacao_confirmada_de_impressao_pendente(self) -> None:
         self.preparar()

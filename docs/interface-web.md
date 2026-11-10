@@ -83,7 +83,8 @@ As próximas ações ficam na linha do pedido (as descrições abaixo explicam o
 | Produto sem cadastro | Corrija os EANs indicados e use **Conferir cadastro novamente**. Os arquivos são reaproveitados; depois, solicite a importação dos aptos. |
 | Arquivos baixados a conferir | **Conferir arquivos e produtos** revalida sem download nem inclusão. |
 | Download ausente ou inválido | **Baixar e conferir** obtém os arquivos novamente. |
-| Inclusão incerta | **Conferir gravação no Sisplan** reconcilia a gravação; não abre nova inclusão. Enquanto houver inclusão incerta, a importação de novos pedidos fica bloqueada. |
+| Inclusão a conferir | **Conferir gravação** consulta o Sisplan. Se o pedido estiver ausente, confirme no Sisplan que a inclusão anterior está encerrada e use **Liberar nova tentativa**. A liberação consulta o banco novamente e devolve o pedido à conferência. Os demais pedidos aptos podem ser importados quando a pendência for resolvida. |
+| Existência a conferir | **Conferir gravação** consulta o Sisplan após um aviso. A pendência bloqueia novas inclusões até encontrar uma correspondência única no banco. |
 | Importado, impressão pendente | **Retomar impressão**, sem reincluir o pedido. |
 | Impressão incerta | Confira a fila de impressão com o responsável. Não há ação de reenvio. |
 
@@ -157,7 +158,10 @@ retorno de sucesso do SumatraPDF, sem comprovar a saída física do papel.
 
 `preparar` baixa e valida; `revalidar` só confere arquivos locais e cadastro;
 `importar` aceita apenas pedidos `pronto_importar` sem erro; `recuperar` aceita
-somente etapas pós-inclusão/incertas. Solicitações de reimpressão são recusadas.
+somente etapas pós-inclusão/incertas. `liberar` aceita um pedido em
+`importacao_iniciada` ou `gravacao_pendente` e exige confirmação explícita no
+início. O executor só libera o registro local após consultar o Sisplan e
+confirmar a ausência do pedido. Solicitações de reimpressão são recusadas.
 Todas as ações passam por `/api/conferir` (snapshot local) e `/api/iniciar`, com
 revisão e identificador de solicitação. A consulta local não substitui a validação
 real no serviço. Os modos HTTP antigos `normal` e `retomar` ficam limitados à
@@ -195,9 +199,9 @@ uma etapa, o painel informa essa situação sem confundi-la com falha de gravaç
 O painel só redesenha o andamento quando os dados mudam.
 
 A pré-validação no banco, conferência de barras/itens e o tratamento de “Aviso”
-como última barreira de duplicidade foram preservados. Inclusões incertas
-continuam bloqueadas; a liberação especializada por `--reiniciar` permanece no
-console, após a conferência prevista no README.
+como última barreira de duplicidade foram preservados. A ação **Liberar nova
+tentativa** devolve o pedido à conferência. O console também oferece
+`--reiniciar`, conforme a conferência prevista no README.
 
 ## Contrato HTTP de recusa — E8
 

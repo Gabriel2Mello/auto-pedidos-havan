@@ -39,8 +39,9 @@ conferir não importa; só o botão Importar aptos faz a inclusão sintética.
   pela linha sem nova inclusão. Impressão incerta exige conferência da fila com o responsável; não há reenvio pela automação.
 - **Gravação/aviso incerto:** prepare e importe primeiro. Pare na pausa e use
   Conferir gravação no Sisplan; a ação não reinclui o pedido.
-- **Cancelamento incerto:** permanece bloqueado mesmo após conferir gravação.
-  Teste por último e reabra a demonstração para limpar o bloqueio sintético.
+- **Cancelamento incerto:** pare e confira a gravação. Com o pedido ausente,
+  simule a confirmação de que a inclusão está encerrada em **Liberar nova
+  tentativa** e importe o outro pedido apto.
 - **Entrada/parada:** confira repetição, inválidos, parada segura e preservação
   das etapas. Não há reimpressão.
 

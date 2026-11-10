@@ -16,7 +16,7 @@ from src.config import diretorio_aplicacao
 from src.logs import get_logger
 from src.pedidos import ItemEsperado
 
-from src.etapas import ETAPAS, ETAPAS_FINAIS, Etapa, fila_da_etapa
+from src.etapas import ETAPAS, ETAPAS_FINAIS, INCLUSOES_LIBERAVEIS, Etapa, fila_da_etapa
 
 logger = get_logger(__name__)
 
@@ -226,17 +226,10 @@ class EstadoPedidos:
             raise EstadoError('Não foi possível conferir as inclusões pendentes.') from None
 
     def liberar_importacao(self, pedido: str) -> None:
-        """Usado somente por --reiniciar, após conferir ausência no banco."""
-        try:
-            conexao = self._conectar()
-            with conexao:
-                conexao.execute(
-                    "UPDATE pedidos SET etapa='baixado', numero='', empresa=NULL, pdf='', erro='' "
-                    "WHERE pedido=? AND etapa IN ('importacao_iniciada','gravacao_pendente')", (pedido,),
-                )
-        except sqlite3.Error as error:
-            self._registrar_erro(error, 'liberar inclusão')
-            raise EstadoError('Não foi possível liberar a nova tentativa de importação.') from None
+        """Libera sob a trava do histórico, após conferir a ausência no Sisplan."""
+        registro = self.obter(pedido)
+        if registro is not None and registro.etapa in INCLUSOES_LIBERAVEIS:
+            self.salvar(EstadoPedido(pedido, '', 'baixado'))
 
     def salvar_itens_esperados(self, pedido: str, itens: Sequence[ItemEsperado]) -> None:
         if not itens or any(not i.quantidade.is_finite() or i.quantidade <= 0 for i in itens):

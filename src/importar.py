@@ -20,7 +20,7 @@ from src.handle_app import (
 )
 from src.pedidos import definir_empresa, extrair_dados_xml
 from src.arquivos import (caminho_xml, carregar_xml, formatar_motivo_erro, salvar_pedido_txt)
-from src.erros import SisplanError, NumeroInternoForaSequenciaError
+from src.erros import AbaPedidoIndisponivelError, SisplanError, NumeroInternoForaSequenciaError
 from src.notificacoes import (enviar_alerta_teams)
 from src.windows import (send_keys_sleep, aguardar_campo)
 
@@ -59,6 +59,11 @@ def conferir_numero_interno(numero: str, referencia: int) -> None:
         )
 
 
+def selecionar_aba_pedido(pedido_grade: WindowSpecification, aba_pedido: WindowSpecification) -> None:
+    pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+    aba_pedido.wait('ready', timeout=5)
+
+
 def importar_pedido(
     pedido: str,
     pedido_grade: WindowSpecification,
@@ -69,7 +74,14 @@ def importar_pedido(
     *, referencia_numero: int,
 ) -> ResultadoImportacao:
     for tentativa in range(2):
-        numero_anterior = cast(str, campos['numero'].window_text()).strip()
+        try:
+            selecionar_aba_pedido(pedido_grade, aba_pedido)
+            numero_anterior = cast(str, aguardar_campo(campos['numero']).window_text()).strip()
+        except Exception as erro:
+            raise AbaPedidoIndisponivelError(
+                'Não foi possível posicionar o Sisplan na aba Pedido da tela 1002 — Pedido por Grade. '
+                'Confira a tela do Sisplan antes de tentar novamente.'
+            ) from erro
         try:
             resultado = _importar_uma_tentativa(
                 pedido, pedido_grade, aba_pedido, grid, campos, antes_gravar,
@@ -92,7 +104,7 @@ def importar_pedido(
         except _NumeroInternoSuspeitoError as error:
             logger.warning('Pedido %s, tentativa %s: %s Cancelando inclusão.', pedido, tentativa + 1, error)
             try:
-                pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+                selecionar_aba_pedido(pedido_grade, aba_pedido)
                 send_keys_sleep(ATALHOS['desistir'], 0.2)
                 send_keys_sleep(ATALHOS['sim'])
                 pedido_grade.wait('ready', timeout=5)
@@ -133,7 +145,6 @@ def _importar_uma_tentativa(
         dados_xml = extrair_dados_xml(xml_root)
         processo = cast(int, pedido_grade.process_id())
 
-        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
         send_keys_sleep(ATALHOS['incluir'], 0.3)
 
         aguardar_campo(campos['numero']).type_keys('{TAB}')
@@ -160,7 +171,7 @@ def _importar_uma_tentativa(
         importa_arq_integracao(xml_path, processo)
         sem_cadastro = handle_produto_sem_cadastro(pedido, processo)
 
-        pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+        selecionar_aba_pedido(pedido_grade, aba_pedido)
 
         if sem_cadastro:
             send_keys_sleep(ATALHOS['desistir'], 0.2)

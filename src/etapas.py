@@ -13,7 +13,8 @@ ETAPAS = (
 )
 
 ETAPAS_FINAIS = ('impressao_enviada', 'existente')
-INCLUSOES_INCERTAS = ('importacao_iniciada', 'gravacao_pendente', 'aviso_pendente')
+INCLUSOES_LIBERAVEIS = ('importacao_iniciada', 'gravacao_pendente')
+INCLUSOES_INCERTAS = (*INCLUSOES_LIBERAVEIS, 'aviso_pendente')
 ETAPAS_INICIAIS = ('para_baixar', 'baixado', 'pronto_importar', 'sem_cadastro')
 
 ROTULOS: dict[str, str] = {

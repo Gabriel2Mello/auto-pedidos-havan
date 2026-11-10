@@ -895,7 +895,7 @@ test('sumário separa situação, orientação e ações sem repetir instruçõe
     assert.equal(celulas[1].children.length,orientacao?2:1);
     if(orientacao)assert.equal(celulas[1].children[1].textContent,orientacao);
     assert.equal(celulas[2].atributos['data-rotulo'],'Ações');
-    assert.equal(celulas[2].children.length,1);
+    assert.equal(celulas[2].children.length,etapa==='gravacao_pendente'?2:1);
     assert.equal(celulas[2].children[0].textContent,acao);
     assert.equal(Boolean(celulas[2].children[0].onclick),acao!=='—');
   }
@@ -931,6 +931,36 @@ test('ação de recuperação no sumário preserva revisão e bloqueia novos env
   assert.equal(JSON.parse(chamadas[1][1].body).conferencia,'revisao-sumario');
   vm.runInContext('conectado=false;atualizarBotoes()',p.contexto);assert.equal(botao.disabled,true);
   const quantidade=chamadas.length;await botao.onclick();assert.equal(chamadas.length,quantidade);
+});
+
+test('inclusão incerta bloqueia os aptos até o operador confirmar a liberação',async()=>{
+  const p=painel(),pedido='2026-12345',outro='2026-12346',chamadas=[];
+  const pendente={pedido,etapa:'importacao_iniciada',erro:''};
+  const pronto={pedido:outro,etapa:'pronto_importar',erro:''};
+  const s={...p.estado,execucao:'preparo',lote:[pedido,outro],lote_preparacao:[pedido,outro],pedidos:[pendente,pronto]};
+  p.renderizar(s);
+  assert.equal(p.obter('importar-aptos').disabled,true);
+  assert.match(p.obter('alcance-importacao').textContent,/Resolva a inclusão pendente/);
+  const acoes=p.obter('linhas-sumario').children[0].children[0].children[2].children;
+  const liberar=acoes[1];
+  assert.equal(liberar.textContent,'Liberar nova tentativa');
+  assert.equal(p.obter('linhas').children[0].children[0].children[3].children[1].textContent,liberar.textContent);
+  const final={...s,execucao:'liberacao',modo:'liberar',fase:'CONCLUIDO',lote:[pedido],pedidos:[{...pendente,etapa:'baixado'},pronto],resultados_lote:{[pedido]:'liberado'}};
+  p.contexto.fetch=async(url,opcoes)=>{
+    chamadas.push([url,opcoes.body&&JSON.parse(opcoes.body)]);
+    return {ok:true,json:async()=>url==='/api/conferir'?{id:'c'}:url==='/api/estado'?final:{ok:true}};
+  };
+  p.contexto.confirm=()=>false;
+  await liberar.onclick();
+  assert.deepEqual(chamadas,[]);
+  p.contexto.confirm=texto=>{assert.match(texto,/2026-12345/);return true;};
+  await liberar.onclick();
+  assert.deepEqual(chamadas[0],['/api/conferir',{modo:'liberar',pedidos:pedido}]);
+  assert.equal(chamadas[1][1].cancelamento_confirmado,true);
+  assert.equal(chamadas[1][1].conferencia,'c');
+  assert.equal(p.obter('importar-aptos').disabled,false);
+  assert.equal(p.obter('importar-aptos').textContent,'Importar 1 pedido');
+  assert.match(p.obter('status').textContent,/Nova tentativa liberada/);
 });
 
 test('orientação curta no sumário preserva erro completo nos detalhes e revalida somente o pedido escolhido',async()=>{

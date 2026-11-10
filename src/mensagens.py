@@ -2,6 +2,7 @@
 import re
 
 from src.erros import (
+    AbaPedidoIndisponivelError,
     BancoSisplanError, ConfiguracaoError, EstadoEmUsoError, EstadoError, PedidoRejeitadoError,
     SisplanError, SessaoPortalExpiradaError, NumeroInternoForaSequenciaError,
 )
@@ -54,7 +55,7 @@ def mensagem_observacao(texto: str, pedido: str) -> str:
 
 
 def mensagem_erro(erro: Exception) -> str:
-    if isinstance(erro, NumeroInternoForaSequenciaError):
+    if isinstance(erro, (AbaPedidoIndisponivelError, NumeroInternoForaSequenciaError)):
         return str(erro)
     if isinstance(erro, SessaoPortalExpiradaError):
         return str(erro)

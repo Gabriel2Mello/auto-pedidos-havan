@@ -25,7 +25,7 @@ from src.contratos import AoErro, AoProgresso, DecisaoErro, Modo, ModoWeb
 from src.mensagens import mensagem_erro, mensagem_observacao
 from src.pedidos import analisar_entrada_pedidos
 from src.resumo import ResumoExecucao
-from src.etapas import ETAPAS_FINAIS, ETAPAS_INICIAIS, ROTULOS, fila_da_etapa
+from src.etapas import ETAPAS_FINAIS, ETAPAS_INICIAIS, INCLUSOES_INCERTAS, INCLUSOES_LIBERAVEIS, ROTULOS, fila_da_etapa
 from src.erros import (SessaoPortalExpiradaError)
 
 logger = get_logger(__name__)
@@ -185,7 +185,7 @@ class EstadoInterface:
     def _validar_selecao(self, modo: str, pedidos: list[str]) -> None:
         historico = {str(p['pedido']): p for p in self.pedidos}
         if modo == 'importar':
-            if any(p['etapa'] in ('importacao_iniciada', 'gravacao_pendente', 'aviso_pendente') for p in self.pedidos):
+            if any(p['etapa'] in INCLUSOES_INCERTAS for p in self.pedidos):
                 raise ConflitoInterface('Confira a inclusão anterior incerta antes de importar outros pedidos.')
             if any(p not in historico or historico[p]['etapa'] != 'pronto_importar' or historico[p]['erro'] for p in pedidos):
                 raise ConflitoInterface('Somente pedidos prontos e sem pendências podem ser importados. Confira novamente.')
@@ -195,11 +195,14 @@ class EstadoInterface:
         elif modo == 'recuperar':
             if any(p not in historico or historico[p]['etapa'] in (*ETAPAS_INICIAIS, *ETAPAS_FINAIS) for p in pedidos):
                 raise ConflitoInterface('Selecione apenas inclusões incertas ou impressões pendentes para recuperar.')
+        elif modo == 'liberar':
+            if len(pedidos) != 1 or pedidos[0] not in historico or historico[pedidos[0]]['etapa'] not in INCLUSOES_LIBERAVEIS:
+                raise ConflitoInterface('Selecione uma inclusão a conferir que possa ser liberada.')
 
     def conferir(self, dados: dict[str, object]) -> dict[str, object]:
         """Revisa somente entrada e snapshot local, sem consultar integrações."""
         modo, entrada = dados.get('modo'), dados.get('pedidos', '')
-        if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar') or not isinstance(entrada, str):
+        if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'liberar') or not isinstance(entrada, str):
             raise ValueError('Informe o modo e a lista de pedidos.')
         pedidos = analisar_entrada_pedidos(entrada, permitir_vazio=modo == 'retomar')
         with self.trava:
@@ -219,8 +222,10 @@ class EstadoInterface:
     def iniciar(self, dados: dict[str, object]) -> None:
         modo = dados.get('modo')
         entrada, solicitacao = dados.get('pedidos', ''), dados.get('solicitacao', '')
-        if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar'):
-            raise ValueError('Escolha Baixar e conferir, Importar, Conferir cadastro, ou Recuperar.')
+        if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'liberar'):
+            raise ValueError('Escolha uma operação disponível no painel.')
+        if modo == 'liberar' and dados.get('cancelamento_confirmado') is not True:
+            raise ValueError('Confirme que a inclusão anterior está encerrada no Sisplan.')
         if not isinstance(entrada, str) or not isinstance(solicitacao, str) or not 1 <= len(solicitacao) <= 100:
             raise ValueError('Solicitação inválida. Atualize a página e tente novamente.')
         pedidos = analisar_entrada_pedidos(entrada, permitir_vazio=modo == 'retomar')

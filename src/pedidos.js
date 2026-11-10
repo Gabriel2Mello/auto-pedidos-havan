@@ -15,8 +15,10 @@ let consultandoImpressoras=false;
 const etapasImportadas=['importado','pdf_pronto','impressao_pendente','impressao_iniciada','impressao_incerta','impressao_enviada'];
 const apto=p=>p.etapa==='pronto_importar'&&!p.erro;
 const iniciais=['para_baixar','baixado','sem_cadastro','pronto_importar'];
+const inclusoesLiberaveis=['importacao_iniciada','gravacao_pendente'];
+const inclusoesIncertas=[...inclusoesLiberaveis,'aviso_pendente'];
 function grupoPedido(p){return apto(p)?'prontos':p.etapa==='sem_cadastro'?'sem_cadastro':p.etapa==='existente'?'existentes':etapasImportadas.includes(p.etapa)?'importados':'outras';}
-const etapasAtencao=['sem_cadastro','importacao_iniciada','gravacao_pendente','aviso_pendente','impressao_incerta'];
+const etapasAtencao=['sem_cadastro',...inclusoesIncertas,'impressao_incerta'];
 const exigeAtencao=p=>Boolean(p.erro)||etapasAtencao.includes(p.etapa)||['falhou','rejeitado','gravacao_pendente','impressao_incerta','impressao_pendente','sem_cadastro'].includes(p.resultado);
 function rotuloResultado(valor){
   return ({pronto_importar:'Pronto para importar',aguardando:'Não processado',existente:'Já existente, sem novo envio',impressao_enviada:'Enviado para impressão',sem_cadastro:'Produto sem cadastro',falhou:'Falha no processamento',rejeitado:'Pedido rejeitado',gravacao_pendente:'Gravação não confirmada',impressao_incerta:'Conferir impressão',impressao_pendente:'Impressão pendente'})[valor]||'Pendente — conferir situação';
@@ -75,12 +77,13 @@ function pedidosDoEscopo(){
 }
 function atualizarImportacao(){
   const quantidade=pedidosDoEscopo().filter(apto).length;
+  const inclusaoPendente=estado?.pedidos.some(p=>inclusoesIncertas.includes(p.etapa));
   const rotulo=quantidade?`Importar ${quantidade} ${quantidade===1?'pedido':'pedidos'}`:'Nenhum pedido';
   if(el('importar-aptos').textContent!==rotulo)el('importar-aptos').textContent=rotulo;
-  el('importar-aptos').disabled=inicioBloqueado()||!quantidade;
+  el('importar-aptos').disabled=inicioBloqueado()||!quantidade||inclusaoPendente;
   const titulo=quantidade?`${quantidade} ${quantidade===1?'pedido pronto':'pedidos prontos'} para importar`:'Nenhum pedido pronto para importar';
   if(el('titulo-importacao').textContent!==titulo)el('titulo-importacao').textContent=titulo;
-  const aviso='Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.';
+  const aviso=inclusaoPendente?'Resolva a inclusão pendente antes de importar. Se ela estiver fora do lote, abra Todos os pedidos salvos.':'Antes de importar, abra o Sisplan na tela 1002 — Pedido por Grade.';
   if(el('alcance-importacao').textContent!==aviso)el('alcance-importacao').textContent=aviso;
 }
 function correspondeFiltro(p,filtro){
@@ -95,7 +98,7 @@ function acaoDoPedido(p){
   if(p.etapa==='sem_cadastro')return ['revalidar','Conferir cadastro novamente'];
   if(p.etapa==='baixado'||p.etapa==='pronto_importar'&&p.erro)return ['revalidar','Conferir arquivos e produtos'];
   if(p.etapa==='para_baixar')return p.erro==='Pedido não encontrado no Portal Havan.'?null:['preparar','Baixar e conferir'];
-  if(['importacao_iniciada','gravacao_pendente','aviso_pendente'].includes(p.etapa))return ['recuperar','Conferir gravação no Sisplan'];
+  if(inclusoesIncertas.includes(p.etapa))return ['recuperar','Conferir gravação no Sisplan'];
   if(['importado','pdf_pronto','impressao_pendente'].includes(p.etapa))return ['recuperar','Retomar impressão'];
   return null;
 }
@@ -127,6 +130,12 @@ function criarAcaoPedido(p,acao,rotuloVisivel){
   botao.disabled=inicioBloqueado();botao.onclick=()=>executarEtapa(operacao,[p.pedido]);
   return botao;
 }
+function incluirAcaoLiberacao(celula,p){
+  if(inclusoesLiberaveis.includes(p.etapa)){
+    const rotulo='Liberar nova tentativa';
+    celula.append(criarAcaoPedido(p,['liberar',rotulo],rotulo));
+  }
+}
 function renderizarSumario(base){
   el('importacao-lote').hidden=!base.length;
   const chave=JSON.stringify([base,escopo,estado?.ocupada]);
@@ -151,6 +160,7 @@ function renderizarSumario(base){
     if(acao){
       const rotulo=acao[0]==='preparar'?'Baixar e conferir':acao[0]==='revalidar'?'Conferir novamente':acao[1]==='Retomar impressão'?'Retomar impressão':'Conferir gravação';
       acoes.append(criarAcaoPedido(p,acao,rotulo));
+      incluirAcaoLiberacao(acoes,p);
     }else if(p.erro==='Pedido não encontrado no Portal Havan.'||(!atencao&&(apto(p)||['existente','impressao_enviada'].includes(p.etapa)))||['impressao_iniciada','impressao_incerta'].includes(p.etapa)){
       const vazio=document.createElement('span');vazio.className='acao-ausente';vazio.textContent='—';vazio.setAttribute('aria-label','Nenhuma ação disponível para este pedido');acoes.append(vazio);
     }else{
@@ -191,6 +201,7 @@ function renderizarTabela() {
         const acao=acaoDoPedido(p);
         if(i===3&&acao){
           td.append(criarAcaoPedido(p,acao));
+          incluirAcaoLiberacao(td,p);
         }
         tr.append(td);
       });linhas.append(tr);
@@ -231,7 +242,8 @@ function renderizar(s) {
   el('escopo-lote').setAttribute('aria-pressed',String(escopo==='lote'));el('escopo-todos').setAttribute('aria-pressed',String(escopo==='todos'));
 
   const preparando=['preparar','revalidar','normal','retomar'].includes(s.modo);
-  el('titulo-andamento').textContent=s.ocupada?(preparando?'Conferindo pedidos':'Importação e impressão'):s.execucao?(preparando?'Resultado da conferência':'Resultado da execução'):'Etapas do lote';
+  const liberando=s.modo==='liberar';
+  el('titulo-andamento').textContent=s.ocupada?(preparando?'Conferindo pedidos':liberando?'Verificando a inclusão anterior':'Importação e impressão'):s.execucao?(preparando?'Resultado da conferência':'Resultado da execução'):'Etapas do lote';
   el('fase').textContent=fases[s.fase]||s.fase;
   el('status').textContent=s.fase==='EXECUTANDO'?(preparando?'Conferindo duplicidade, arquivos e cadastro dos produtos.':'Processamento em curso. As etapas ficam salvas para conferência.'):s.mensagem;
   const ultimoProcessado=s.pedido||(s.lote??[]).slice().reverse().find(p=>s.resultados_lote?.[p]&&s.resultados_lote[p]!=='aguardando');
@@ -251,11 +263,12 @@ function renderizar(s) {
   el('posicao').textContent=s.ocupada?`Pedido ${s.indice} de ${s.total}. Etapas e pendências ficam salvas.`:`${resultadosConhecidos} de ${s.total} pedido(s) com resultado nesta execução; confira as pendências.`;
   el('progresso').max=Math.max(1,s.total);el('progresso').value=s.ocupada?Math.max(0,s.indice-1):resultadosConhecidos;
   el('orientacao').textContent=s.ocupada?'Durante a inclusão, aguarde o robô terminar antes de usar o teclado, o mouse ou a tela do Sisplan.':'O Sisplan deve estar aberto na tela 1002 — Pedido por Grade.';
-  el('orientacao').hidden=preparando||!s.ocupada;
-  const pendenciasResultado=Object.entries(s.resultados_lote??{}).filter(([,v])=>!['pronto_importar','existente','impressao_enviada'].includes(v)).length;
+  el('orientacao').hidden=preparando||liberando||!s.ocupada;
+  const pendenciasResultado=Object.values(s.resultados_lote??{}).filter(v=>!['pronto_importar','existente','impressao_enviada','liberado'].includes(v)).length;
   if(s.fase==='CONCLUIDO'&&pendenciasResultado){el('fase').textContent='Finalizado com pendências';el('status').textContent='Processamento finalizado com pendências. Confira o resultado de cada pedido.';}
   if(s.fase==='CONCLUIDO'&&!pendenciasResultado)el('status').textContent='Processamento finalizado. Confira abaixo os estados salvos e os resultados por pedido.';
   if(s.fase==='CONCLUIDO'&&preparando){el('status').textContent='Conferência concluída. Revise os grupos abaixo e importe os pedidos aptos quando estiver pronto.';el('fase').textContent=pendenciasResultado?'Conferido com pendências':'Conferido';}
+  if(s.fase==='CONCLUIDO'&&liberando&&!pendenciasResultado)el('status').textContent='Nova tentativa liberada. Confira novamente os arquivos e produtos para voltar a importar este pedido.';
   el('fase').className='etiqueta'+(s.erro||['FALHA','INTERROMPIDO'].includes(s.fase)||pendenciasResultado&&s.fase==='CONCLUIDO'?' atencao':'');
   el('aviso-erro').hidden=!s.erro;
   if(s.erro){
@@ -283,6 +296,8 @@ async function acao(caminho,dados){
 }
 async function executarEtapa(operacao,pedidos){
   if(inicioBloqueado()||!pedidos.length)return;
+  const liberar=operacao==='liberar';
+  if(liberar&&!confirm(`Você confirmou no Sisplan que não há inclusão aberta para o pedido ${pedidos[0]}? Se ainda estiver aberta, cancele-a primeiro. A liberação só ocorre se o pedido não estiver gravado no Sisplan.`))return;
   const lista=[...new Set(pedidos)].join('\n');
   enviando=true;mensagem('');atualizarBotoes();
   let iniciando=false;
@@ -290,7 +305,7 @@ async function executarEtapa(operacao,pedidos){
     const c=await api('/api/conferir',{modo:operacao,pedidos:lista});
     if(!conectado||estado?.ocupada||estado?.encerrando||saindo)throw Error('A situação mudou. Aguarde a atualização e solicite a ação novamente.');
     iniciando=true;
-    await api('/api/iniciar',{modo:operacao,pedidos:lista,conferencia:c.id,solicitacao:crypto.randomUUID(),impressora:estado?.impressora});
+    await api('/api/iniciar',{modo:operacao,pedidos:lista,conferencia:c.id,solicitacao:crypto.randomUUID(),impressora:estado?.impressora,...(liberar?{cancelamento_confirmado:true}:{})});
     renderizar(await api('/api/estado'));
     if(operacao==='importar')window.scrollTo({top:0,behavior:'smooth'});
   }catch(erro){

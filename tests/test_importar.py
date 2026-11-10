@@ -3,10 +3,10 @@ from contextlib import ExitStack
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from src.config import ATALHOS, CONFIG, usar_configuracao
+from src.config import ATALHOS, CONFIG, COORD_ABA_PEDIDO, usar_configuracao
 from src.estado import EstadoError
 from src.importar import importar_pedido
-from src.erros import SisplanError, NumeroInternoForaSequenciaError
+from src.erros import AbaPedidoIndisponivelError, SisplanError, NumeroInternoForaSequenciaError
 from src.mensagens import mensagem_erro
 from tests.fixtures import xml_pedido
 
@@ -33,6 +33,27 @@ class ImportacaoTests(unittest.TestCase):
         resultado = importar_pedido(*self.args, lambda numero: eventos.append(('checkpoint', numero)), referencia_numero=100)
         self.assertLess(eventos.index(('checkpoint', '100')), eventos.index(ATALHOS['gravar']))
         self.assertEqual(resultado.situacao, 'aguarda_confirmacao')
+
+    def test_seleciona_aba_pedido_antes_de_ler_numero_e_incluir(self) -> None:
+        interacoes = MagicMock()
+        interacoes.attach_mock(self.args[1], 'tela')
+        interacoes.attach_mock(self.args[2], 'aba')
+        interacoes.attach_mock(self.campo, 'numero')
+        interacoes.attach_mock(self.enviar, 'enviar')
+        importar_pedido(*self.args, MagicMock(), referencia_numero=100)
+        self.assertEqual([chamada[0] for chamada in interacoes.mock_calls[:4]],
+                         ['tela.click_input', 'aba.wait', 'numero.window_text', 'tela.process_id'])
+        self.args[1].click_input.assert_called_with(coords=COORD_ABA_PEDIDO)
+        self.enviar.assert_any_call(ATALHOS['incluir'], 0.3)
+
+    def test_se_aba_nao_abre_nenhum_atalho_e_enviado(self) -> None:
+        self.args[2].wait.side_effect = TimeoutError('Aba invisível')
+        checkpoint = MagicMock()
+        with self.assertRaisesRegex(AbaPedidoIndisponivelError, 'aba Pedido'):
+            importar_pedido(*self.args, checkpoint, referencia_numero=100)
+        self.campo.window_text.assert_not_called()
+        self.enviar.assert_not_called()
+        checkpoint.assert_not_called()
 
     def test_falha_de_persistencia_nao_envia_gravar(self) -> None:
         with self.assertRaises(SisplanError):

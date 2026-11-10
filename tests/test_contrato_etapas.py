@@ -42,6 +42,23 @@ class ContratoEtapasTests(BaseInterface):
         self.assertEqual(c['modo'],'recuperar')
         with self.assertRaises(ConflitoInterface): self.estado.conferir({'modo':'recuperar','pedidos':'12345'})
 
+    def test_liberacao_exige_um_pedido_e_confirmacao_explicita(self):
+        self.semear(EstadoPedido('2026-12345', '', 'importacao_iniciada'),
+                    EstadoPedido('2026-23456', '100', 'gravacao_pendente'),
+                    EstadoPedido('2026-34567', '', 'aviso_pendente'))
+        for pedidos in ('12345,23456', '34567'):
+            with self.subTest(pedidos=pedidos), self.assertRaises(ConflitoInterface):
+                self.estado.conferir({'modo': 'liberar', 'pedidos': pedidos})
+        dados = {'modo': 'liberar', 'pedidos': '12345', 'solicitacao': 'liberacao'}
+        dados['conferencia'] = self.estado.conferir(dados)['id']
+        for confirmacao in (None, False, 'true'):
+            with self.assertRaisesRegex(ValueError, 'Confirme'):
+                self.estado.iniciar(dados | {'cancelamento_confirmado': confirmacao})
+        self.assertEqual(self.chamadas, [])
+        self.estado.iniciar(dados | {'cancelamento_confirmado': True})
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        self.assertEqual(self.chamadas[0][0], (['2026-12345'], 'liberar'))
+
     def test_cliente_antigo_normal_e_retomar_so_preparam_iniciais(self):
         self.semear(EstadoPedido('2026-12345','','baixado'),EstadoPedido('2026-67890','100','impressao_pendente'))
         self.iniciar(modo='retomar',pedidos='')

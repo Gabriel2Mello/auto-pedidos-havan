@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 from threading import Event
 from src.estado import EstadoPedido, EstadoPedidos
 from src.resumo import ResumoExecucao
-from src.etapas import ETAPAS_FINAIS, ETAPAS_INICIAIS, INCLUSOES_INCERTAS
+from src.etapas import ETAPAS_FINAIS, ETAPAS_INICIAIS, INCLUSOES_INCERTAS, INCLUSOES_LIBERAVEIS
 from src.erros import (BancoSisplanError, EstadoError, GravacaoNaoConfirmadaError,
                        PedidoRejeitadoError, ProdutoSemCadastroError, SessaoPortalExpiradaError, SisplanError)
 
@@ -40,7 +40,7 @@ def cenarios_interface():
         ('aviso', 'Aviso pendente e existência confirmada', 'normal', '999008\n999015',
          'Após baixar, conferir e importar, pare no aviso e use Conferir gravação no Sisplan na linha. O pedido vira existente sem impressão ou nova inclusão.'),
         ('cancelamento', 'Cancelamento não confirmado', 'normal', '999014\n999015',
-         'Baixe, confira e importe. O cancelamento não confirmado bloqueia repetir, pular e novas inclusões, inclusive após conferir gravação. Teste por último e reabra para limpar.'),
+         'Baixe, confira e importe. Pare e confira a gravação. O pedido está ausente. Use Liberar nova tentativa e importe o outro pedido apto.'),
         ('paginacao', 'Lista longa, filtros e paginação', 'normal', '\n'.join(str(n) for n in range(999100, 999160)),
          'Baixe e confira os 60 existentes; teste paginação, busca, filtros e os escopos Lote em conferência/Todos. Não há aptos para importar.'),
         ('parada', 'Parar e encerrar durante o lote', 'normal', '999016\n999017\n999018',
@@ -103,10 +103,24 @@ def _processar(pedido, modo, historico, resumo, salvar, parar):
         raise FalhaSimulada(PedidoRejeitadoError('Recuperar não pode incluir pedidos novos.'), False, False)
     if registro is None:
         raise RuntimeError('Pedido de demonstração não foi preservado na fila.')
+    if modo == 'liberar':
+        if registro.etapa not in INCLUSOES_LIBERAVEIS:
+            raise ValueError('Este pedido não tem uma inclusão que possa ser liberada.')
+        if codigo == '999014':
+            historico.liberar_importacao(pedido)
+            resumo.situacoes[pedido] = 'liberado'
+        else:
+            historico.salvar(replace(registro, erro='O pedido consta no Sisplan. Use Conferir gravação.'))
+            resumo.situacoes[pedido] = 'gravacao_pendente'
+        return
     if registro.etapa in ETAPAS_FINAIS:
         resumo.situacoes[pedido] = 'existente'
         return
     if registro.etapa in INCLUSOES_INCERTAS:
+        if codigo == '999014' and modo == 'recuperar':
+            historico.salvar(replace(registro, erro='Pedido não encontrado no Sisplan. Use Liberar nova tentativa.'))
+            resumo.situacoes[pedido] = 'gravacao_pendente'
+            return
         if codigo == '999014':
             raise FalhaSimulada(SisplanError('Demonstração: cancelamento ainda não confirmado.'), False, False, 'gravacao_pendente')
         if registro.etapa == 'aviso_pendente':
@@ -177,7 +191,7 @@ def _processar(pedido, modo, historico, resumo, salvar, parar):
     resumo.situacoes[pedido] = 'impressao_enviada'
 
 def simular(pedidos, modo, *, historico, ao_erro, ao_progresso, parar):
-    if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'reiniciar'):
+    if modo not in ('normal', 'retomar', 'preparar', 'revalidar', 'importar', 'recuperar', 'liberar', 'reiniciar'):
         raise ValueError('Operação não disponível.')
     resumo = ResumoExecucao(dict.fromkeys(pedidos, 'aguardando'))
     for indice, pedido in enumerate(pedidos, 1):
