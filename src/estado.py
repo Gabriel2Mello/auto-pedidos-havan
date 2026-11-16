@@ -82,6 +82,9 @@ class EstadoPedidos:
                 'tamanho TEXT NOT NULL, quantidade TEXT NOT NULL, '
                 'PRIMARY KEY (pedido,codigo,cor,tamanho))'
             )
+            self._conexao.execute(
+                'CREATE TABLE IF NOT EXISTS pedidos_removidos (pedido TEXT PRIMARY KEY)'
+            )
             # Identifica também as pendências de cadastro salvas por versões anteriores.
             self._conexao.execute(
                 "UPDATE pedidos SET etapa='sem_cadastro' WHERE etapa='baixado' AND ("
@@ -145,6 +148,7 @@ class EstadoPedidos:
         try:
             linhas = self._conectar().execute(
                 "SELECT pedido,numero,etapa,empresa,pdf,erro FROM pedidos "
+                "WHERE pedido NOT IN (SELECT pedido FROM pedidos_removidos) "
                 "ORDER BY CASE WHEN etapa IN (?,?) THEN 1 ELSE 0 END, rowid DESC", ETAPAS_FINAIS
             ).fetchall()
             if any(linha['etapa'] not in ETAPAS for linha in linhas):
@@ -176,8 +180,8 @@ class EstadoPedidos:
         if self.ao_alterar is not None:
             self.ao_alterar()
 
-    def adicionar_pedidos(self, pedidos: Sequence[str]) -> None:
-        """Persiste a lista inteira numa transação, preservando etapas já existentes."""
+    def adicionar_pedidos(self, pedidos: Sequence[str]) -> set[str]:
+        """Persiste a lista e informa quais pedidos removidos voltaram a ficar visíveis."""
         try:
             conexao = self._conectar()
             agora = datetime.now(timezone.utc).isoformat()
@@ -187,15 +191,35 @@ class EstadoPedidos:
                     'ON CONFLICT(pedido) DO NOTHING',
                     [(pedido, agora) for pedido in dict.fromkeys(pedidos)],
                 )
+                restaurados = {
+                    pedido for pedido in dict.fromkeys(pedidos)
+                    if conexao.execute('DELETE FROM pedidos_removidos WHERE pedido=?', (pedido,)).rowcount
+                }
+                conexao.executemany(
+                    "UPDATE pedidos SET etapa='baixado', atualizado_em=? WHERE pedido=? AND etapa='pronto_importar'",
+                    [(agora, pedido) for pedido in restaurados],
+                )
         except sqlite3.Error as error:
             self._registrar_erro(error, 'salvar lista')
             raise EstadoError('Não foi possível salvar a lista de pedidos. Nenhum processamento foi iniciado.') from None
         logger.info('Lista preservada no histórico: %s pedido(s) informado(s).', len(set(pedidos)))
+        return restaurados
+
+    def remover_da_lista(self, pedido: str) -> None:
+        try:
+            conexao = self._conectar()
+            with conexao:
+                conexao.execute('INSERT OR IGNORE INTO pedidos_removidos SELECT pedido FROM pedidos WHERE pedido=?',
+                                (pedido,))
+        except sqlite3.Error as error:
+            self._registrar_erro(error, 'remover pedido da lista')
+            raise EstadoError('Não foi possível remover o pedido da lista.') from None
 
     def pendentes(self) -> list[str]:
         try:
             return [linha[0] for linha in self._conectar().execute(
-                "SELECT pedido FROM pedidos WHERE etapa NOT IN (?,?) ORDER BY rowid", ETAPAS_FINAIS
+                "SELECT pedido FROM pedidos WHERE etapa NOT IN (?,?) "
+                "AND pedido NOT IN (SELECT pedido FROM pedidos_removidos) ORDER BY rowid", ETAPAS_FINAIS
             )]
         except sqlite3.Error as error:
             self._registrar_erro(error, 'consultar pendências')
@@ -205,7 +229,9 @@ class EstadoPedidos:
         """As filas são visões do mesmo histórico; não há movimentação entre arquivos."""
         filas: dict[str, int] = dict.fromkeys(('para_baixar', 'baixados', 'importados', 'enviados'), 0)
         try:
-            for etapa, quantidade in self._conectar().execute('SELECT etapa,count(*) FROM pedidos GROUP BY etapa'):
+            for etapa, quantidade in self._conectar().execute(
+                'SELECT etapa,count(*) FROM pedidos WHERE pedido NOT IN (SELECT pedido FROM pedidos_removidos) GROUP BY etapa'
+            ):
                 try:
                     fila = fila_da_etapa(etapa)
                 except ValueError:

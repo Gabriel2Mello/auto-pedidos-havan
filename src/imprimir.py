@@ -12,9 +12,47 @@ from pypdf import PdfReader, PdfWriter, PageObject
 from src.logs import get_logger
 from src.config import configuracao_atual
 from src.arquivos import (caminho_pdf)
-from src.estado import EstadoError, EstadoPedidos
+from src.estado import EstadoError, EstadoPedido, EstadoPedidos
+from src.gravacao_download import verificar_download_pendente
 
 logger = get_logger(__name__)
+IMPRESSOES_INCERTAS = ('impressao_iniciada', 'impressao_incerta')
+IMPRESSOES_PENDENTES = ('importado', 'pdf_pronto', 'impressao_pendente')
+
+
+def pdf_para_impressao(registro: EstadoPedido) -> Path | None:
+    """Localiza o documento do pedido na pasta configurada, preferindo a via numerada."""
+    if registro.etapa in IMPRESSOES_INCERTAS:
+        return None
+    original = caminho_pdf(registro.pedido)
+    base = configuracao_atual().pasta_pedidos
+    try:
+        pasta = original.parent.resolve()
+        if base == Path('.') or pasta.parent != base.resolve() or pasta.name != registro.pedido:
+            return None
+        verificar_download_pendente(pasta)
+    except (OSError, RuntimeError):
+        return None
+    numerado = f'{registro.numero} {registro.pedido}.pdf'
+    candidatos = [original]
+    if registro.numero.isdecimal() and registro.etapa in (*IMPRESSOES_PENDENTES, 'impressao_enviada', 'existente'):
+        candidatos.insert(0, pasta / numerado)
+        if registro.pdf:
+            candidatos.insert(0, Path(registro.pdf))
+    for candidato in candidatos:
+        try:
+            arquivo = candidato.resolve()
+            if arquivo.parent != pasta or arquivo.name not in (original.name, numerado) or not arquivo.is_file():
+                continue
+            with arquivo.open('rb') as entrada:
+                if entrada.read(5) != b'%PDF-':
+                    continue
+                entrada.seek(0)
+                if PdfReader(entrada).pages:
+                    return arquivo
+        except Exception:
+            logger.debug('PDF indisponível para impressão do pedido %s.', registro.pedido, exc_info=True)
+    return None
 
 
 def processar_impressao(

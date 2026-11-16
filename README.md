@@ -264,8 +264,9 @@ retomar todas as etapas pendentes registradas por esta versão:
 python main.py --retomar
 ```
 
-A automação não oferece reimpressão. Os PDFs numerados já gerados permanecem
-na pasta de cada pedido. A retomada conclui apenas impressões ainda não enviadas.
+Em **Conferir resultados**, use o ícone de impressora para enviar o PDF local
+de um pedido. Os PDFs numerados já gerados permanecem na pasta de cada pedido.
+A retomada conclui apenas impressões ainda não enviadas.
 
 Timeout, retorno de erro do Sumatra ou interrupção durante o envio deixam a
 impressão **incerta**. Ela não será reenviada pela automação: confira a fila

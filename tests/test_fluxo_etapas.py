@@ -100,6 +100,72 @@ class FluxoEtapasTests(unittest.TestCase):
         self.baixar.assert_not_called(); self.assert_sem_interface()
         with EstadoPedidos(self.estado_path) as h: self.assertEqual(h.obter('2026-12345').erro,'')
 
+    def test_reinclusao_com_download_valido_refaz_consultas_sem_baixar(self):
+        pedido = '2026-12345'
+        self.preparar(pedido)
+        with EstadoPedidos(self.estado_path) as h:
+            h.salvar(EstadoPedido(pedido, '', 'para_baixar', erro='Falha anterior.'))
+            h.remover_da_lista(pedido)
+        self.banco.consultar_barras.return_value = {}
+        resultado = servico.processar_pedidos([pedido], 'preparar')
+        self.assertEqual(resultado.situacoes[pedido], 'sem_cadastro')
+        self.banco.consultar_pedidos.assert_called_once_with([pedido])
+        self.banco.consultar_barras.assert_called_once()
+        self.baixar.assert_not_called()
+        self.assert_sem_interface()
+
+    def test_reinclusao_sem_download_baixa_e_confere_novamente(self):
+        pedido = '2026-12345'
+        with EstadoPedidos(self.estado_path) as h:
+            h.salvar(EstadoPedido(pedido, '', 'pronto_importar'))
+            h.remover_da_lista(pedido)
+
+        def baixar(_sessao, pedidos, *, ao_baixar):
+            self.preparar(pedidos[0])
+            ao_baixar(pedidos[0])
+            return {pedidos[0]: True}
+
+        self.baixar.side_effect = baixar
+        resultado = servico.processar_pedidos([pedido], 'preparar')
+        self.assertEqual(resultado.situacoes[pedido], 'pronto_importar')
+        self.baixar.assert_called_once()
+        self.banco.consultar_barras.assert_called_once()
+        self.assert_sem_interface()
+
+    def test_reinclusao_de_enviado_reconfere_sisplan_sem_reimprimir(self):
+        pedido = '2026-12345'
+        self.preparar(pedido)
+        self.banco.consultar_pedidos.return_value = {pedido: [PedidoExistente('100', 2)]}
+        with EstadoPedidos(self.estado_path) as h:
+            h.salvar(EstadoPedido(pedido, '100', 'impressao_enviada', 2))
+            h.remover_da_lista(pedido)
+        resultado = servico.processar_pedidos([pedido], 'preparar')
+        self.assertEqual(resultado.situacoes[pedido], 'existente')
+        with EstadoPedidos(self.estado_path) as h:
+            self.assertEqual(h.listar()[0].etapa, 'impressao_enviada')
+        self.baixar.assert_not_called()
+        self.assert_sem_interface()
+
+    def test_reinclusao_de_enviado_recupera_arquivos_ausentes_sem_reimprimir(self):
+        pedido = '2026-12345'
+        self.banco.consultar_pedidos.return_value = {pedido: [PedidoExistente('100', 2)]}
+        with EstadoPedidos(self.estado_path) as h:
+            h.salvar(EstadoPedido(pedido, '100', 'impressao_enviada', 2))
+            h.remover_da_lista(pedido)
+
+        def baixar(_sessao, pedidos, *, ao_baixar):
+            self.assertIsNone(ao_baixar)
+            self.preparar(pedidos[0])
+            return {pedidos[0]: True}
+
+        self.baixar.side_effect = baixar
+        resultado = servico.processar_pedidos([pedido], 'preparar')
+        self.assertEqual(resultado.situacoes[pedido], 'existente')
+        with EstadoPedidos(self.estado_path) as h:
+            self.assertEqual(h.listar()[0].etapa, 'impressao_enviada')
+        self.baixar.assert_called_once()
+        self.assert_sem_interface()
+
     def test_cadastro_alterado_entre_preparo_e_importacao_nao_importa(self):
         self.preparar(); servico.processar_pedidos(['2026-12345'], 'preparar')
         self.banco.consultar_barras.return_value={}

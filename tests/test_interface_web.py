@@ -3,6 +3,7 @@ import socket
 import sqlite3
 import tempfile
 import unittest
+from dataclasses import replace
 from decimal import Decimal
 from http.client import HTTPConnection, RemoteDisconnected
 from pathlib import Path
@@ -10,6 +11,7 @@ from queue import SimpleQueue
 from threading import Event, Thread, get_ident
 from time import monotonic
 from unittest.mock import MagicMock, patch
+from pypdf import PdfWriter
 
 from src.banco import BancoSisplanError
 from src.estado import EstadoError, EstadoPedido, EstadoPedidos
@@ -17,6 +19,7 @@ from src.interface_web import ConflitoInterface, EstadoInterface, criar_servidor
 from src.resumo import ResumoExecucao
 from src.erros import (SessaoPortalExpiradaError)
 from src.config import CONFIG
+from src.imprimir import ResultadoImpressao
 from src.servico_pedidos import ContextoExecucao, Integracoes, processar_pedidos
 from src.pedidos import ItemEsperado
 
@@ -307,6 +310,49 @@ class InterfaceTests(BaseInterface):
 
 
 class ApiTests(BaseInterface):
+    def test_resultados_imprimem_pdf_numerado_e_removem_so_da_lista(self):
+        pedido, sem_pdf = '2026-12345', '2026-67890'
+        pasta_pedido = self.raiz / pedido
+        pasta_pedido.mkdir()
+        pdf = pasta_pedido / f'11758 {pedido}.pdf'
+        writer = PdfWriter()
+        writer.add_blank_page(width=595, height=842)
+        writer.write(pdf)
+
+        def preparar(pedidos, modo, *, historico, **kwargs):
+            historico.salvar(EstadoPedido(pedido, '11758', 'impressao_enviada', 2, str(pdf)))
+            return ResumoExecucao(dict.fromkeys(pedidos, 'aguardando'))
+
+        self.executor = preparar
+        self.iniciar()
+        self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
+        self.estado.impressora = 'Fila de teste'
+        self.estado.listar_filas = lambda: ['Fila de teste']
+        with (
+            patch.object(self.estado, '_configuracao_resultados', replace(CONFIG, pasta_pedidos=self.raiz)),
+            patch('src.controlador.imprimir_pdf', return_value=ResultadoImpressao('enviada')) as imprimir,
+        ):
+            status, _, resposta = self.requisitar('/api/resultados/pdfs', {'pedidos': [pedido, sem_pdf]})
+            self.assertEqual((status, json.loads(resposta)), (200, {'pedidos': [pedido]}))
+            self.assertEqual(self.requisitar('/api/resultados/imprimir', {'pedido': sem_pdf})[0], 400)
+            self.assertEqual(self.requisitar('/api/resultados/imprimir', {'pedido': pedido})[0], 200)
+            imprimir.assert_called_once_with(pdf.resolve())
+        revisao = self.estado.revisao
+        status, _, resposta = self.requisitar('/api/resultados/remover', {'pedido': pedido})
+        self.assertEqual(status, 200)
+        situacao = json.loads(resposta)['estado']
+        self.assertGreater(situacao['revisao'], revisao)
+        self.assertEqual([p['pedido'] for p in situacao['pedidos']], [sem_pdf])
+        self.assertNotIn(pedido, situacao['lote_preparacao'])
+        self.assertTrue(pdf.is_file())
+        self.estado.encerrar()
+        self.estado.worker.join(3)
+        with EstadoPedidos(self.caminho) as historico:
+            self.assertEqual(historico.obter(pedido).etapa, 'impressao_enviada')
+            self.assertEqual([p.pedido for p in historico.listar()], [sem_pdf])
+            self.assertEqual(historico.adicionar_pedidos([pedido]), {pedido})
+            self.assertIn(pedido, [p.pedido for p in historico.listar()])
+
     def test_conferencia_exige_autorizacao_e_inicio_exige_revisao(self):
         dados = {'modo': 'normal', 'pedidos': '2026-12345', 'solicitacao': 'revisao-api'}
         for campos in ({'token': False}, {'origem': 'https://outro.example'}, {'host': 'outro.example'}):

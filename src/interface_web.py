@@ -231,6 +231,14 @@ def criar_servidor(estado: EstadoInterface, *, modo_desktop=False) -> tuple[Serv
                 if caminho == '/api/conferir':
                     self.json_resposta(200, estado.conferir(dados))
                     return
+                elif caminho == '/api/resultados/pdfs':
+                    self.json_resposta(200, {'pedidos': estado.pdfs_disponiveis(dados.get('pedidos'))})
+                    return
+                elif caminho in ('/api/resultados/remover', '/api/resultados/imprimir'):
+                    estado.acao_resultado(caminho.rsplit('/', 1)[-1], dados.get('pedido'))
+                    if caminho == '/api/resultados/remover':
+                        self.json_resposta(200, {'ok': True, 'estado': estado.situacao()})
+                        return
                 elif caminho == '/api/iniciar':
                     estado.iniciar(dados)
                 elif caminho == '/api/decidir':

@@ -9,9 +9,12 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
   const elementos = new Map(), eventos = new Map(), criados = [], rolagens = [];
   class Elemento {
     constructor() { this.texto=''; this.escritas=0; this.value=''; this.checked=false; this.children=[]; this.atributos={}; }
-    set textContent(valor) { this.texto=valor; this.escritas++; }
-    get textContent() { return this.texto; }
+    set textContent(valor) { this.texto=valor; this.children=[]; this.escritas++; }
+    get textContent() { return this.children.length?this.texto+this.children.map(filho=>filho.textContent).join(''):this.texto; }
     setAttribute(nome, valor) { this.atributos[nome]=valor; }
+    getAttribute(nome) { return this.atributos[nome]??null; }
+    hasAttribute(nome) { return nome in this.atributos; }
+    removeAttribute(nome) { delete this.atributos[nome]; }
     addEventListener(nome,acao) { this.listeners??={}; (this.listeners[nome]??=[]).push(acao); if(nome==='click')this.onclick=(...args)=>this.listeners.click.forEach(fn=>fn(...args)); }
     append(...filhos) { this.children.push(...filhos); }
     replaceChildren(...filhos) { this.children=filhos; this.escritas++; }
@@ -31,8 +34,9 @@ function painel({temaSalvo=null, cookie='', falhaStorage=false, falhaCookie=fals
       set cookie(valor) { if(falhaCookie)throw Error('Cookies indisponíveis');cookie=valor; },
       getElementById: obter, querySelector: seletor => ({content:seletor==='meta[name="havan-demo"]'&&demonstracao?'1':'token-local'}),
       addEventListener: () => {},
-      querySelectorAll: seletor => seletor==='[data-fila]'?['prontos','importados','pendencias','existentes'].map(nome=>{const b=obter('fila-'+nome);b.dataset={fila:nome};return b;}):seletor==='[data-acao-pedido]'?criados.filter(e=>'data-acao-pedido' in e.atributos):[], documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
-      createElement: () => {const e=new Elemento();criados.push(e);return e;}, createDocumentFragment: () => new Elemento(),
+      querySelectorAll: seletor => seletor==='[data-fila]'?['prontos','importados','pendencias','existentes'].map(nome=>{const b=obter('fila-'+nome);b.dataset={fila:nome};return b;}):criados.filter(e=>e.hasAttribute(seletor.slice(1,-1))), documentElement: {dataset:{},setAttribute(nome,valor){this.dataset.tema=valor;}},
+      createElement: () => {const e=new Elemento();criados.push(e);return e;},
+      createElementNS: () => new Elemento(), createDocumentFragment: () => new Elemento(),
     },
     crypto: {randomUUID}, AbortController,
     localStorage: {
@@ -252,7 +256,7 @@ test('conferir cadastro novamente revalida somente o pedido escolhido sem solici
   assert.match(linhas[0].children[4].textContent,/Barra 0123456789012/);
   assert.equal(linhas[0].children[4].children.length,0);
   const botao=linhas[0].children[3].children[0];
-  assert.equal(botao.textContent,'Conferir');
+  assert.equal(botao.atributos['data-icone-download'],'repetir');
   assert.equal(botao.disabled,false);
   p.contexto.fetch=async (url,opcoes)=>{
     chamadas.push({url,opcoes});
@@ -270,7 +274,7 @@ test('conferir cadastro novamente revalida somente o pedido escolhido sem solici
   p.renderizar({...p.estado,fase:'EXECUTANDO',ocupada:true});
   assert.equal(botao.disabled,true);
   await botao.onclick();
-  assert.equal(chamadas.length,3);
+  assert.equal(chamadas.filter(({url})=>url!=='/api/resultados/pdfs').length,3);
   p.renderizar(p.estado);
   assert.equal(botao.disabled,false);
 });
@@ -429,7 +433,7 @@ test('baixar e conferir envia somente preparação e mantém importação como a
   const final={...p.estado,modo:'preparar',execucao:'preparo',fase:'CONCLUIDO',pedidos:[pronto],lote:['2026-12345'],lote_preparacao:['2026-12345'],resultados_lote:{'2026-12345':'pronto_importar'}};
   p.contexto.fetch=async(url,opcoes)=>{chamadas.push({url,body:opcoes.body&&JSON.parse(opcoes.body)});return {ok:true,json:async()=>url==='/api/conferir'?{id:'c'}:url==='/api/estado'?final:{ok:true}};};
   await p.obter('formulario').listeners.submit[0]({preventDefault(){}});
-  assert.deepEqual(chamadas.map(c=>c.url),['/api/conferir','/api/iniciar','/api/estado']);
+  assert.deepEqual(chamadas.map(c=>c.url),['/api/conferir','/api/iniciar','/api/estado','/api/resultados/pdfs']);
   assert.equal(chamadas[0].body.modo,'preparar');assert.equal(chamadas[1].body.modo,'preparar');
   assert.equal(chamadas[1].body.pedidos,'2026-12345');
   assert.equal(p.obter('importar-aptos').disabled,false);
@@ -516,7 +520,7 @@ test('pedido não encontrado no portal fica sem ação e conserva observação n
       const linha=p.obter('linhas').children[0].children[0];
       assert.equal(linha.children[3].children.length,observacao===erro?0:1);
       if(observacao===erro)assert.match(linha.children[4].textContent,/Pedido não encontrado no Portal Havan\./);
-      else assert.equal(linha.children[3].children[0].textContent,'Preparar');
+      else assert.equal(linha.children[3].children[0].atributos['data-icone-download'],observacao?'repetir':'baixar');
     }
   }
 });
@@ -598,8 +602,8 @@ test('situação considera pendências e ações curtas preservam operações e 
   const p=painel();
   const casos=[
     ['para_baixar','Pedido não encontrado no Portal Havan.','Não disponível',null],
-    ['para_baixar','','Aguardando preparação','Preparar'],
-    ['para_baixar','Sessão expirada','Preparação pendente','Preparar'],
+    ['para_baixar','','Aguardando download',null],
+    ['para_baixar','Sessão expirada','Preparação pendente',null],
     ['baixado','','Conferência pendente','Conferir'],
     ['sem_cadastro','EAN ausente','Cadastro pendente','Conferir'],
     ['pronto_importar','','Pronto para importar',null],
@@ -607,9 +611,9 @@ test('situação considera pendências e ações curtas preservam operações e 
     ['importacao_iniciada','','Inclusão a conferir','Conferir'],
     ['gravacao_pendente','','Inclusão a conferir','Conferir'],
     ['aviso_pendente','','Existência a conferir','Conferir'],
-    ['importado','','Impressão pendente','Imprimir'],
-    ['pdf_pronto','','Impressão pendente','Imprimir'],
-    ['impressao_pendente','','Impressão pendente','Imprimir'],
+    ['importado','','Impressão pendente',null],
+    ['pdf_pronto','','Impressão pendente',null],
+    ['impressao_pendente','','Impressão pendente',null],
     ['impressao_iniciada','','Impressão a conferir',null],
     ['impressao_incerta','','Impressão a conferir',null],
     ['impressao_enviada','','Enviado para impressão',null],
@@ -620,8 +624,8 @@ test('situação considera pendências e ações curtas preservam operações e 
     p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa,erro}]});
     const celulas=p.obter('linhas').children[0].children[0].children;
     assert.equal(celulas[2].children[0].textContent,situacao,etapa);
-    assert.equal(celulas[3].children[0]?.textContent||null,acao,etapa);
-    if(acao)assert.match(celulas[3].children[0].atributos['aria-label'],/pedido 2026-12345/);
+    assert.equal(celulas[3].children[0]?.textContent||null,acao==='Conferir'?null:acao,etapa);
+    if(acao){assert.equal(celulas[3].children[0].atributos['data-icone-download'],'repetir');assert.match(celulas[3].children[0].atributos['aria-label'],/pedido 2026-12345/);}
     if(erro)assert.ok(celulas[4].textContent.includes(erro));
     if(etapa==='existente'&&!erro)assert.match(celulas[4].textContent,/Já existe no Sisplan/);
   }
@@ -878,15 +882,15 @@ test('sumário separa situação, orientação e ações sem repetir instruçõe
   const p=painel();
   for(const [etapa,erro,situacao,orientacao,acao] of [
     ['para_baixar','Pedido não encontrado no Portal Havan.','Não disponível','Pedido não encontrado no Portal Havan.','—'],
-    ['para_baixar','Não foi possível baixar os arquivos do pedido.','Preparação pendente','Não foi possível baixar os arquivos do pedido.','Baixar e conferir'],
+    ['para_baixar','Não foi possível baixar os arquivos do pedido.','Falha no download','Não foi possível baixar os arquivos do pedido.',''],
     ['existente','','Já existe no Sisplan',null,'—'],
-    ['existente','Consulta falhou','Conferência pendente','Consulta falhou','Ver detalhes'],
+    ['existente','Consulta falhou','Conferência pendente','Consulta falhou',''],
     ['pronto_importar','','Pronto para importar',null,'—'],
     ['impressao_enviada','','Enviado para impressão',null,'—'],
     ['impressao_incerta','','Impressão a conferir','Confira a fila de impressão com o responsável.','—'],
-    ['importado','','Impressão pendente','Importação confirmada. Retome a impressão.','Retomar impressão'],
-    ['sem_cadastro','','Cadastro pendente','Cadastro precisa de revisão.','Conferir novamente'],
-    ['gravacao_pendente','','Inclusão a conferir','Gravação não confirmada no Sisplan.','Conferir gravação']
+    ['importado','','Impressão pendente','Importação confirmada. Retome a impressão.',''],
+    ['sem_cadastro','','Cadastro pendente','Cadastro precisa de revisão.',''],
+    ['gravacao_pendente','','Inclusão a conferir','Gravação não confirmada no Sisplan.','']
   ]){
     p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',numero:'11111',etapa,erro}]});
     const celulas=p.obter('linhas-sumario').children[0].children[0].children;
@@ -899,6 +903,33 @@ test('sumário separa situação, orientação e ações sem repetir instruçõe
     assert.equal(celulas[2].children[0].textContent,acao);
     assert.equal(Boolean(celulas[2].children[0].onclick),acao!=='—');
   }
+});
+
+test('sumário e detalhes oferecem os mesmos ícones e executam o preparo do pedido escolhido',()=>{
+  const p=painel(), primeiro='2026-12345', pendente='2026-12346';
+  const pedidos=[
+    {pedido:primeiro,etapa:'para_baixar',erro:''},
+    {pedido:pendente,etapa:'para_baixar',erro:'Não foi possível baixar os arquivos do pedido. Verifique o portal'},
+  ];
+  p.renderizar({...p.estado,pedidos});
+  const caminhos=[], chamadas=[];
+  p.contexto.registrarAcao=(modo,pedidos)=>chamadas.push([modo,...pedidos]);
+  vm.runInContext('executarEtapa=registrarAcao',p.contexto);
+  for(const [tabela,coluna] of [['linhas-sumario',2],['linhas',3]]){
+    const linhas=p.obter(tabela).children[0].children;
+    for(const [i,icone,rotulo] of [[0,'baixar','Baixar e conferir'],[1,'repetir','Tentar baixar e conferir novamente']]){
+      const botao=linhas[i].children[coluna].children[0], svg=botao.children[0];
+      assert.equal(botao.textContent,'');
+      assert.equal(botao.atributos['data-icone-download'],icone);
+      assert.equal(botao.atributos['aria-label'],rotulo+' — pedido '+pedidos[i].pedido);
+      assert.equal(svg.atributos['aria-hidden'],'true');
+      caminhos.push(svg.children[0].atributos.d);
+      botao.onclick();
+    }
+  }
+  assert.notEqual(caminhos[0],caminhos[1]);
+  assert.deepEqual(caminhos.slice(0,2),caminhos.slice(2));
+  assert.deepEqual(chamadas,[['preparar',primeiro],['preparar',pendente],['preparar',primeiro],['preparar',pendente]]);
 });
 
 test('sumário mantém pedido ainda sem registro e resultados parciais durante execução',()=>{
@@ -916,13 +947,14 @@ test('sumário não sugere importar quando resultado da execução exige confer�
   p.renderizar({...p.estado,execucao:'e',lote:[pedido],resultados_lote:{[pedido]:'falhou'},pedidos:[{pedido,etapa:'pronto_importar',erro:''}]});
   const celulas=p.obter('linhas-sumario').children[0].children[0].children;
   assert.equal(celulas[1].children[0].textContent,'Conferência pendente');
-  assert.equal(celulas[2].children[0].textContent,'Ver detalhes');
+  assert.equal(celulas[2].children[0].atributos['data-icone-download'],'detalhes');
 });
 
 test('ação de recuperação no sumário preserva revisão e bloqueia novos envios sem conexão',async()=>{
   const p=painel(),pedido='2026-12345',s={...p.estado,pedidos:[{pedido,etapa:'importado',numero:'11111',erro:''}]};
   p.renderizar(s);
   const botao=p.obter('linhas-sumario').children[0].children[0].children[2].children[0];
+  assert.equal(botao.atributos['data-icone-download'],'imprimir');
   assert.match(botao.atributos['aria-label'],/Retomar impressão/);
   const chamadas=[];
   p.contexto.fetch=async(url,opcoes)=>{chamadas.push([url,opcoes]);return {ok:true,json:async()=>url==='/api/conferir'?{id:'revisao-sumario'}:url==='/api/estado'?s:{ok:true}};};
@@ -971,7 +1003,7 @@ test('orientação curta no sumário preserva erro completo nos detalhes e reval
   assert.equal(celulas[1].children[1].textContent,'Cadastro precisa de revisão.');
   assert.match(p.obter('linhas').children[0].children[0].children[4].textContent,/EAN 7891234567890 sem cadastro/);
   const botao=celulas[2].children[0],chamadas=[];
-  assert.equal(botao.textContent,'Conferir novamente');
+  assert.equal(botao.atributos['data-icone-download'],'repetir');
   assert.match(botao.atributos['aria-label'],/Conferir cadastro novamente/);
   p.contexto.fetch=async(url,opcoes)=>{chamadas.push([url,opcoes]);return {ok:true,json:async()=>url==='/api/conferir'?{id:'cadastro-revisao'}:url==='/api/estado'?s:{ok:true}};};
   await botao.onclick();
@@ -1024,7 +1056,7 @@ test('layout conserva entrada de seis linhas e conferência visível sem limitar
   assert.equal(p.obter('linhas').children[0].children.length,20);
 });
 
-test('interface não oferece seletor, revisão ou ação de reimpressão',()=>{
+test('formulário não oferece seletor nem revisão de reimpressão em lote',()=>{
   const html=readFileSync(join(__dirname,'../src/pedidos.html'),'utf8');
   assert.ok(!/Reimprimir|data-modo|painel-conferencia|aba-conferencia|imprimir-sem-numero/.test(html));
   const p=painel();
@@ -1032,6 +1064,40 @@ test('interface não oferece seletor, revisão ou ação de reimpressão',()=>{
     p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa,erro:''}]});
     assert.equal(p.obter('linhas').children[0].children[0].children[3].children.length,0);
   }
+});
+
+test('resultados mantêm a impressora visível sem PDF e enviam ações para o pedido da linha',async()=>{
+  const p=painel(), comPdf='2026-12345', semPdf='2026-67890', chamadas=[];
+  const pedidos=[{pedido:comPdf,etapa:'impressao_enviada'},{pedido:semPdf,etapa:'para_baixar'}];
+  const aposRemocao={...p.estado,revisao:1,pedidos:[pedidos[0]]};
+  p.contexto.fetch=async(url,opcoes)=>{
+    chamadas.push([url,opcoes.body&&JSON.parse(opcoes.body)]);
+    return {ok:true,json:async()=>url==='/api/resultados/pdfs'?{pedidos:[comPdf]}:url==='/api/resultados/remover'?{ok:true,estado:aposRemocao}:{ok:true}};
+  };
+  p.renderizar({...p.estado,pedidos});
+  const linhas=()=>p.obter('linhas').children[0].children;
+  const acoes=linha=>linha.children[0].children[0].children;
+  const [imprimir,remover,numero]=acoes(linhas()[1]);
+  assert.equal(imprimir.atributos['data-acao-resultado'],'imprimir');
+  assert.equal(remover.atributos['data-acao-resultado'],'remover');
+  assert.equal(numero.textContent,semPdf);
+  assert.equal(imprimir.disabled,true);
+  await new Promise(setImmediate);
+  assert.equal(imprimir.disabled,true);
+  const [imprimirDisponivel]=acoes(linhas()[0]);
+  assert.equal(imprimirDisponivel.disabled,false);
+  await imprimirDisponivel.onclick();
+  p.contexto.confirm=()=>false;
+  await remover.onclick();
+  p.contexto.confirm=()=>true;
+  await remover.onclick();
+  assert.deepEqual(chamadas.filter(([url])=>['/api/resultados/imprimir','/api/resultados/remover'].includes(url)),
+    [['/api/resultados/imprimir',{pedido:comPdf}],['/api/resultados/remover',{pedido:semPdf}]]);
+  assert.equal(linhas().length,1);
+  const sumario=p.obter('linhas-sumario').children[0].children;
+  assert.equal(sumario.length,1);
+  assert.equal(sumario[0].children[0].children[0].textContent,comPdf);
+  assert.ok(!chamadas.some(([url])=>url==='/api/estado'));
 });
 
 function painelRolagem({sumario=false}={}){

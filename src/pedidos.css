@@ -86,7 +86,7 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 #erro-mensagem{font-size:15px;line-height:1.6}
 
 /* Uma faixa por pedido: identificação compacta, ação e observação lado a lado. */
-.tabela-historico th:nth-child(1){width:124px}
+.tabela-historico th:nth-child(1){width:222px}
 .tabela-historico th:nth-child(2){width:88px}
 .tabela-historico th:nth-child(3){width:176px}
 .tabela-historico th:nth-child(4){width:132px}
@@ -96,7 +96,7 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 .tabela-historico [data-acao-pedido]{margin-top:0;margin-inline:auto;width:104px;max-width:100%;text-align:center}
 .tabela-historico [data-acao-pedido],.tabela-historico [data-acao-pedido]:hover:enabled{border-color:var(--contorno-controle)}
 @media(min-width:1100px){
-  .tabela-historico th:nth-child(1){width:140px}
+  .tabela-historico th:nth-child(1){width:238px}
   .tabela-historico th:nth-child(2){width:100px}
   .tabela-historico th:nth-child(3){width:212px}
   .tabela-historico th:nth-child(4){width:144px}
@@ -161,6 +161,13 @@ button,input,select,textarea{font:inherit;color:inherit;background:var(--cartao)
 .tabela-sumario .orientacao-sumario{font-size:12px;line-height:1.45;margin:6px 0 0;white-space:pre-line}
 .tabela-sumario .acao-ausente{color:var(--muted)}
 .tabela-sumario button{margin:0;padding:7px 10px;font-size:13px;max-width:100%;white-space:normal;border-color:var(--contorno-controle)}
+.tabela-historico,.tabela-sumario{--tamanho-botao-acao:30.8px}
+.tabela-historico [data-icone-download],.tabela-sumario [data-icone-download],.identificacao-resultado button{display:inline-grid;place-items:center;width:var(--tamanho-botao-acao);min-height:var(--tamanho-botao-acao);padding:0;border-color:var(--contorno-controle)}
+[data-icone-download] svg,[data-acao-resultado] svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.identificacao-resultado{display:grid;grid-template-columns:repeat(2,var(--tamanho-botao-acao)) minmax(0,1fr);gap:6px;align-items:center}
+.identificacao-resultado [data-acao-resultado=remover]:hover:enabled{color:var(--erro)}
+#resultado-acao:not(:empty){margin-bottom:12px}
+#dica-acao-pedido{position:fixed;z-index:45;max-width:calc(100% - 16px);padding:5px 9px;border:1px solid var(--contorno-controle);border-radius:7px;background:var(--cartao);color:var(--texto);font-size:13px;overflow-wrap:anywhere}
 .tabela-sumario [data-acao-pedido]+[data-acao-pedido],.tabela-historico [data-acao-pedido]+[data-acao-pedido]{margin-top:6px}
 .coluna-comandos{min-width:0}
 .coluna-comandos .importacao-lote{margin:16px 12px 8px;flex-wrap:wrap;padding:12px}

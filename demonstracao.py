@@ -24,7 +24,7 @@ def cenarios_interface():
         ('cadastro', 'Produto sem cadastro e nova tentativa', 'normal', '999003\n999015',
          'Baixe e confira. Filtre Produtos sem cadastro e use Conferir cadastro novamente: simula cadastro corrigido e libera a importação, que exige outro clique.'),
         ('download', 'Falha de download e decisões', 'normal', '999004\n999015',
-         'Baixe e confira: o download falho fica em Outras pendências. Use Baixar e conferir na linha para simular recuperação; depois importe o apto.'),
+         'Baixe e confira: o download falho fica em Outras pendências. Use as duas setas circulares na linha para simular a recuperação; depois importe o apto.'),
         ('portal', 'Sessão expirada do portal', 'normal', '999005\n999015',
          'A pausa oferece Reconectar e continuar ou Parar, sem permitir pular. Reconectar simula uma nova sessão válida.'),
         ('banco', 'Banco indisponível', 'normal', '999006\n999015',

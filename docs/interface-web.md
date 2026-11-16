@@ -73,8 +73,23 @@ Arquivos baixados ainda exigem conferência; importação confirmada e PDF pront
 aparecem como **Impressão pendente**. Envio iniciado sem confirmação fica como
 **Impressão a conferir**, sem presumir que a impressão continua em andamento.
 
-Na tabela detalhada, os botões da coluna Ação usam **Preparar**, **Conferir** e **Imprimir**,
-com descrição completa para leitores de tela. Não há função de reimpressão.
+No sumário e na tabela detalhada, a seta para baixo indica **Baixar e conferir**
+e as duas setas circulares indicam nova tentativa de download ou conferência,
+conforme a situação do pedido.
+A descrição aparece ao passar o mouse ou focar pelo teclado e está no nome
+acessível do botão, junto com o número do pedido.
+
+Em **Conferir resultados**, os ícones à esquerda do número imprimem o PDF
+local ou removem o pedido da lista. A impressora permanece visível e
+desabilitada quando o PDF está indisponível ou o envio anterior está incerto.
+Para uma impressão pendente, o ícone retoma o fluxo de impressão. Para os
+demais pedidos com PDF disponível, imprime uma cópia e prefere o PDF numerado
+quando ele existe. O X pede confirmação e preserva o histórico e os arquivos.
+Inclusões incertas precisam ser conferidas antes da remoção. Ao informar
+novamente o mesmo número, a conferência valida a situação no Sisplan e
+reaproveita PDF e XML locais válidos, pulando só o download. Se faltar um
+arquivo ou o par for inválido, a preparação baixa os arquivos e refaz a
+conferência.
 
 As próximas ações ficam na linha do pedido (as descrições abaixo explicam os botões):
 
@@ -93,8 +108,8 @@ A faixa de importação fica na coluna esquerda, abaixo de **Baixar e conferir**
 1002 do Sisplan. **Detalhes do processamento** fica logo abaixo dessa faixa.
 Ambos ficam fora da entrada recolhível, mantendo a importação acessível quando
 **1. Informar pedidos** é recolhido. À direita, o sumário vem diretamente abaixo
-dos cartões. No sumário, os botões são **Baixar e conferir**, **Conferir novamente**,
-**Conferir gravação** ou **Retomar impressão**, conforme a etapa. **Ver detalhes**
+dos cartões. No sumário, as ações de download, conferência, impressão e
+detalhes usam ícones. **Ver detalhes**
 localiza o pedido na conferência completa quando não há ação de recuperação.
 Pedidos aptos, já existentes e enviados para impressão exibem apenas um traço
 na coluna de ações. Nas impressões incertas, a orientação permanece junto da
@@ -161,11 +176,13 @@ retorno de sucesso do SumatraPDF, sem comprovar a saída física do papel.
 somente etapas pós-inclusão/incertas. `liberar` aceita um pedido em
 `importacao_iniciada` ou `gravacao_pendente` e exige confirmação explícita no
 início. O executor só libera o registro local após consultar o Sisplan e
-confirmar a ausência do pedido. Solicitações de reimpressão são recusadas.
-Todas as ações passam por `/api/conferir` (snapshot local) e `/api/iniciar`, com
+confirmar a ausência do pedido. As etapas do lote passam por
+`/api/conferir` (snapshot local) e `/api/iniciar`, com
 revisão e identificador de solicitação. A consulta local não substitui a validação
 real no serviço. Os modos HTTP antigos `normal` e `retomar` ficam limitados à
-preparação, evitando importação implícita por uma página antiga.
+preparação, evitando importação implícita por uma página antiga. A impressão
+avulsa e a remoção da lista usam ações autenticadas por pedido em
+`/api/resultados` e são serializadas com o executor.
 
 `pronto_importar` é persistido no histórico existente, sem apagar ou converter
 pedidos antigos automaticamente. “Baixado” não significa apto: é preciso conferir

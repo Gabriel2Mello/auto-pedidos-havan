@@ -7,6 +7,7 @@ from collections import Counter, deque
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from queue import Queue
 from threading import Event, RLock, Thread, get_ident
@@ -18,7 +19,8 @@ from integracao_hub import MedidorAbertura
 from src.erros import BancoSisplanError, ConfiguracaoError, EstadoEmUsoError
 from src.config import CONFIG, Configuracao, configuracao_atual, diretorio_aplicacao, usar_configuracao
 from src.impressoras import listar_impressoras_windows, salvar_impressora
-from src.estado import EstadoError, EstadoPedidos
+from src.estado import EstadoError, EstadoPedido, EstadoPedidos
+from src.imprimir import IMPRESSOES_PENDENTES, imprimir_pdf, pdf_para_impressao
 from src.logs import get_logger
 from src.seguranca import redigir
 from src.contratos import AoErro, AoProgresso, DecisaoErro, Modo, ModoWeb
@@ -40,11 +42,11 @@ class Executor(Protocol):
 
 def executar_fluxo(pedidos: list[str], modo: Modo, *, historico: EstadoPedidos,
                    ao_erro: AoErro, ao_progresso: AoProgresso,
-                   parar: Callable[[], bool]) -> ResumoExecucao:
+                   parar: Callable[[], bool], restaurados: set[str] | None = None) -> ResumoExecucao:
     # O fluxo de automação é chamado na thread que possui o histórico.
     from src.servico_pedidos import ContextoExecucao, processar_pedidos
     return processar_pedidos(pedidos, modo, historico=historico, ao_erro=ao_erro,
-                             ao_progresso=ao_progresso, parar=parar,
+                             ao_progresso=ao_progresso, parar=parar, restaurados=restaurados,
                              contexto=ContextoExecucao(configuracao_atual()))
 
 
@@ -59,6 +61,14 @@ class Trabalho:
     impressora: str = ''
     configuracao: Configuracao | None = None
     recebido: Event = field(default_factory=Event)
+    erro: Exception | None = None
+
+
+@dataclass
+class AcaoResultado:
+    operacao: str
+    pedido: str
+    concluida: Event = field(default_factory=Event)
     erro: Exception | None = None
 
 
@@ -79,17 +89,19 @@ class EstadoInterface:
                  medidor_abertura: MedidorAbertura | None = None,
                  listar_filas: Callable[[], list[str]] | None = None,
                  salvar_fila: Callable[[str], None] | None = None,
-                 impressora: str | None = None) -> None:
+                 impressora: str | None = None,
+                 configuracao_resultados: Configuracao | None = None) -> None:
         self.medidor_abertura = medidor_abertura
         self.caminho = caminho
         self.executor = executor
+        self._configuracao_resultados = configuracao_resultados
         self.impressora = CONFIG.impressora if impressora is None else impressora
         self.listar_filas = listar_filas or listar_impressoras_windows
         self.salvar_fila = salvar_fila or salvar_impressora
         self.codigo_execucao = codigo_execucao
         self.arquivo_log = arquivo_log or diretorio_aplicacao() / 'auto-pedidos.log'
         self.trava = RLock()
-        self.comandos: Queue[Trabalho | None] = Queue()
+        self.comandos: Queue[Trabalho | AcaoResultado | None] = Queue()
         self.pronto, self.finalizado, self.parada, self.resposta = Event(), Event(), Event(), Event()
         self.fase = 'INICIANDO'
         self.mensagem = 'Carregando os pedidos salvos…'
@@ -112,12 +124,14 @@ class EstadoInterface:
         self.solicitacoes: deque[str] = deque(maxlen=100)
         self.mensagens: deque[str] = deque(maxlen=30)
         self._historico: EstadoPedidos | None = None
+        self._registros_visiveis: dict[str, EstadoPedido] = {}
+        self.acao_resultado_ativa = False
         self.worker = Thread(target=self._executar, name='havan-executor', daemon=False)
         self.worker.start()
 
     @property
     def ocupada(self) -> bool:
-        return self.fase in ('INICIANDO', 'EXECUTANDO', 'PAUSADO', 'PARANDO', 'ENCERRANDO')
+        return self.acao_resultado_ativa or self.fase in ('INICIANDO', 'EXECUTANDO', 'PAUSADO', 'PARANDO', 'ENCERRANDO')
 
     def registrar_mensagem(self, mensagem: str) -> None:
         with self.trava:
@@ -153,6 +167,7 @@ class EstadoInterface:
         with self.trava:
             return deepcopy({
                 'fase': self.fase, 'mensagem': self.mensagem, 'ocupada': self.ocupada,
+                'acao_resultado_ativa': self.acao_resultado_ativa,
                 'encerrando': self.encerrando, 'bloqueado': self.bloqueado,
                 'execucao': self.execucao, 'pedido': self.pedido, 'indice': self.indice,
                 'total': self.total, 'filas': self.filas, 'pedidos': self.pedidos,
@@ -168,15 +183,98 @@ class EstadoInterface:
         assert get_ident() == self.worker.ident
         assert self._historico is not None
         filas = self._historico.filas()
+        registros = self._historico.listar()
         pedidos: list[dict[str, object]] = [{'pedido': p.pedido, 'numero': p.numero, 'etapa': p.etapa, 'fila': fila_da_etapa(p.etapa),
                     'rotulo': ROTULOS[p.etapa], 'pendente': p.etapa not in ETAPAS_FINAIS,
                     'erro': redigir(mensagem_observacao(p.erro, p.pedido))[:1000]}
-                   for p in self._historico.listar()]
+                   for p in registros]
         with self.trava:
             if pedidos != self.pedidos:
                 self.revisao += 1
             self.pendentes_ordenados = self._historico.pendentes()
             self.filas, self.pedidos = filas, pedidos
+            self._registros_visiveis = {p.pedido: p for p in registros}
+
+    def pdfs_disponiveis(self, pedidos: object) -> list[str]:
+        if not isinstance(pedidos, list) or len(pedidos) > 20 or any(not isinstance(p, str) for p in pedidos):
+            raise ValueError('Informe até 20 pedidos da página de resultados.')
+        with self.trava:
+            registros = [self._registros_visiveis[p] for p in dict.fromkeys(pedidos) if p in self._registros_visiveis]
+        config = self._configuracao_dos_resultados()
+        if not registros or config is None:
+            return []
+        with usar_configuracao(config):
+            return [p.pedido for p in registros if pdf_para_impressao(p) is not None]
+
+    def _configuracao_dos_resultados(self) -> Configuracao | None:
+        # Executores sintéticos só leem PDFs quando recebem uma pasta de teste.
+        return Configuracao.carregar() if self.executor is executar_fluxo else self._configuracao_resultados
+
+    def acao_resultado(self, operacao: str, pedido: object) -> None:
+        if operacao not in ('remover', 'imprimir'):
+            raise ValueError('Ação do pedido inválida.')
+        if not isinstance(pedido, str) or analisar_entrada_pedidos(pedido) != [pedido]:
+            raise ValueError('Informe o número completo do pedido.')
+        with self.trava:
+            if self.ocupada or self.bloqueado or self.encerrando or self.finalizado.is_set():
+                raise ConflitoInterface('Aguarde o término da operação atual.')
+            registro = self._registros_visiveis.get(pedido)
+            if registro is None:
+                raise ConflitoInterface('O pedido não está na lista.')
+            if operacao == 'remover' and registro.etapa in INCLUSOES_INCERTAS:
+                raise ConflitoInterface('Confira a inclusão no Sisplan antes de remover este pedido da lista.')
+            acao = AcaoResultado(operacao, pedido)
+            self.acao_resultado_ativa = True
+            self.comandos.put(acao)
+        if not acao.concluida.wait(25):
+            raise ConflitoInterface('A solicitação ainda está em andamento. Aguarde a atualização antes de tentar novamente.')
+        if acao.erro is not None:
+            if isinstance(acao.erro, (EstadoError, ValueError)):
+                raise ValueError(str(acao.erro))
+            raise ValueError('Não foi possível concluir a ação. Confira o log e a fila de impressão.')
+
+    def _executar_acao_resultado(self, acao: AcaoResultado) -> None:
+        assert self._historico is not None
+        try:
+            if acao.operacao == 'remover':
+                self._historico.remover_da_lista(acao.pedido)
+                with self.trava:
+                    self.lote = [p for p in self.lote if p != acao.pedido]
+                    self.lote_preparacao = [p for p in self.lote_preparacao if p != acao.pedido]
+                    self.resultados_lote.pop(acao.pedido, None)
+                    self.total = len(self.lote)
+                    self.indice = min(self.indice, self.total)
+                    if self.pedido == acao.pedido:
+                        self.pedido = ''
+                    self._atualizar()
+                return
+            registro = self._historico.obter(acao.pedido)
+            if registro is None or registro.etapa in IMPRESSOES_PENDENTES:
+                raise ValueError('Use a retomada de impressão para concluir uma impressão pendente.')
+            config = self._configuracao_dos_resultados()
+            if config is None:
+                raise ValueError('O PDF deste pedido está indisponível para impressão.')
+            impressora = config.impressora if self.executor is executar_fluxo else self.impressora
+            with usar_configuracao(replace(config, impressora=impressora)):
+                arquivo = pdf_para_impressao(registro)
+                if arquivo is None:
+                    raise ValueError('O PDF deste pedido está indisponível para impressão.')
+                if not impressora or impressora not in self.listar_filas():
+                    raise ValueError('Selecione uma impressora instalada nas configurações.')
+                if self.encerrando:
+                    raise ValueError('A impressão foi cancelada ao encerrar o aplicativo.')
+                resultado = imprimir_pdf(arquivo)
+                if resultado.situacao != 'enviada':
+                    aviso = 'O envio não foi confirmado. Confira a fila de impressão antes de tentar novamente.'
+                    raise ValueError(aviso if resultado.situacao == 'incerta' else 'Não foi possível enviar o PDF à impressora. Confira as configurações.')
+        except Exception as erro:
+            acao.erro = erro
+            if not isinstance(erro, ValueError):
+                logger.exception('Falha na ação %s do pedido %s.', acao.operacao, acao.pedido)
+        finally:
+            with self.trava:
+                self.acao_resultado_ativa = False
+                acao.concluida.set()
 
     def _pendentes_preparacao(self) -> list[str]:
         iniciais = {str(p['pedido']) for p in self.pedidos if p['etapa'] in ETAPAS_INICIAIS}
@@ -321,7 +419,7 @@ class EstadoInterface:
 
     def parar(self, execucao: object) -> None:
         with self.trava:
-            if execucao != self.execucao or not self.ocupada:
+            if execucao != self.execucao or not self.ocupada or self.acao_resultado_ativa:
                 raise ConflitoInterface('Não há esse processamento em andamento.')
             self.parada.set()
             self.decisao = 'encerrar'
@@ -355,8 +453,9 @@ class EstadoInterface:
     def _processar(self, trabalho: Trabalho) -> None:
         assert self._historico is not None
         try:
+            restaurados: set[str] = set()
             if trabalho.modo in ('normal', 'preparar'):
-                self._historico.adicionar_pedidos(trabalho.pedidos)
+                restaurados = self._historico.adicionar_pedidos(trabalho.pedidos)
             if trabalho.modo == 'retomar':
                 trabalho.pedidos = self._pendentes_preparacao()
             self._atualizar()
@@ -368,9 +467,10 @@ class EstadoInterface:
                 try:
                     config = replace(trabalho.configuracao or CONFIG, impressora=trabalho.impressora)
                     with usar_configuracao(config):
-                        resumo = self.executor(trabalho.pedidos, trabalho.modo, historico=self._historico,
-                                               ao_erro=self.aguardar_decisao, ao_progresso=self.progresso,
-                                               parar=self.parada.is_set)
+                        executor = partial(executar_fluxo, restaurados=restaurados) if self.executor is executar_fluxo else self.executor
+                        resumo = executor(trabalho.pedidos, trabalho.modo, historico=self._historico,
+                                          ao_erro=self.aguardar_decisao, ao_progresso=self.progresso,
+                                          parar=self.parada.is_set)
                     self._atualizar()
                     with self.trava:
                         self.resumo = dict(Counter(resumo.situacoes.values()))
@@ -420,7 +520,10 @@ class EstadoInterface:
                             self.medidor_abertura.marcar('historico_pronto')
                         self.pronto.set()
                         while (trabalho := self.comandos.get()) is not None:
-                            self._processar(trabalho)
+                            if isinstance(trabalho, AcaoResultado):
+                                self._executar_acao_resultado(trabalho)
+                            else:
+                                self._processar(trabalho)
                     break
                 except EstadoEmUsoError:
                     if monotonic() >= limite:

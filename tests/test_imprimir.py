@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 from pypdf import PdfReader, PdfWriter
 
 from src.estado import EstadoError, EstadoPedido, EstadoPedidos
-from src.imprimir import ResultadoImpressao, adicionar_numero, imprimir_pdf, processar_impressao
+from src.imprimir import ResultadoImpressao, adicionar_numero, imprimir_pdf, pdf_para_impressao, processar_impressao
 
 
 class ImpressaoTests(unittest.TestCase):
@@ -43,6 +43,12 @@ class ImpressaoTests(unittest.TestCase):
         self.assertIn('11250', PdfReader(self.final).pages[0].extract_text())
         self.assertEqual(self.origem.read_bytes(), original)
         self.assertEqual(self.historico.obter(self.pedido).etapa, 'impressao_enviada')
+
+    def test_impressao_avulsa_exige_pdf_local_valido_mesmo_em_etapa_de_download(self) -> None:
+        registro = EstadoPedido(self.pedido, '', 'para_baixar', erro='Download incompleto.')
+        self.assertEqual(pdf_para_impressao(registro), self.origem.resolve())
+        self.origem.write_bytes(b'%PDF-arquivo incompleto')
+        self.assertIsNone(pdf_para_impressao(registro))
 
     def test_pdf_existente_pode_ser_reimpresso_sem_arquivo_original(self) -> None:
         adicionar_numero(self.origem, self.final, self.numero)

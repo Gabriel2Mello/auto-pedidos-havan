@@ -212,9 +212,38 @@ def main(apenas_sumario=False):
                         assert w.evaluate_js("document.querySelector('.filas').getBoundingClientRect().bottom <= document.getElementById('sumario-pedidos').getBoundingClientRect().top && !document.querySelector('#sumario-pedidos .importacao-lote')")
                         assert w.evaluate_js("(()=>{const c=document.querySelector('.coluna-comandos'),p=document.getElementById('preparacao'),i=document.getElementById('importacao-lote'),d=document.getElementById('detalhes-processamento');return c.contains(i)&&c.contains(d)&&!p.contains(i)&&!p.contains(d)&&i.getBoundingClientRect().top>=p.getBoundingClientRect().bottom&&d.getBoundingClientRect().top>=i.getBoundingClientRect().bottom})()")
                         assert w.evaluate_js("document.querySelector('.tabela-sumario th:last-child').textContent==='Ações' && [...document.querySelectorAll('#linhas-sumario td:last-child')].every(c=>c.children.length===1 && (c.querySelector('button') || c.querySelector('.acao-ausente')))")
-                        assert w.evaluate_js("(()=>{const l=[...document.querySelectorAll('#linhas-sumario tr')].find(l=>l.firstElementChild.textContent.includes('999003'));return l.cells[1].querySelector('.orientacao-sumario')!==null && l.cells[2].textContent==='Conferir novamente'})()")
+                        assert w.evaluate_js("(()=>{const l=[...document.querySelectorAll('#linhas-sumario tr')].find(l=>l.firstElementChild.textContent.includes('999003'));return l.cells[1].querySelector('.orientacao-sumario')!==null && l.cells[2].querySelector('[data-icone-download=repetir]')?.getAttribute('aria-label').includes('Conferir cadastro novamente')})()")
                         assert w.evaluate_js("[...document.querySelectorAll('.tabela-sumario .situacao')].every(s=>{const e=getComputedStyle(s),p=getComputedStyle(s,'::before');return e.backgroundColor==='rgba(0, 0, 0, 0)' && e.padding==='0px' && parseFloat(p.width)>0 && p.backgroundColor===e.color})")
                         assert w.evaluate_js("(()=>{const l=[...document.querySelectorAll('#linhas-sumario tr')].find(l=>l.firstElementChild.textContent.includes('999003'));return l.cells[1].querySelector('.orientacao-sumario').textContent==='Cadastro precisa de revisão.' && document.getElementById('linhas').textContent.includes('EAN 0123456789012')})()")
+                        for tabela in ('linhas-sumario','linhas'):
+                            botao=f"document.querySelector('#{tabela} [data-acao-pedido$=\"-999004\"]')"
+                            visual=w.evaluate_js(f"""(()=>{{
+                                const b={botao},svg=b.querySelector('svg');
+                                b.scrollIntoView({{block:'center',behavior:'instant'}});
+                                const r=b.getBoundingClientRect();
+                                const acoes=[...document.querySelectorAll('#linhas [data-acao-resultado]')];
+                                const mesmoTamanho=acoes.every(acao=>{{
+                                    const outro=acao.getBoundingClientRect();
+                                    return Math.abs(outro.width-r.width)<1&&Math.abs(outro.height-r.height)<1;
+                                }});
+                                return {{icone:b.dataset.iconeDownload,texto:b.textContent,
+                                    largura:r.width,mesmoTamanho,traço:getComputedStyle(svg).stroke}};
+                            }})()""")
+                            assert visual['icone']=='repetir' and not visual['texto'], visual
+                            assert abs(visual['largura']-30.8)<1 and visual['mesmoTamanho'] and visual['traço']!='none', visual
+                            time.sleep(.2)
+                            ponto=w.evaluate_js(f"(()=>{{const r={botao}.getBoundingClientRect();return {{x:r.left+r.width/2,y:r.top+r.height/2}}}})()")
+                            protocolo('Input.dispatchMouseEvent',dict(type='mouseMoved',**ponto))
+                            aguardar("!el('dica-acao-pedido').hidden && el('dica-acao-pedido').textContent==='Tentar baixar e conferir novamente'")
+                            assert w.evaluate_js("(()=>{const r=el('dica-acao-pedido').getBoundingClientRect();return r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight})()")
+                            protocolo('Input.dispatchMouseEvent',dict(type='mouseMoved',x=1,y=1))
+                            aguardar("el('dica-acao-pedido').hidden")
+                            w.evaluate_js(f"{botao}.focus({{preventScroll:true}})")
+                            assert w.evaluate_js("!el('dica-acao-pedido').hidden")
+                            w.evaluate_js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
+                            assert w.evaluate_js(f"el('dica-acao-pedido').hidden && document.activeElement==={botao}")
+                            w.evaluate_js(f"{botao}.blur()")
+                        resultados.append('ícone de nova tentativa no sumário e nos detalhes com dica no mouse e no foco')
                         for largura in (1180,760,480):
                             w.resize(largura,820);time.sleep(.2);sem_recorte()
                             barra_sumario()
@@ -329,6 +358,24 @@ def main(apenas_sumario=False):
                         assert w.evaluate_js('estado.resumo.importacoes_confirmadas===0 && estado.resumo.existente===1')
                         assert w.evaluate_js("document.getElementById('importar-aptos').disabled")
                         resultados.append('existente separado sem nova importação ou impressão')
+                        assert w.evaluate_js("""(()=>{
+                            const grupo=document.querySelector('#linhas .identificacao-resultado');
+                            const [imprimir,remover,numero]=grupo.children;
+                            const a=imprimir.getBoundingClientRect(),b=remover.getBoundingClientRect(),c=numero.getBoundingClientRect();
+                            return imprimir.disabled&&!remover.disabled&&a.width>0&&a.right<=b.left&&b.right<=c.left;
+                        })()""")
+                        w.evaluate_js("""(()=>{
+                            const confirmar=window.confirm;
+                            try{
+                                window.confirm=()=>true;
+                                document.querySelector('#linhas [data-acao-resultado=remover]').click();
+                            }finally{window.confirm=confirmar;}
+                        })()""")
+                        aguardar("el('resultado-acao').textContent.includes('removido da lista') && !pedidosDoEscopo().length")
+                        assert w.evaluate_js("!el('linhas-sumario').querySelector('tr') && !el('linhas').querySelector('[data-acao-resultado]')")
+                        selecionar('existente');baixar();terminar()
+                        assert w.evaluate_js("pedidosDoEscopo().length===1 && estado.resumo.existente===1")
+                        resultados.append('impressora visível sem PDF, remoção no X e reinclusão pelo número')
 
                         for cenario in ('portal','banco'):
                             selecionar(cenario);baixar();aguardar("estado.fase==='PAUSADO'")
