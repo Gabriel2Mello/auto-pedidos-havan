@@ -1,5 +1,7 @@
 # 🤖 RPA - Automação de Pedidos Havan (Portal do Fornecedor ➔ Sisplan ERP)
 
+Para recriar o ambiente de uma instalação ou build, use o perfil indicado em [Dependências reproduzíveis](DEPENDENCIAS.md).
+
 Este é um robô de automação de processos (RPA) desenvolvido em Python para otimizar o fluxo de inclusão de pedidos. O sistema realiza o download de documentos digitais do portal de fornecedores da Havan, processa metadados e arquivos binários, injeta as informações no ERP Sisplan via automação de interface gráfica (GUI) e gerencia a impressão física dos documentos modificados.
 
 ---
