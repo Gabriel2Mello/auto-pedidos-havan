@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from requests.exceptions import RequestException, Timeout
 
 from src.logs import get_logger
+from src.protocolo_login_havan import entrar_no_portal
 from src.erros import (LoginInvalidoError, SessaoPortalExpiradaError)
 from src.config import (
     DEFAULT_HEADERS,
@@ -13,9 +14,6 @@ from src.config import (
 if TYPE_CHECKING:
     from cloudscraper import ScraperMock, ResponseMock
 
-LOGIN_INDEX_URL = f'{BASE_URL}/Login/Index'
-FAZER_LOGIN_URL = f'{BASE_URL}/Login/FazerLogin?Length=5'
-PEDIDO_COMPRA_URL = f'{BASE_URL}/PedidoCompra/Index'
 REQUEST_TIMEOUT = (5, 10)
 
 logger = get_logger(__name__)
@@ -38,27 +36,12 @@ def realizar_login(scraper: 'ScraperMock') -> None:
     logger.info_split('Entrando no Portal Havan')
     configurar_sessao(scraper)
 
-    payload = {
-        'TipoLogin': '0',
-        'Documento': configuracao_atual().cnpj_matriz,
-        'SenhaMd5': configuracao_atual().senha_portal,
-    }
-
+    config = configuracao_atual()
     try:
-        scraper.get(
-            url=LOGIN_INDEX_URL,
-            timeout=REQUEST_TIMEOUT,
-        ).raise_for_status()
-
-        scraper.post(
-            url=FAZER_LOGIN_URL,
-            headers={'Referer': LOGIN_INDEX_URL},
-            data=payload,
-            timeout=REQUEST_TIMEOUT,
-            allow_redirects=True
-        ).raise_for_status()
-
-        get_pedido_compra(scraper)
+        url = entrar_no_portal(scraper, base=BASE_URL, documento=config.cnpj_matriz,
+                              senha=config.senha_portal, timeout=REQUEST_TIMEOUT)
+        if 'Login/Index' in url:
+            raise LoginInvalidoError()
         logger.info('Sucesso')
 
     except LoginInvalidoError as error:
@@ -76,17 +59,3 @@ def realizar_login(scraper: 'ScraperMock') -> None:
     except Exception as error:
         logger.debug('ERRO DESCONHECIDO NO LOGIN: %s', error, exc_info=True)
         raise RuntimeError('Ocorreu um erro inesperado no Login') from error
-
-
-def get_pedido_compra(scraper: 'ScraperMock') -> None:
-    response = scraper.get(
-        url=PEDIDO_COMPRA_URL,
-        headers={'Referer': BASE_URL},
-        allow_redirects=True,
-        timeout=REQUEST_TIMEOUT,
-    )
-    response.raise_for_status()
-
-    if 'Login/Index' in response.url:
-        raise LoginInvalidoError()
-
