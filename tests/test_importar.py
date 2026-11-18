@@ -1,11 +1,12 @@
 import unittest
 from contextlib import ExitStack
 from dataclasses import replace
+from typing import cast
 from unittest.mock import MagicMock, patch
 
-from src.config import ATALHOS, CONFIG, COORD_ABA_PEDIDO, usar_configuracao
+from src.config import ATALHOS, CONFIG, usar_configuracao
 from src.estado import EstadoError
-from src.importar import importar_pedido
+from src.importar import CamposSisplan, importar_pedido
 from src.erros import AbaPedidoIndisponivelError, SisplanError, NumeroInternoForaSequenciaError
 from src.mensagens import mensagem_erro
 from tests.fixtures import xml_pedido
@@ -22,6 +23,7 @@ class ImportacaoTests(unittest.TestCase):
         self.stack.enter_context(patch('src.importar.handle_produto_sem_cadastro', return_value=False))
         self.duplicado = self.stack.enter_context(patch('src.importar.handle_aviso_duplicado', return_value=False))
         self.enviar = self.stack.enter_context(patch('src.importar.send_keys_sleep'))
+        self.selecionar = self.stack.enter_context(patch('src.importar.selecionar_guia'))
         self.campo = MagicMock()
         self.campo.window_text.return_value = '100'
         self.stack.enter_context(patch('src.importar.aguardar_campo', return_value=self.campo))
@@ -40,11 +42,24 @@ class ImportacaoTests(unittest.TestCase):
         interacoes.attach_mock(self.args[2], 'aba')
         interacoes.attach_mock(self.campo, 'numero')
         interacoes.attach_mock(self.enviar, 'enviar')
+        interacoes.attach_mock(self.selecionar, 'selecionar')
         importar_pedido(*self.args, MagicMock(), referencia_numero=100)
-        self.assertEqual([chamada[0] for chamada in interacoes.mock_calls[:4]],
-                         ['tela.click_input', 'aba.wait', 'numero.window_text', 'tela.process_id'])
-        self.args[1].click_input.assert_called_with(coords=COORD_ABA_PEDIDO)
+        self.assertEqual([chamada[0] for chamada in interacoes.mock_calls[:5]],
+                         ['selecionar', 'selecionar', 'aba.wait', 'numero.window_text', 'tela.process_id'])
+        self.assertEqual(self.selecionar.call_args_list[0].args, (self.args[1],))
+        self.assertEqual(self.selecionar.call_args_list[1].args, (self.args[2],))
+        self.selecionar.assert_any_call(self.args[2], 'Itens Pedido')
+        self.args[1].click_input.assert_not_called()
+        self.args[2].click_input.assert_not_called()
         self.enviar.assert_any_call(ATALHOS['incluir'], 0.3)
+
+    def test_falha_na_selecao_da_guia_bloqueia_inclusao(self) -> None:
+        self.selecionar.side_effect = RuntimeError('Guia ausente')
+        with self.assertRaises(AbaPedidoIndisponivelError):
+            importar_pedido(*self.args[:4], cast(CamposSisplan, self.args[4]),
+                            MagicMock(), referencia_numero=100)
+        self.campo.window_text.assert_not_called()
+        self.enviar.assert_not_called()
 
     def test_se_aba_nao_abre_nenhum_atalho_e_enviado(self) -> None:
         self.args[2].wait.side_effect = TimeoutError('Aba invisível')

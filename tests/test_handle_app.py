@@ -4,8 +4,23 @@ from unittest.mock import MagicMock, patch
 from pywinauto.findwindows import ElementNotFoundError
 from pywinauto.timings import TimeoutError as JanelaTimeoutError
 
-from src.handle_app import handle_aviso_duplicado, handle_produto_sem_cadastro, importa_arq_integracao
+from src.handle_app import handle_aviso_duplicado, handle_produto_sem_cadastro, importa_arq_integracao, inicia_app
 from src.erros import (SisplanError)
+
+
+class PreparacaoGuiasTests(unittest.TestCase):
+    def test_seleciona_1002_e_pedido_no_formulario_correto(self) -> None:
+        with patch('src.handle_app.Application') as fabrica, \
+             patch('src.handle_app.selecionar_modulo') as modulo, \
+             patch('src.handle_app.selecionar_guia') as guia, \
+             patch('src.handle_app.mapear_campos'):
+            app = fabrica.return_value.connect.return_value
+            janela = app.window.return_value
+            inicia_app()
+            modulo.assert_called_once_with(janela, '1002', 'TfmVenPedidoGrade')
+            janela.child_window.assert_any_call(class_name='TfmVenPedidoGrade', visible_only=False)
+            guia.assert_called_once()
+            self.assertFalse(any('title_re' in c.kwargs for c in app.window.call_args_list))
 
 
 class AvisosTests(unittest.TestCase):

@@ -8,6 +8,7 @@ from pywinauto.findwindows import ElementNotFoundError, find_element
 from pywinauto.timings import TimeoutError as JanelaTimeoutError
 from pywinauto.timings import wait_until_passes
 
+from guias_sisplan import selecionar_guia, selecionar_modulo
 from src.config import CAMPOS, ATALHOS
 from src.logs import get_logger
 from src.erros import (SisplanError)
@@ -91,22 +92,22 @@ def inicia_app() -> tuple[
         main_window.wait('ready', timeout=5)
 
         janela_vendas: WindowSpecification = app.window(
-            title_re='.*VenPedidoGrade.*',
-            class_name='TfmPrincipal'
+            class_name='TfmPrincipal', visible_only=False,
         )
+        selecionar_modulo(janela_vendas, '1002', 'TfmVenPedidoGrade')
         janela_vendas.set_focus()
 
-        pedido_grade: WindowSpecification = get_field_title(
-            janela_vendas, 'TTabSheet', '1002 - Pedido Por Grade'
+        pedido_grade: WindowSpecification = janela_vendas.child_window(
+            class_name='TTabSheet', title='1002 - Pedido Por Grade', visible_only=False,
         )
-
-        aba_pedido: WindowSpecification = get_field_title(
-            janela_vendas, 'TTabSheet', 'Pedido'
+        formulario = janela_vendas.child_window(class_name='TfmVenPedidoGrade', visible_only=False)
+        aba_pedido: WindowSpecification = formulario.child_window(
+            class_name='TTabSheet', title='Pedido', visible_only=False,
         )
-
-        itens_pedido: WindowSpecification = get_field_title(
-            janela_vendas, 'TTabSheet', 'Itens Pedido'
+        itens_pedido: WindowSpecification = formulario.child_window(
+            class_name='TTabSheet', title='Itens Pedido', visible_only=False,
         )
+        selecionar_guia(aba_pedido)
 
         grid: WindowSpecification = get_field_index(
             itens_pedido, 'TDBGrid', 'grid'

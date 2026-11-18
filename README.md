@@ -71,7 +71,7 @@ Resultados e limites: [Tempos por etapa](../nunes-hub/TEMPOS_ABERTURA.md).
 
 O ambiente de execução precisa das seguintes ferramentas instaladas no Windows:
 
-1.  **ERP Sisplan** aberto e posicionado na tela `1002 - Pedido Por Grade`.
+1.  **ERP Sisplan da empresa 002** aberto com a tela `1002 - Pedido Por Grade` disponível. A automação seleciona essa aba e alterna entre `Pedido` e `Itens Pedido` por mensagens Win32, sem mover o cursor ou enviar teclas para essa navegação. A posição das guias não precisa ser fixa. Guia ausente, ambígua ou indisponível interrompe a preparação; as demais ações do fluxo continuam usando os mecanismos existentes de mouse e teclado.
 2.  **UnRAR Tool executable:** Utilitário de linha de comando para descompactar arquivos `.rar`. (Incluso em instalações do WinRAR).
 3.  **SumatraPDF:** Leitor leve de PDF utilizado para o gerenciamento de impressões em lote via CLI de forma oculta.
 

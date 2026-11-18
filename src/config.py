@@ -229,8 +229,6 @@ PRODUTOS_GOVERNADOR = {
     'SACO DORMIR',
 }
 
-COORD_ABA_PEDIDO = (87, 10)
-COORD_ITENS_PEDIDO = (150, -13)
 
 ATALHOS = {
     'importar': 'm',

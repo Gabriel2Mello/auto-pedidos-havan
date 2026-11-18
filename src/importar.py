@@ -5,10 +5,9 @@ from typing import Callable, Literal, cast
 from pywinauto import WindowSpecification
 from pywinauto.timings import wait_until
 
+from guias_sisplan import selecionar_guia
 from src.logs import get_logger
 from src.config import (
-    COORD_ABA_PEDIDO,
-    COORD_ITENS_PEDIDO,
     ATALHOS,
     CLIENTE_HAVAN,
     configuracao_atual,
@@ -60,7 +59,8 @@ def conferir_numero_interno(numero: str, referencia: int) -> None:
 
 
 def selecionar_aba_pedido(pedido_grade: WindowSpecification, aba_pedido: WindowSpecification) -> None:
-    pedido_grade.click_input(coords=COORD_ABA_PEDIDO)
+    selecionar_guia(pedido_grade)
+    selecionar_guia(aba_pedido)
     aba_pedido.wait('ready', timeout=5)
 
 
@@ -162,7 +162,7 @@ def _importar_uma_tentativa(
             dados_xml['data_entrega']
         )
 
-        aba_pedido.click_input(coords=COORD_ITENS_PEDIDO)
+        selecionar_guia(aba_pedido, 'Itens Pedido')
 
         grid.click_input(button='right')  # Abre as opções do grid.
         send_keys_sleep(ATALHOS['importar'])
