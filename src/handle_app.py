@@ -39,17 +39,6 @@ def get_field_index(
     )
 
 
-def get_field_title(
-    parent: WindowSpecification,
-    class_name: str,
-    title: str,
-) -> WindowSpecification:
-    return parent.child_window(
-        class_name=class_name,
-        title=title
-    )
-
-
 def mapear_campos(
     aba_pedido: WindowSpecification,
 ) -> dict[str, WindowSpecification]:

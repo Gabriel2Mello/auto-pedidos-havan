@@ -180,12 +180,7 @@ def _importar_uma_tentativa(
             cancelar_inclusao(processo)
             return ResultadoImportacao('', aviso_importacao)
 
-        processar_operacao_comercial(
-            dados_xml['operacao'],
-            pedido,
-            numero_interno,
-            campos
-        )
+        processar_operacao_comercial(dados_xml['operacao'], campos)
         # O número pode mudar durante o preenchimento ou a importação do XML.
         numero_interno = cast(str, campos['numero'].window_text()).strip()
         conferir_numero_interno(numero_interno, referencia_numero)
@@ -214,8 +209,6 @@ def _importar_uma_tentativa(
 
 def processar_operacao_comercial(
     operacao_alvo: str,
-    pedido: str,
-    numero_interno: str,
     campos: CamposSisplan,
 ) -> None:
     operacao = OPERACOES_ESPECIAIS.get(operacao_alvo)

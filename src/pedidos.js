@@ -365,7 +365,6 @@ function renderizar(s) {
   if(estado&&s.revisao<estado.revisao)return;
   const chave=JSON.stringify(s);if(chave===estadoAnterior)return;estadoAnterior=chave;
   const anoAnterior=estado?.ano;
-  const impressoraAnterior=estado?.impressora;
   estado=s; encerrado=s.fase==='ENCERRADO';
   el('grupos-estados').setAttribute('data-finalizado',String(!s.ocupada&&Boolean(s.lote?.length)));
   el('impressora-atual').textContent=s.impressora||'Nenhuma impressora selecionada.';
