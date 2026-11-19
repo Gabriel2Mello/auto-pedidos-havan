@@ -53,7 +53,7 @@ disponível. A centralização das configurações é uma entrega futura.
 ```
 1.  **Entrada de Dados e duplicidade:** O menu oferece Inserir e Retomar. Ao inserir, o robô salva a lista completa antes de acessar portal ou Sisplan. Entradas parciais são expandidas usando o ano vigente (ex: `12345` vira `2026-12345`). Remove repetições; se houver números inválidos no menu, pede a correção da lista. Antes do download, consulta os pedidos Havan existentes no Sisplan, considerando matriz e filial, informa seus números internos e os ignora.
 2.  **Fase Web (Concorrente):** Realiza o bypass de segurança e autenticação no Portal Havan. Localiza os cards dos pedidos via seletores CSS, captura os links e efetua o download simultâneo do PDF (Ordem de Compra) e do RAR (Arquivo de Integração).
-3.  **Processamento de Dados:** Descompacta o XML diretamente em memória, confere o número do pedido, os campos e datas e todos os códigos de barras de todas as variações. Pedido com XML inválido, barra ausente ou cadastro ambíguo é ignorado por inteiro antes da inclusão. Extrai metadados logísticos (Datas, Itens, Operação) e aplica as regras de campanhas promocionais e de Filial/Matriz (`PRODUTOS_GOVERNADOR`).
+3.  **Processamento de Dados:** Descompacta o XML diretamente em memória, confere o número do pedido, os campos e datas e todos os códigos de barras de todas as variações. Pedido com XML inválido, barra ausente ou cadastro ambíguo é ignorado por inteiro antes da inclusão. Extrai metadados logísticos (Datas, Itens, Operação) e define a empresa de faturamento pelo tipo dos produtos no Sisplan.
 4.  **Automação do ERP (Sisplan):** Vincula-se à instância aberta do Sisplan, inicia o modo de inclusão na tela *1002 - Pedido por Grade*, preenche campos de cadastro, dispara a janela nativa de busca do Windows (`#32770`) para carregar o XML e captura o **Número Interno**. Após gravar, aguarda até dez segundos para conferir no banco o número Havan, o número interno e a presença de itens vinculados por `ID_PED`. Somente depois confirma a importação e envia os avisos promocionais. Falha ao interagir com uma janela encontrada interrompe o lote; ausência esperada de aviso permite continuar.
 5.  **Geração e Impressão de Documentos:** Gera um PDF numerado, preservando o original, no padrão `<numero interno> <pedido Havan>.pdf`. Por exemplo, `11250 2026-109335.pdf` usa o número interno Sisplan `11250`. O envio silencioso aguarda o retorno do SumatraPDF e registra a etapa concluída ou pendente. Retorno zero do programa confirma o envio, sem comprovar a saída física do papel.
 
@@ -133,6 +133,11 @@ As barras são tratadas como texto e, no formato atual da integração, devem te
 13 dígitos. Múltiplas linhas de estoque com o mesmo produto/cor/tamanho são
 aceitas; uma barra com combinações diferentes bloqueia o pedido. Não foi
 acrescentado filtro por atividade do produto.
+
+A empresa de faturamento é **001 (Matriz)** quando todos os produtos têm
+`produto_001.tipo_prod = 21` (Governador). Pedidos com outros tipos, tipos
+misturados ou tipo vazio ou nulo vão para **002 (Filial)**. Os tipos são
+consultados novamente na pré-validação imediatamente antes da inclusão.
 
 Todas as consultas usam parâmetros e transações de leitura, com limite de oito
 segundos por consulta. Falha de conexão ou consulta interrompe a importação antes
@@ -357,9 +362,9 @@ Uso, evidências e limites no [guia HTTP](docs/interface-web.md#contrato-http-de
 Tipagem estrita do adaptador HTTP sem erros/avisos. Reabrir a ferramenta para
 carregar a atualização; executáveis antigos precisam de reconstrução.
 
-As regras puras de entrada, datas, XML e seleção da empresa ficam em
-`src/pedidos.py`. Esse módulo não depende do portal nem da interface do Sisplan,
-o que permite testar as regras sem executar a automação.
+As regras de entrada, datas e XML ficam em `src/pedidos.py`. A pré-validação
+dos produtos e a seleção da empresa ficam em `src/prevalidacao.py` e podem
+ser testadas com a consulta de cadastro simulada.
 
 Execute a suíte com o próprio `unittest` da biblioteca padrão:
 

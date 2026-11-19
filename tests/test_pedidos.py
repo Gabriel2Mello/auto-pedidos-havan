@@ -3,7 +3,6 @@ import xml.etree.ElementTree as ET
 from decimal import Decimal
 
 from src.pedidos import (
-    definir_empresa,
     extrair_dados_xml,
     formata_data,
     normalizar,
@@ -51,7 +50,6 @@ class DadosPedidoTests(unittest.TestCase):
             <Pedido>
                 <PrazoPagamento><PrevisaoData>26/08/26</PrevisaoData></PrazoPagamento>
                 <DataInicialSemanaEntrega>30/08/26</DataInicialSemanaEntrega>
-                <DescricaoProduto>Almofada Turma do Abraço</DescricaoProduto>
                 <Operacao>Bonificação Comercial</Operacao>
             </Pedido>
             '''
@@ -62,7 +60,6 @@ class DadosPedidoTests(unittest.TestCase):
             {
                 'data_fatura': '26/08/2026',
                 'data_entrega': '30/08/2026',
-                'produto': 'ALMOFADA TURMA DO ABRACO',
                 'operacao': 'BONIFICACAO COMERCIAL',
             },
         )
@@ -70,13 +67,6 @@ class DadosPedidoTests(unittest.TestCase):
     def test_rejeita_xml_incompleto(self) -> None:
         with self.assertRaisesRegex(RuntimeError, 'Dados não encontrados'):
             extrair_dados_xml(ET.fromstring('<Pedido />'))
-
-    def test_define_empresa_pela_descricao_do_produto(self) -> None:
-        self.assertEqual(
-            definir_empresa('KIT ALMOFADA TURMA DO ABRACO AZUL'),
-            'MATRIZ',
-        )
-        self.assertEqual(definir_empresa('TOALHA DE BANHO'), 'FILIAL')
 
 
 class ValidarXmlTests(unittest.TestCase):
@@ -124,6 +114,14 @@ class ValidarXmlTests(unittest.TestCase):
             validar_xml_pedido(xml_pedido(barras_por_item=()), '2026-12345')
         with self.assertRaisesRegex(ValueError, 'sem variações'):
             validar_xml_pedido(xml_pedido(barras_por_item=((),)), '2026-12345')
+
+    def test_rejeita_item_sem_descricao(self) -> None:
+        root = xml_pedido()
+        descricao = root.find('.//DescricaoProduto')
+        assert descricao is not None
+        descricao.text = ''
+        with self.assertRaisesRegex(ValueError, 'Item do XML sem descrição do produto'):
+            validar_xml_pedido(root, '2026-12345')
 
     def test_valida_datas_antes_da_interface(self) -> None:
         root = xml_pedido()

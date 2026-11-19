@@ -74,16 +74,20 @@ class BancoTests(unittest.TestCase):
 
     @patch('src.banco.connect')
     def test_agrupa_estoques_iguais_sem_esconder_barra_ambigua(self, conectar: MagicMock) -> None:
-        conectar.return_value.cursor.return_value.fetchall.return_value = [
-            ['0123456789012', 'P1', 'C1', 'T1'],
-            ['0123456789012', 'P1', 'C1', 'T1'],
-            ['0123456789012', 'P2', 'C2', 'T2'],
+        cursor = conectar.return_value.cursor.return_value
+        cursor.fetchall.return_value = [
+            ['0123456789012', 'P1', 'C1', 'T1', 21],
+            ['0123456789012', 'P1', 'C1', 'T1', ' 21 '],
+            ['0123456789012', 'P2', 'C2', 'T2', None],
         ]
         with BancoSisplan(self.arquivo) as banco:
             resultado = banco.consultar_barras(['0123456789012'])
         self.assertEqual(resultado['0123456789012'], {
-            ProdutoCadastrado('P1', 'C1', 'T1'), ProdutoCadastrado('P2', 'C2', 'T2'),
+            ProdutoCadastrado('P1', 'C1', 'T1', '21'), ProdutoCadastrado('P2', 'C2', 'T2', None),
         })
+        sql, parametros = cursor.execute.call_args.args
+        self.assertIn('p.tipo_prod', sql)
+        self.assertEqual(parametros, (['0123456789012'],))
 
     @patch('src.banco.BancoSisplan._consultar')
     def test_referencia_ignora_numero_isolado_errado_e_usa_ordem_de_inclusao(self, consultar: MagicMock) -> None:

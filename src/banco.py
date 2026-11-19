@@ -79,6 +79,7 @@ class ProdutoCadastrado:
     codigo: str
     cor: str
     tamanho: str
+    tipo_prod: str | None = None
 
 
 class BancoSisplan:
@@ -188,16 +189,19 @@ class BancoSisplan:
         if not barras:
             return {}
         linhas = self._consultar(
-            'SELECT DISTINCT pa.barra, pa.codigo, pa.cor, pa.tam '
+            'SELECT DISTINCT pa.barra, pa.codigo, pa.cor, pa.tam, p.tipo_prod '
             'FROM sisplan.pa_iten_001 pa '
             'JOIN sisplan.produto_001 p ON p.codigo = pa.codigo '
             'WHERE pa.barra = ANY(%s)',
             (list(barras),),
         )
         resultado: dict[str, set[ProdutoCadastrado]] = {}
-        for barra, codigo, cor, tamanho in linhas:
+        for barra, codigo, cor, tamanho, tipo_prod in linhas:
             resultado.setdefault(str(barra), set()).add(
-                ProdutoCadastrado(str(codigo), str(cor), str(tamanho))
+                ProdutoCadastrado(
+                    str(codigo), str(cor), str(tamanho),
+                    str(tipo_prod).strip() if tipo_prod is not None else None,
+                )
             )
         return resultado
 

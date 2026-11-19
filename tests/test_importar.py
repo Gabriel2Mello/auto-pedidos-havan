@@ -1,6 +1,7 @@
 import unittest
 from contextlib import ExitStack
 from dataclasses import replace
+from functools import partial
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -35,11 +36,12 @@ class ImportacaoTests(unittest.TestCase):
         self.combo_empresa.selected_text.return_value = '002-NUNES ENXOVAIS'
         self.args = ('2026-12345', MagicMock(), MagicMock(), MagicMock(),
                      {'numero': self.campo, 'empresa': self.combo_empresa})
+        self.importar = partial(importar_pedido, codigo_empresa='002')
 
     def test_checkpoint_e_salvo_antes_do_comando_de_gravacao(self) -> None:
         eventos = []
         self.acionar.side_effect = lambda _, comando: eventos.append(comando)
-        resultado = importar_pedido(*self.args, lambda numero: eventos.append(('checkpoint', numero)), referencia_numero=100)
+        resultado = self.importar(*self.args, lambda numero: eventos.append(('checkpoint', numero)), referencia_numero=100)
         self.assertLess(eventos.index(('checkpoint', '100')), eventos.index('Gravar'))
         self.assertEqual(resultado.situacao, 'aguarda_confirmacao')
 
@@ -50,7 +52,7 @@ class ImportacaoTests(unittest.TestCase):
         interacoes.attach_mock(self.campo, 'numero')
         interacoes.attach_mock(self.acionar, 'acionar')
         interacoes.attach_mock(self.selecionar, 'selecionar')
-        importar_pedido(*self.args, MagicMock(), referencia_numero=100)
+        self.importar(*self.args, MagicMock(), referencia_numero=100)
         self.assertEqual([chamada[0] for chamada in interacoes.mock_calls[:5]],
                          ['selecionar', 'selecionar', 'aba.wait', 'numero.window_text', 'tela.process_id'])
         self.assertEqual(self.selecionar.call_args_list[0].args, (self.args[1],))
@@ -65,7 +67,7 @@ class ImportacaoTests(unittest.TestCase):
     def test_falha_na_selecao_da_guia_bloqueia_inclusao(self) -> None:
         self.selecionar.side_effect = RuntimeError('Guia ausente')
         with self.assertRaises(AbaPedidoIndisponivelError):
-            importar_pedido(*self.args[:4], cast(CamposSisplan, self.args[4]),
+            self.importar(*self.args[:4], cast(CamposSisplan, self.args[4]),
                             MagicMock(), referencia_numero=100)
         self.campo.window_text.assert_not_called()
         self.acionar.assert_not_called()
@@ -74,14 +76,14 @@ class ImportacaoTests(unittest.TestCase):
         self.args[2].wait.side_effect = TimeoutError('Aba invisível')
         checkpoint = MagicMock()
         with self.assertRaisesRegex(AbaPedidoIndisponivelError, 'aba Pedido'):
-            importar_pedido(*self.args, checkpoint, referencia_numero=100)
+            self.importar(*self.args, checkpoint, referencia_numero=100)
         self.campo.window_text.assert_not_called()
         self.acionar.assert_not_called()
         checkpoint.assert_not_called()
 
     def test_falha_de_persistencia_nao_envia_gravar(self) -> None:
         with self.assertRaises(SisplanError):
-            importar_pedido(*self.args, MagicMock(side_effect=EstadoError('Disco cheio')), referencia_numero=100)
+            self.importar(*self.args, MagicMock(side_effect=EstadoError('Disco cheio')), referencia_numero=100)
         self.assertNotIn('Gravar', self.comandos())
 
     def test_empresa_alterada_durante_o_xml_nao_grava(self) -> None:
@@ -90,22 +92,32 @@ class ImportacaoTests(unittest.TestCase):
             self.combo_empresa.selected_text.return_value = '001-NUNES ENXOVAIS'
         with patch('src.importar.importa_arq_integracao', side_effect=importar_xml):
             with self.assertRaises(SisplanError) as erro:
-                importar_pedido(*self.args, checkpoint, referencia_numero=100)
+                self.importar(*self.args, checkpoint, referencia_numero=100)
         self.assertIn('empresa de faturamento mudou', str(erro.exception.__cause__))
         self.assertNotIn('Gravar', self.comandos())
         checkpoint.assert_not_called()
 
+    def test_seleciona_a_matriz_quando_indicada_pela_prevalidacao(self) -> None:
+        combo = self.combo_empresa
+        combo.selected_text.side_effect = lambda: combo.item_texts.return_value[combo.selected_index.return_value]
+        combo.select.side_effect = lambda indice: setattr(combo.selected_index, 'return_value', indice)
+
+        resultado = self.importar(*self.args, MagicMock(), referencia_numero=100, codigo_empresa='001')
+
+        combo.select.assert_called_once_with(1)
+        self.assertEqual(resultado.situacao, 'aguarda_confirmacao')
+
     def test_falha_no_aviso_nao_retorna_pedido_como_valido(self) -> None:
         self.duplicado.side_effect = SisplanError('Aviso não tratado')
         with self.assertRaises(SisplanError):
-            importar_pedido(*self.args, MagicMock(), referencia_numero=100)
+            self.importar(*self.args, MagicMock(), referencia_numero=100)
 
     def test_aviso_exige_restauracao_do_pedido_anterior(self) -> None:
         self.duplicado.return_value = True
         self.simular_numeros(['101'])
         with patch('src.importar.wait_until', side_effect=TimeoutError('Tela não restaurou')):
             with self.assertRaisesRegex(SisplanError, 'confirmar o cancelamento'):
-                importar_pedido(*self.args, MagicMock(), referencia_numero=100)
+                self.importar(*self.args, MagicMock(), referencia_numero=100)
         self.assertEqual(self.comandos().count('Incluir'), 1)
 
     def simular_numeros(self, numeros: list[str]) -> None:
@@ -129,7 +141,7 @@ class ImportacaoTests(unittest.TestCase):
         with patch('src.importar.tratar_avisos_importacao', return_value='sem_cadastro'), \
              patch('src.importar.wait_until', side_effect=conferir), \
              patch('src.importar.enviar_alerta_teams', side_effect=lambda *args: eventos.append('alerta')):
-            resultado = importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+            resultado = self.importar(*self.args, checkpoint, referencia_numero=11250)
         self.assertEqual(resultado.situacao, 'sem_cadastro')
         self.assertEqual(self.numero_atual, self.numero_anterior)
         self.cancelar.assert_called_once_with(self.args[1].process_id.return_value)
@@ -154,7 +166,7 @@ class ImportacaoTests(unittest.TestCase):
                      patch('src.importar.wait_until', side_effect=conferir), \
                      patch('src.importar.enviar_alerta_teams') as alerta:
                     with self.assertRaisesRegex(SisplanError, 'confirmar o cancelamento.*produto sem cadastro'):
-                        importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+                        self.importar(*self.args, checkpoint, referencia_numero=11250)
                 self.assertEqual(self.comandos(), ['Incluir'])
                 self.assertEqual(condicoes, [] if falha == 'janela' else [False])
                 checkpoint.assert_not_called()
@@ -171,11 +183,11 @@ class ImportacaoTests(unittest.TestCase):
                 with patch('src.importar.wait_until', side_effect=None if confirmado else TimeoutError()):
                     if confirmado:
                         with self.assertRaises(XmlSemItensSisplanError) as erro:
-                            importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+                            self.importar(*self.args, checkpoint, referencia_numero=11250)
                         self.assertIn('Confira o arquivo de integração', str(erro.exception))
                     else:
                         with self.assertRaisesRegex(SisplanError, 'confirmar o cancelamento.*XML sem itens'):
-                            importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+                            self.importar(*self.args, checkpoint, referencia_numero=11250)
                 self.cancelar.assert_called_once()
                 self.assertEqual(self.comandos(), ['Incluir'])
                 checkpoint.assert_not_called()
@@ -186,7 +198,7 @@ class ImportacaoTests(unittest.TestCase):
     def test_numero_um_cancela_e_repete_o_mesmo_pedido_uma_vez(self) -> None:
         self.simular_numeros(['1', '11253'])
         checkpoint = MagicMock()
-        resultado = importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+        resultado = self.importar(*self.args, checkpoint, referencia_numero=11250)
         self.assertEqual(resultado.numero, '11253')
         self.assertEqual(self.comandos(), ['Incluir', 'Incluir', 'Gravar'])
         self.cancelar.assert_called_once()
@@ -200,7 +212,7 @@ class ImportacaoTests(unittest.TestCase):
                 self.simular_numeros(list(numeros))
                 checkpoint = MagicMock()
                 with self.assertRaises(NumeroInternoForaSequenciaError) as capturado:
-                    importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+                    self.importar(*self.args, checkpoint, referencia_numero=11250)
                 self.assertEqual(self.comandos(), ['Incluir', 'Incluir'])
                 self.assertEqual(self.cancelar.call_count, 2)
                 checkpoint.assert_not_called()
@@ -213,7 +225,7 @@ class ImportacaoTests(unittest.TestCase):
                 self.acionar.reset_mock()
                 self.cancelar.reset_mock()
                 self.simular_numeros([numero])
-                resultado = importar_pedido(*self.args, MagicMock(), referencia_numero=11250)
+                resultado = self.importar(*self.args, MagicMock(), referencia_numero=11250)
                 self.assertEqual(resultado.numero, numero)
                 self.assertEqual(self.comandos().count('Incluir'), 1)
                 self.cancelar.assert_not_called()
@@ -225,7 +237,7 @@ class ImportacaoTests(unittest.TestCase):
                 self.numero_atual = '1'
         with patch('src.importar.importa_arq_integracao', side_effect=importar_xml):
             checkpoint = MagicMock()
-            resultado = importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+            resultado = self.importar(*self.args, checkpoint, referencia_numero=11250)
         self.assertEqual(resultado.numero, '11252')
         checkpoint.assert_called_once_with('11252')
         self.assertEqual(self.comandos().count('Gravar'), 1)
@@ -233,7 +245,7 @@ class ImportacaoTests(unittest.TestCase):
     def test_aplica_tolerancia_da_configuracao_da_execucao(self) -> None:
         self.simular_numeros(['11276', '11275'])
         with usar_configuracao(replace(CONFIG, tolerancia_numero_interno=25)):
-            resultado = importar_pedido(*self.args, MagicMock(), referencia_numero=11250)
+            resultado = self.importar(*self.args, MagicMock(), referencia_numero=11250)
         self.assertEqual(resultado.numero, '11275')
         self.cancelar.assert_called_once()
 
@@ -242,7 +254,7 @@ class ImportacaoTests(unittest.TestCase):
         self.cancelar.side_effect = RuntimeError('Confirmação indisponível')
         checkpoint = MagicMock()
         with self.assertRaisesRegex(SisplanError, 'confirmar o cancelamento'):
-            importar_pedido(*self.args, checkpoint, referencia_numero=11250)
+            self.importar(*self.args, checkpoint, referencia_numero=11250)
         self.assertEqual(self.comandos(), ['Incluir'])
         checkpoint.assert_not_called()
 
@@ -250,7 +262,7 @@ class ImportacaoTests(unittest.TestCase):
         self.simular_numeros(['1', '11251'])
         with patch('src.importar.wait_until', side_effect=RuntimeError('Número não restaurado')):
             with self.assertRaisesRegex(SisplanError, 'confirmar o cancelamento'):
-                importar_pedido(*self.args, MagicMock(), referencia_numero=11250)
+                self.importar(*self.args, MagicMock(), referencia_numero=11250)
         self.assertEqual(self.comandos(), ['Incluir'])
 
 

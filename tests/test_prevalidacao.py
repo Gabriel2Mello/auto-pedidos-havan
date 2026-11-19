@@ -32,8 +32,30 @@ class PendenciasBarrasTests(unittest.TestCase):
         banco = MagicMock()
         banco.consultar_barras.return_value = {'0123456789012': {produto}, '1234567890123': {produto}}
         with patch('src.prevalidacao.carregar_xml', return_value=root):
-            itens = validar_pedido_baixado(banco, '2026-12345')
-        self.assertEqual(itens, [ItemEsperado('P1', 'C1', 'T1', Decimal('5.5'))])
+            validado = validar_pedido_baixado(banco, '2026-12345')
+        self.assertEqual(validado.itens, [ItemEsperado('P1', 'C1', 'T1', Decimal('5.5'))])
+
+    def test_define_empresa_pelos_tipos_de_todos_os_produtos_cadastrados(self) -> None:
+        root = xml_pedido(barras_por_item=(('0123456789012',), ('1234567890123',)))
+        banco = MagicMock()
+        casos = (
+            ('21', '21', '001'),
+            ('10', '10', '002'),
+            ('21', '10', '002'),
+            ('10', '21', '002'),
+            ('21', '', '002'),
+            ('21', None, '002'),
+            ('', None, '002'),
+        )
+        with patch('src.prevalidacao.carregar_xml', return_value=root):
+            for tipo_a, tipo_b, empresa in casos:
+                with self.subTest(tipos=(tipo_a, tipo_b)):
+                    banco.consultar_barras.return_value = {
+                        '0123456789012': {ProdutoCadastrado('P1', 'C1', 'T1', tipo_a)},
+                        '1234567890123': {ProdutoCadastrado('P2', 'C1', 'T1', tipo_b)},
+                    }
+                    validado = validar_pedido_baixado(banco, '2026-12345')
+                    self.assertEqual(validado.codigo_empresa, empresa)
 
     def test_bloqueia_barra_ausente_e_ambigua_mas_aceita_mesma_combinacao(self) -> None:
         produto = ProdutoCadastrado('P1', 'AZUL', 'UNICO')

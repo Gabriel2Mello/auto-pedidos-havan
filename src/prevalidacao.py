@@ -3,18 +3,25 @@
 from src.erros import PedidoRejeitadoError as PedidoRejeitadoError
 from src.erros import ProdutoSemCadastroError
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from typing import Sequence
 from decimal import Decimal
 
 from src.banco import BancoSisplan, ProdutoCadastrado
 from src.logs import get_logger
-from src.pedidos import ItemEsperado, VariacaoPedido, validar_xml_pedido
+from src.pedidos import CodigoEmpresa, ItemEsperado, VariacaoPedido, validar_xml_pedido
 from src.arquivos import (caminho_xml, carregar_xml, salvar_pedido_txt)
 
 logger = get_logger(__name__)
 
 
-def validar_pedido_baixado(banco: BancoSisplan, pedido: str) -> list[ItemEsperado]:
+@dataclass(frozen=True)
+class PedidoValidado:
+    itens: list[ItemEsperado]
+    codigo_empresa: CodigoEmpresa
+
+
+def validar_pedido_baixado(banco: BancoSisplan, pedido: str) -> PedidoValidado:
     try:
         variacoes = validar_xml_pedido(carregar_xml(caminho_xml(pedido)), pedido)
     except (OSError, ET.ParseError, ValueError, RuntimeError) as error:
@@ -34,8 +41,10 @@ def validar_pedido_baixado(banco: BancoSisplan, pedido: str) -> list[ItemEsperad
     for variacao in variacoes:
         produto = next(iter(cadastradas[variacao.barra]))
         totais[produto] = totais.get(produto, Decimal(0)) + variacao.quantidade
-    return [ItemEsperado(p.codigo, p.cor, p.tamanho, quantidade)
-            for p, quantidade in totais.items()]
+    itens = [ItemEsperado(p.codigo, p.cor, p.tamanho, quantidade)
+             for p, quantidade in totais.items()]
+    codigo_empresa: CodigoEmpresa = '001' if all(p.tipo_prod == '21' for p in totais) else '002'
+    return PedidoValidado(itens, codigo_empresa)
 
 
 def pendencias_barras(

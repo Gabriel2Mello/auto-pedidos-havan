@@ -254,7 +254,26 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
         self.app.assert_called_once()
         self.importar.assert_called_once()
         self.assertEqual(self.importar.call_args.args[0], '2026-67890')
+        self.assertEqual(self.importar.call_args.kwargs['codigo_empresa'], '002')
         self.assertEqual(self.imprimir.call_args.args[:2], ('2026-67890', '100'))
+
+    def test_reconsulta_tipo_do_produto_ao_importar_pedido_conferido(self) -> None:
+        pedido = '2026-12345'
+        self.preparar(pedido)
+        self.salvar_estado('baixado', '')
+        conferido = main.processar_pedidos([pedido], modo='preparar')
+        self.assertEqual(conferido.situacoes[pedido], 'pronto_importar')
+        self.assert_sem_interface()
+
+        self.banco.consultar_barras.return_value = {
+            '0123456789012': {ProdutoCadastrado('P1', 'C1', 'T1', '21')},
+        }
+        self.banco.confirmar_gravacao.return_value = PedidoExistente('100', 1)
+        main.processar_pedidos([pedido], modo='importar')
+
+        self.assertEqual(self.banco.consultar_barras.call_count, 2)
+        self.importar.assert_called_once()
+        self.assertEqual(self.importar.call_args.kwargs['codigo_empresa'], '001')
 
     def test_reconsulta_duplicidade_antes_de_incluir(self) -> None:
         self.preparar()

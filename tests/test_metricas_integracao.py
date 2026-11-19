@@ -14,6 +14,7 @@ from src.config import CONFIG
 from src.estado import EstadoPedido, EstadoPedidos
 from src.importar import ResultadoImportacao
 from src.pedidos import ItemEsperado
+from src.prevalidacao import PedidoValidado
 from src.resumo import ResumoExecucao
 import src.servico_pedidos as servico
 
@@ -30,6 +31,7 @@ class TestMetricasIntegracao(unittest.TestCase):
         self.banco.consultar_pedidos.return_value = {}
         self.banco.confirmar_gravacao.return_value = PedidoExistente('100', 2)
         self.resumo = ResumoExecucao({self.pedido: 'aguardando'})
+        self.validado = PedidoValidado([ItemEsperado('P1', 'C1', 'T1', Decimal(1))], '002')
         self.integracoes = servico.Integracoes(importar=self.importar,
             sisplan=lambda: (MagicMock(), MagicMock(), MagicMock(), {}),
             imprimir=lambda *args, **kwargs: 'impressao_enviada', notificar=lambda *args: None)
@@ -45,7 +47,7 @@ class TestMetricasIntegracao(unittest.TestCase):
     def test_conta_somente_gravacao_confirmada_e_retoma_sem_duplicar(self):
         with EstadoPedidos(self.raiz / 'estado.sqlite3') as historico, \
              patch('src.servico_pedidos.conferir_arquivos_baixados', return_value=True), \
-             patch('src.servico_pedidos.validar_pedido_baixado', return_value=[ItemEsperado('P1', 'C1', 'T1', Decimal(1))]):
+             patch('src.servico_pedidos.validar_pedido_baixado', return_value=self.validado):
             historico.salvar(EstadoPedido(self.pedido, '', 'baixado'))
             servico.importar_novo(self.pedido, self.banco, historico, self.resumo, self.recursos)
             self.assertEqual(self.totais()['pedido_inserido'], 1)
@@ -55,7 +57,7 @@ class TestMetricasIntegracao(unittest.TestCase):
     def test_gravacao_nao_confirmada_nao_conta_e_recuperacao_conta_uma_vez(self):
         with EstadoPedidos(self.raiz / 'estado.sqlite3') as historico, \
              patch('src.servico_pedidos.conferir_arquivos_baixados', return_value=True), \
-             patch('src.servico_pedidos.validar_pedido_baixado', return_value=[ItemEsperado('P1', 'C1', 'T1', Decimal(1))]):
+             patch('src.servico_pedidos.validar_pedido_baixado', return_value=self.validado):
             historico.salvar(EstadoPedido(self.pedido, '', 'baixado'))
             self.banco.confirmar_gravacao.side_effect = GravacaoNaoConfirmadaError('sintetico')
             with self.assertRaises(GravacaoNaoConfirmadaError):
@@ -68,7 +70,7 @@ class TestMetricasIntegracao(unittest.TestCase):
     def test_falha_na_estatistica_nao_repete_inclusao(self):
         with EstadoPedidos(self.raiz / 'estado.sqlite3') as historico, \
              patch('src.servico_pedidos.conferir_arquivos_baixados', return_value=True), \
-             patch('src.servico_pedidos.validar_pedido_baixado', return_value=[ItemEsperado('P1', 'C1', 'T1', Decimal(1))]), \
+             patch('src.servico_pedidos.validar_pedido_baixado', return_value=self.validado), \
              patch('src.servico_pedidos.registrar_evento', return_value=False):
             historico.salvar(EstadoPedido(self.pedido, '', 'baixado'))
             servico.importar_novo(self.pedido, self.banco, historico, self.resumo, self.recursos)

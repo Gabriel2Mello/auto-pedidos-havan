@@ -6,13 +6,12 @@ from decimal import Decimal, InvalidOperation
 from re import fullmatch
 from typing import Literal, TypedDict
 
-from src.config import PRODUTOS_GOVERNADOR
+CodigoEmpresa = Literal['001', '002']
 
 
 class DadosPedido(TypedDict):
     data_fatura: str
     data_entrega: str
-    produto: str
     operacao: str
 
 
@@ -76,7 +75,6 @@ def extrair_dados_xml(root: ET.Element) -> DadosPedido:
     campos_xml = {
         'data_fatura': root.findtext('.//PrazoPagamento/PrevisaoData', ''),
         'data_entrega': root.findtext('.//DataInicialSemanaEntrega', ''),
-        'produto': root.findtext('.//DescricaoProduto', ''),
         'operacao': root.findtext('.//Operacao', ''),
     }
 
@@ -86,17 +84,8 @@ def extrair_dados_xml(root: ET.Element) -> DadosPedido:
     return {
         'data_fatura': formata_data(campos_xml['data_fatura']),
         'data_entrega': formata_data(campos_xml['data_entrega']),
-        'produto': normalizar(campos_xml['produto']),
         'operacao': normalizar(campos_xml['operacao']),
     }
-
-
-def definir_empresa(produto: str) -> Literal['MATRIZ', 'FILIAL']:
-    return (
-        'MATRIZ'
-        if any(normalizar(nome) in produto for nome in PRODUTOS_GOVERNADOR)
-        else 'FILIAL'
-    )
 
 
 @dataclass(frozen=True)

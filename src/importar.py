@@ -19,7 +19,7 @@ from src.handle_app import (
     tratar_avisos_importacao,
 )
 from src.menu_sisplan import abrir_importacao_havan
-from src.pedidos import definir_empresa, extrair_dados_xml
+from src.pedidos import CodigoEmpresa, extrair_dados_xml
 from src.arquivos import (caminho_xml, carregar_xml, formatar_motivo_erro, salvar_pedido_txt)
 from src.erros import AbaPedidoIndisponivelError, SisplanError, NumeroInternoForaSequenciaError, XmlSemItensSisplanError
 from src.notificacoes import (enviar_alerta_teams)
@@ -73,7 +73,7 @@ def importar_pedido(
     grid: WindowSpecification,
     campos: CamposSisplan,
     antes_gravar: Callable[[str], None],
-    *, referencia_numero: int,
+    *, referencia_numero: int, codigo_empresa: CodigoEmpresa,
 ) -> ResultadoImportacao:
     for tentativa in range(2):
         try:
@@ -87,7 +87,7 @@ def importar_pedido(
         try:
             resultado = _importar_uma_tentativa(
                 pedido, pedido_grade, aba_pedido, grid, campos, antes_gravar,
-                referencia_numero=referencia_numero,
+                referencia_numero=referencia_numero, codigo_empresa=codigo_empresa,
             )
             if resultado.situacao in ('duplicado', 'sem_cadastro', 'xml_sem_itens'):
                 try:
@@ -142,7 +142,7 @@ def _importar_uma_tentativa(
     grid: WindowSpecification,
     campos: CamposSisplan,
     antes_gravar: Callable[[str], None],
-    *, referencia_numero: int,
+    *, referencia_numero: int, codigo_empresa: CodigoEmpresa,
 ) -> ResultadoImportacao:
     logger.info_split(f'Importando: {pedido}')
 
@@ -160,7 +160,6 @@ def _importar_uma_tentativa(
 
         preencher_dados_fixos(campos)
 
-        codigo_empresa = '001' if definir_empresa(dados_xml['produto']) == 'MATRIZ' else '002'
         selecionar_empresa(campos['empresa'], codigo_empresa)
 
         preencher_datas(
@@ -273,7 +272,7 @@ def _codigo_empresa(rotulo: str) -> str:
     return codigo.strip() if separador else ''
 
 
-def selecionar_empresa(combo_empresa: WindowSpecification, codigo: Literal['001', '002']) -> None:
+def selecionar_empresa(combo_empresa: WindowSpecification, codigo: CodigoEmpresa) -> None:
     combo_empresa.wait('ready', timeout=5)
     rotulos = cast(list[str], combo_empresa.item_texts())
     indices = [indice for indice, rotulo in enumerate(rotulos) if _codigo_empresa(rotulo) == codigo]

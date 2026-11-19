@@ -22,6 +22,7 @@ from src.config import CONFIG
 from src.imprimir import ResultadoImpressao
 from src.servico_pedidos import ContextoExecucao, Integracoes, processar_pedidos
 from src.pedidos import ItemEsperado
+from src.prevalidacao import PedidoValidado
 
 
 class BaseInterface(unittest.TestCase):
@@ -246,7 +247,7 @@ class InterfaceTests(BaseInterface):
         with (patch('src.servico_pedidos.validar_configuracao'),
               patch('src.servico_pedidos.conferir_arquivos_baixados', return_value=True),
               patch('src.servico_pedidos.validar_pedido_baixado',
-                    return_value=[ItemEsperado('P1', 'C1', 'T1', Decimal(1))]),
+                    return_value=PedidoValidado([ItemEsperado('P1', 'C1', 'T1', Decimal(1))], '002')),
               patch.object(self.estado, 'aguardar_decisao') as decidir):
             self.iniciar(modo='preparar')
             self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')

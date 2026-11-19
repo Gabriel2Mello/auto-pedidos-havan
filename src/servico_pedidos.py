@@ -23,9 +23,8 @@ from src.imprimir import processar_impressao
 from src.logs import get_logger
 from src.login import realizar_login
 from src.contratos import AoErro, AoProgresso, Modo
-from src.prevalidacao import PedidoRejeitadoError, validar_pedido_baixado
+from src.prevalidacao import PedidoRejeitadoError, PedidoValidado, validar_pedido_baixado
 from src.resumo import ResumoExecucao
-from src.pedidos import ItemEsperado
 from src.erros import (
     AbaPedidoIndisponivelError, ConfiguracaoError, NumeroInternoForaSequenciaError, XmlSemItensSisplanError,
     ProdutoSemCadastroError, SessaoPortalExpiradaError,
@@ -272,12 +271,12 @@ def processar_um_pedido(
         if encontrados:
             informar_existente(pedido, encontrados, historico, resumo)
             return
-        itens = preparar_arquivos(pedido, banco, historico, recursos,
-                                 permitir_download=modo == 'preparar', somente_preparacao=True,
-                                 reaproveitar_download=reincluido)
-        if recursos.parada_solicitada():
+        validado = preparar_arquivos(pedido, banco, historico, recursos,
+                                     permitir_download=modo == 'preparar', somente_preparacao=True,
+                                     reaproveitar_download=reincluido)
+        if validado is None or recursos.parada_solicitada():
             return
-        historico.salvar_itens_esperados(pedido, itens)
+        historico.salvar_itens_esperados(pedido, validado.itens)
         historico.salvar(EstadoPedido(pedido, '', 'pronto_importar'))
         resumo.situacoes[pedido] = 'pronto_importar'
         return
@@ -346,7 +345,7 @@ def retomar_impressao(
         itens = historico.obter_itens_esperados(pedido)
         if not itens:
             # Migração de uma inclusão pendente criada antes desta versão.
-            itens = validar_pedido_baixado(banco, pedido)
+            itens = validar_pedido_baixado(banco, pedido).itens
             historico.salvar_itens_esperados(pedido, itens)
         confirmado = banco.confirmar_gravacao(pedido, numero, itens_esperados=itens)
     else:
@@ -402,7 +401,7 @@ def baixar_arquivos_pedido(
 def preparar_arquivos(
     pedido: str, banco: BancoSisplan, historico: EstadoPedidos, recursos: RecursosExecucao,
     *, permitir_download: bool, somente_preparacao: bool = False, reaproveitar_download: bool = False,
-) -> list[ItemEsperado]:
+) -> PedidoValidado | None:
     registro = historico.obter(pedido)
     assert registro is not None
     # Uma nova conferência invalida a aptidão anterior antes de consultar arquivos/banco.
@@ -430,7 +429,7 @@ def preparar_arquivos(
             historico.salvar(EstadoPedido(numero, '', 'baixado'))
 
         if not baixar_arquivos_pedido(pedido, recursos, somente_preparacao=somente_preparacao, ao_baixar=registrar_download):
-            return []
+            return None
         historico.salvar(EstadoPedido(pedido, '', 'baixado'))
         if not conferir_arquivos_baixados(pedido):
             historico.salvar(EstadoPedido(pedido, '', 'para_baixar', erro='Arquivos baixados incompletos ou inválidos.'))
@@ -448,7 +447,9 @@ def importar_novo(
     if outras_inclusoes:
         raise EstadoError('Existe uma inclusão anterior que precisa ser conferida pelo responsável: '
                           + ', '.join(outras_inclusoes))
-    itens_esperados = preparar_arquivos(pedido, banco, historico, recursos, permitir_download=permitir_download)
+    validado = preparar_arquivos(pedido, banco, historico, recursos, permitir_download=permitir_download)
+    if validado is None:
+        return
     encontrados = banco.consultar_pedidos([pedido]).get(pedido, [])
     if encontrados:
         informar_existente(pedido, encontrados, historico, resumo)
@@ -456,7 +457,7 @@ def importar_novo(
     if recursos.parada_solicitada():
         logger.info('Pedido %s preservado antes de iniciar a inclusão.', pedido)
         return
-    historico.salvar_itens_esperados(pedido, itens_esperados)
+    historico.salvar_itens_esperados(pedido, validado.itens)
     referencia_numero = banco.consultar_referencia_numero()
     if recursos.sisplan is None:
         recursos.sisplan = recursos.contexto.integracoes.sisplan()
@@ -467,7 +468,7 @@ def importar_novo(
     try:
         resultado = recursos.contexto.integracoes.importar(
             pedido, *recursos.sisplan, registrar_gravacao,
-            referencia_numero=referencia_numero,
+            referencia_numero=referencia_numero, codigo_empresa=validado.codigo_empresa,
         )
     except (AbaPedidoIndisponivelError, NumeroInternoForaSequenciaError, XmlSemItensSisplanError):
         # Nenhuma inclusão ficou aberta e nenhum comando de gravação foi enviado.
@@ -485,7 +486,7 @@ def importar_novo(
             'O Sisplan encontrou produto sem cadastro. Pedido salvo. '
             'Após cadastrar os produtos, use Conferir cadastro novamente e depois Importe os pedidos aptos.'
         )
-    confirmado = banco.confirmar_gravacao(pedido, resultado.numero, itens_esperados=itens_esperados)
+    confirmado = banco.confirmar_gravacao(pedido, resultado.numero, itens_esperados=validado.itens)
     historico.salvar(EstadoPedido(pedido, confirmado.numero, 'importado', confirmado.empresa))
     resumo.importados.add(pedido)
     registrar_inclusao(pedido, confirmado)
