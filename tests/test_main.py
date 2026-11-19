@@ -17,7 +17,7 @@ from tests.fixtures import xml_pedido
 from src.pedidos import ItemEsperado
 from src.erros import (
     AbaPedidoIndisponivelError, NumeroInternoForaSequenciaError, ProdutoSemCadastroError,
-    SessaoPortalExpiradaError, SisplanError,
+    SessaoPortalExpiradaError, SisplanError, XmlSemItensSisplanError,
 )
 
 
@@ -439,6 +439,24 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
             self.assertEqual(historico.obter(pedido).etapa, 'baixado')
         self.assertEqual(decidir.call_args.args[2:], (True, True))
         self.imprimir.assert_not_called()
+
+    def test_xml_rejeitado_no_sisplan_fica_pendente_e_lote_avanca(self) -> None:
+        primeiro, segundo = '2026-12345', '2026-67890'
+        self.preparar(primeiro)
+        self.preparar(segundo)
+        self.importar.side_effect = [XmlSemItensSisplanError('O Sisplan não encontrou itens no XML.'),
+                                     ResultadoImportacao('100', 'aguarda_confirmacao')]
+        with EstadoPedidos(self.estado_path) as historico:
+            for pedido in (primeiro, segundo):
+                historico.salvar(EstadoPedido(pedido, '', 'pronto_importar'))
+            resumo = main.processar_pedidos([primeiro, segundo], modo='importar', historico=historico)
+            self.assertEqual(historico.inclusoes_incertas(), [])
+            self.assertEqual(historico.obter(primeiro).etapa, 'baixado')
+            self.assertIn('não encontrou itens', historico.obter(primeiro).erro)
+        self.assertEqual(resumo.situacoes[primeiro], 'rejeitado')
+        self.assertEqual(resumo.importados, {segundo})
+        self.assertEqual(self.banco.confirmar_gravacao.call_args.args, (segundo, '100'))
+        self.assertEqual(self.imprimir.call_args.args[:2], (segundo, '100'))
 
     def test_resumo_separa_importacao_confirmada_de_impressao_pendente(self) -> None:
         self.preparar()

@@ -1,7 +1,8 @@
 from pathlib import Path
-from time import sleep
-from typing import cast
+from typing import Literal, cast
 
+import win32con
+import win32gui
 from pywinauto import WindowSpecification
 from pywinauto.application import Application
 from pywinauto.findwindows import ElementNotFoundError, find_element
@@ -9,13 +10,18 @@ from pywinauto.timings import TimeoutError as JanelaTimeoutError
 from pywinauto.timings import wait_until_passes
 
 from guias_sisplan import selecionar_guia, selecionar_modulo
-from src.config import CAMPOS, ATALHOS
+from src.config import CAMPOS
 from src.logs import get_logger
 from src.erros import (SisplanError)
 from src.arquivos import (salvar_pedido_txt)
-from src.windows import (send_keys_sleep, aguardar_campo)
 
 logger = get_logger(__name__)
+
+AVISO_XML_SEM_ITENS = 'Nenhum item encontrado no arquivo selecionado.'
+RELATORIO_PRODUTOS_NAO_ENCONTRADOS = 'Itens não encontrados na grade de produtos'
+AVISO_PRODUTOS_NAO_ENCONTRADOS = 'Existem itens não encontrados na grade de produtos.'
+CONFIRMACAO_CANCELAMENTO = 'Deseja Cancelar as Alterações ?'
+AvisoImportacao = Literal['sem_cadastro', 'xml_sem_itens']
 
 
 def get_field_index(
@@ -131,15 +137,19 @@ def importa_arq_integracao(xml_path: str | Path, processo: int) -> None:
         janela = localizar_aviso('Abrir', '#32770', 2, processo)
         if janela is None:
             raise SisplanError('Janela Abrir do Sisplan não encontrada.')
-        janela.set_focus()
-
         nome_field: WindowSpecification = get_field_index(
             janela, 'Edit', 'nome'
         )
-
-        nome_field.set_focus()
-        nome_field.set_edit_text(str(xml_path))
-        nome_field.type_keys('{ENTER}')
+        abrir = janela.child_window(class_name='Button', control_id=win32con.IDOK)
+        nome_field.wait('ready', timeout=5)
+        abrir.wait('ready', timeout=5)
+        caminho = str(xml_path)
+        nome_field.set_edit_text(caminho)
+        if nome_field.window_text() != caminho:
+            raise SisplanError('O Sisplan não confirmou o caminho do XML selecionado.')
+        janela.set_focus()
+        win32gui.PostMessage(abrir.wrapper_object().handle, win32con.BM_CLICK, 0, 0)
+        janela.wait_not('visible', timeout=5)
 
     except Exception as error:
         logger.debug(
@@ -152,7 +162,7 @@ def importa_arq_integracao(xml_path: str | Path, processo: int) -> None:
 
 
 def localizar_aviso(
-    titulo: str, classe: str, timeout: int, processo: int,
+    titulo: str | tuple[str, ...], classe: str, timeout: int, processo: int,
 ) -> WindowSpecification | None:
     """Somente ausência na busca é opcional; falhas de interação são fatais."""
     try:
@@ -160,10 +170,15 @@ def localizar_aviso(
             raise SisplanError('Processo do Sisplan inválido.')
         # Application.connect(process=...) ignora título/classe nesta biblioteca.
         # Buscar primeiro dentro do processo e conectar pelo handle encontrado.
+        criterios: dict[str, object]
+        if isinstance(titulo, str):
+            criterios = {'title': titulo}
+        else:
+            criterios = {'predicate_func': lambda elemento: elemento.rich_text in titulo}
         elemento = wait_until_passes(
             timeout, 0.2, find_element, ElementNotFoundError,
-            title=titulo, class_name=classe, process=processo,
-            backend='win32', visible_only=True,
+            class_name=classe, process=processo, backend='win32', visible_only=True,
+            **criterios,
         )
         handle = cast(int, elemento.handle)
         app_dialog: Application = Application(backend='win32').connect(
@@ -186,20 +201,83 @@ def localizar_aviso(
         raise SisplanError(f'Janela "{titulo}" encontrada, mas indisponível.') from error
 
 
-def handle_produto_sem_cadastro(pedido: str, processo: int) -> bool:
-    bloqueio = localizar_aviso('Bloqueio', '#32770', 2, processo)
-    if bloqueio is None:
-        return False
+def tratar_avisos_importacao(pedido: str, processo: int) -> AvisoImportacao | None:
+    aviso = localizar_aviso(('Bloqueio', 'Informação'), '#32770', 2, processo)
+    if aviso is None:
+        return None
+    if aviso.window_text() == 'Informação':
+        textos = aviso.wrapper_object().descendants(class_name='Static')
+        if not any(c.is_visible() and c.window_text().strip() == AVISO_XML_SEM_ITENS for c in textos):
+            raise SisplanError('Aviso de importação desconhecido. Confira a tela do Sisplan.')
+        try:
+            botao = aviso.child_window(class_name='Button', title='OK', enabled_only=True)
+            botao.wait('ready', timeout=5)
+            area = botao.client_rect()
+            aviso.set_focus()
+            botao.click(coords=(area.width() // 2, area.height() // 2))
+            aviso.wait_not('visible', timeout=5)
+        except Exception as error:
+            raise SisplanError('O Sisplan não encontrou itens no XML. Não foi possível fechar o aviso.') from error
+        return 'xml_sem_itens'
     try:
-        bloqueio.set_focus()
+        if not _tem_mensagem(aviso, AVISO_PRODUTOS_NAO_ENCONTRADOS):
+            raise SisplanError('O bloqueio não corresponde a produtos não encontrados.')
         logger.info('Produto sem cadastro. Ignorando...')
-        aguardar_campo(bloqueio).OK.click()
-        sleep(0.2)
-        send_keys_sleep(ATALHOS['fechar'], 0.2)
+        _clicar_botao(aviso, aviso.child_window(class_name='Button', title='OK'))
+        aviso.wait_not('visible', timeout=5)
+        relatorio = localizar_aviso(RELATORIO_PRODUTOS_NAO_ENCONTRADOS, 'TForm', 5, processo)
+        if relatorio is None:
+            raise SisplanError('O relatório de produtos não encontrados não apareceu.')
+        _clicar_botao(relatorio, relatorio.child_window(class_name='TBitBtn', title='&Fechar'))
+        relatorio.wait_not('visible', timeout=5)
         salvar_pedido_txt(pedido, motivo='produto sem cadastro')
-        return True
+        return 'sem_cadastro'
     except Exception as error:
         raise SisplanError('Falha ao tratar a janela de produto sem cadastro.') from error
+
+
+def _clicar_botao(janela: WindowSpecification, botao: WindowSpecification) -> None:
+    botao.wait('ready', timeout=5)
+    controle = botao.wrapper_object()
+    area = controle.client_rect()
+    if area.width() <= 0 or area.height() <= 0:
+        raise SisplanError('Botão do Sisplan sem área de clique.')
+    janela.set_focus()
+    controle.click(coords=(area.width() // 2, area.height() // 2))
+
+
+def _tem_mensagem(janela: WindowSpecification, mensagem: str) -> bool:
+    return any(controle.is_visible() and controle.window_text().strip() == mensagem
+               for controle in janela.wrapper_object().descendants(class_name='Static'))
+
+
+def _confirmar_cancelamento(processo: int) -> None:
+    confirmacao = localizar_aviso('Atenção', '#32770', 5, processo)
+    if confirmacao is None or not _tem_mensagem(confirmacao, CONFIRMACAO_CANCELAMENTO):
+        raise SisplanError('A confirmação de cancelamento esperada não foi encontrada no Sisplan.')
+    sim = confirmacao.child_window(class_name='Button', title='&Sim', control_id=6)
+    _clicar_botao(confirmacao, sim)
+    confirmacao.wait_not('visible', timeout=5)
+
+
+def acionar_botao_pedido(
+    processo: int, comando: Literal['Incluir', 'Gravar', 'Desistir'],
+) -> WindowSpecification:
+    app = Application(backend='win32').connect(process=processo)
+    principal = app.window(class_name='TfmPrincipal')
+    formulario = principal.child_window(class_name='TfmVenPedidoGrade')
+    botao = formulario.child_window(class_name='TBitBtn', title=f'&{comando}')
+    principal.wait('ready', timeout=5)
+    _clicar_botao(principal, botao)
+    if comando == 'Incluir':
+        formulario.child_window(class_name='TBitBtn', title='&Desistir').wait('ready', timeout=5)
+    return botao
+
+
+def cancelar_inclusao(processo: int) -> None:
+    desistir = acionar_botao_pedido(processo, 'Desistir')
+    _confirmar_cancelamento(processo)
+    desistir.wait_not('visible', timeout=5)
 
 
 def handle_aviso_duplicado(processo: int) -> bool:
@@ -207,12 +285,15 @@ def handle_aviso_duplicado(processo: int) -> bool:
     if aviso is None:
         return False
     try:
-        aviso.set_focus()
-        logger.info('Aviso do Sisplan. Cancelando a inclusão antes de conferir no banco...')
-        send_keys_sleep(ATALHOS['nao'], 0.2)
-        send_keys_sleep(ATALHOS['desistir'], 0.2)
-        send_keys_sleep(ATALHOS['sim'])
+        botoes = aviso.wrapper_object().descendants(class_name='TBitBtn')
+        if sorted(b.window_text() for b in botoes if b.is_visible()) != ['&Não', '&Sim']:
+            raise SisplanError('O aviso do Sisplan tem opções diferentes das esperadas.')
+        nao = aviso.child_window(class_name='TBitBtn', title='&Não')
+        _clicar_botao(aviso, nao)
         aviso.wait_not('visible', timeout=5)
+
+        logger.info('Aviso do Sisplan recusado. Cancelando a inclusão antes de conferir no banco...')
+        cancelar_inclusao(processo)
         return True
     except Exception as error:
         raise SisplanError('Falha ao tratar a janela de pedido duplicado.') from error

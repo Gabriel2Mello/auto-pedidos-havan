@@ -228,15 +228,3 @@ PRODUTOS_GOVERNADOR = {
     'EDREDOM',
     'SACO DORMIR',
 }
-
-
-ATALHOS = {
-    'importar': 'm',
-    'havan':    'h',
-    'incluir':  '%i',
-    'desistir': '%d',
-    'gravar':   '%g',
-    'nao':      '%n',
-    'sim':      '%s',
-    'fechar':   '%f',
-}

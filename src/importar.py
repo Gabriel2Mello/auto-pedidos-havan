@@ -8,20 +8,22 @@ from pywinauto.timings import wait_until
 from guias_sisplan import selecionar_guia
 from src.logs import get_logger
 from src.config import (
-    ATALHOS,
     CLIENTE_HAVAN,
     configuracao_atual,
 )
 from src.handle_app import (
+    acionar_botao_pedido,
+    cancelar_inclusao,
     importa_arq_integracao,
     handle_aviso_duplicado,
-    handle_produto_sem_cadastro,
+    tratar_avisos_importacao,
 )
+from src.menu_sisplan import abrir_importacao_havan
 from src.pedidos import definir_empresa, extrair_dados_xml
 from src.arquivos import (caminho_xml, carregar_xml, formatar_motivo_erro, salvar_pedido_txt)
-from src.erros import AbaPedidoIndisponivelError, SisplanError, NumeroInternoForaSequenciaError
+from src.erros import AbaPedidoIndisponivelError, SisplanError, NumeroInternoForaSequenciaError, XmlSemItensSisplanError
 from src.notificacoes import (enviar_alerta_teams)
-from src.windows import (send_keys_sleep, aguardar_campo)
+from src.windows import aguardar_campo
 
 logger = get_logger(__name__)
 
@@ -40,7 +42,7 @@ OPERACOES_ESPECIAIS = {
 @dataclass(frozen=True)
 class ResultadoImportacao:
     numero: str
-    situacao: Literal['aguarda_confirmacao', 'duplicado', 'sem_cadastro']
+    situacao: Literal['aguarda_confirmacao', 'duplicado', 'sem_cadastro', 'xml_sem_itens']
     operacao: str = ''
 
 
@@ -87,26 +89,31 @@ def importar_pedido(
                 pedido, pedido_grade, aba_pedido, grid, campos, antes_gravar,
                 referencia_numero=referencia_numero,
             )
-            if resultado.situacao in ('duplicado', 'sem_cadastro'):
+            if resultado.situacao in ('duplicado', 'sem_cadastro', 'xml_sem_itens'):
                 try:
                     pedido_grade.wait('ready', timeout=5)
                     wait_until(5, 0.2, lambda: cast(str, campos['numero'].window_text()).strip() == numero_anterior)
                 except Exception as erro:
-                    motivo = ('o aviso' if resultado.situacao == 'duplicado'
-                              else 'o bloqueio de produto sem cadastro')
+                    motivo = {'duplicado': 'o aviso de duplicidade',
+                              'sem_cadastro': 'o bloqueio de produto sem cadastro',
+                              'xml_sem_itens': 'o aviso de XML sem itens'}[resultado.situacao]
                     raise SisplanError(
                         f'Não foi possível confirmar o cancelamento após {motivo}. '
                         'Confira a tela do Sisplan antes de continuar.'
                     ) from erro
                 if resultado.situacao == 'sem_cadastro':
                     enviar_alerta_teams(pedido, '', 'PRODUTO SEM CADASTRO')
+                if resultado.situacao == 'xml_sem_itens':
+                    mensagem = ('O Sisplan não encontrou itens no XML do pedido. A inclusão foi cancelada. '
+                                'Confira o arquivo de integração antes de tentar novamente.')
+                    salvar_pedido_txt(pedido, motivo=mensagem)
+                    raise XmlSemItensSisplanError(mensagem)
             return resultado
         except _NumeroInternoSuspeitoError as error:
             logger.warning('Pedido %s, tentativa %s: %s Cancelando inclusão.', pedido, tentativa + 1, error)
             try:
                 selecionar_aba_pedido(pedido_grade, aba_pedido)
-                send_keys_sleep(ATALHOS['desistir'], 0.2)
-                send_keys_sleep(ATALHOS['sim'])
+                cancelar_inclusao(pedido_grade.process_id())
                 pedido_grade.wait('ready', timeout=5)
                 # Não repetir se a tela não restaurou o pedido anterior ao Incluir.
                 wait_until(5, 0.2, lambda: cast(str, campos['numero'].window_text()).strip() == numero_anterior)
@@ -145,7 +152,7 @@ def _importar_uma_tentativa(
         dados_xml = extrair_dados_xml(xml_root)
         processo = cast(int, pedido_grade.process_id())
 
-        send_keys_sleep(ATALHOS['incluir'], 0.3)
+        acionar_botao_pedido(processo, 'Incluir')
 
         aguardar_campo(campos['numero']).type_keys('{TAB}')
         numero_interno = cast(str, campos['numero'].window_text()).strip()
@@ -153,8 +160,8 @@ def _importar_uma_tentativa(
 
         preencher_dados_fixos(campos)
 
-        if definir_empresa(dados_xml['produto']) == 'MATRIZ':
-            selecionar_empresa_matriz(campos['empresa'])
+        codigo_empresa = '001' if definir_empresa(dados_xml['produto']) == 'MATRIZ' else '002'
+        selecionar_empresa(campos['empresa'], codigo_empresa)
 
         preencher_datas(
             campos,
@@ -164,20 +171,15 @@ def _importar_uma_tentativa(
 
         selecionar_guia(aba_pedido, 'Itens Pedido')
 
-        grid.click_input(button='right')  # Abre as opções do grid.
-        send_keys_sleep(ATALHOS['importar'])
-        send_keys_sleep(ATALHOS['havan'])
-
+        abrir_importacao_havan(grid, processo)
         importa_arq_integracao(xml_path, processo)
-        sem_cadastro = handle_produto_sem_cadastro(pedido, processo)
+        aviso_importacao = tratar_avisos_importacao(pedido, processo)
 
         selecionar_aba_pedido(pedido_grade, aba_pedido)
 
-        if sem_cadastro:
-            send_keys_sleep(ATALHOS['desistir'], 0.2)
-            send_keys_sleep(ATALHOS['sim'])
-
-            return ResultadoImportacao('', 'sem_cadastro')
+        if aviso_importacao is not None:
+            cancelar_inclusao(processo)
+            return ResultadoImportacao('', aviso_importacao)
 
         processar_operacao_comercial(
             dados_xml['operacao'],
@@ -188,9 +190,11 @@ def _importar_uma_tentativa(
         # O número pode mudar durante o preenchimento ou a importação do XML.
         numero_interno = cast(str, campos['numero'].window_text()).strip()
         conferir_numero_interno(numero_interno, referencia_numero)
+        if _codigo_empresa(campos['empresa'].selected_text()) != codigo_empresa:
+            raise SisplanError('A empresa de faturamento mudou durante a importação. Confira o pedido no Sisplan.')
         # O estado precisa estar em disco antes de enviar o comando de gravação.
         antes_gravar(numero_interno)
-        send_keys_sleep(ATALHOS['gravar'])
+        acionar_botao_pedido(processo, 'Gravar')
         invalido = handle_aviso_duplicado(processo)
 
         return ResultadoImportacao(
@@ -264,6 +268,19 @@ def preencher_datas(
     aguardar_campo(campos['data_fatura']).set_text(data_fatura)
 
 
-def selecionar_empresa_matriz(combo_empresa: WindowSpecification) -> None:
-    aguardar_campo(combo_empresa).set_focus()
-    combo_empresa.type_keys('{UP}')
+def _codigo_empresa(rotulo: str) -> str:
+    codigo, separador, _ = rotulo.partition('-')
+    return codigo.strip() if separador else ''
+
+
+def selecionar_empresa(combo_empresa: WindowSpecification, codigo: Literal['001', '002']) -> None:
+    combo_empresa.wait('ready', timeout=5)
+    rotulos = cast(list[str], combo_empresa.item_texts())
+    indices = [indice for indice, rotulo in enumerate(rotulos) if _codigo_empresa(rotulo) == codigo]
+    if len(indices) != 1:
+        raise SisplanError(f'Empresa {codigo} ausente ou ambígua no campo Emp. Fat. do Sisplan.')
+    indice = indices[0]
+    if combo_empresa.selected_index() != indice:
+        combo_empresa.select(indice)
+    if _codigo_empresa(combo_empresa.selected_text()) != codigo:
+        wait_until(3, 0.1, lambda: _codigo_empresa(combo_empresa.selected_text()) == codigo)

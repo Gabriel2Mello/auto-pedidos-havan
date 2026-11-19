@@ -43,6 +43,10 @@ class PedidoRejeitadoError(RuntimeError):
     """O pedido permanece na fila até o problema ser corrigido."""
 
 
+class XmlSemItensSisplanError(PedidoRejeitadoError):
+    """O Sisplan rejeitou o XML e a inclusão foi cancelada com confirmação."""
+
+
 class PedidoNaoEncontradoPortalError(PedidoRejeitadoError):
     """A consulta no portal não retornou o pedido informado."""
 

@@ -27,7 +27,7 @@ from src.prevalidacao import PedidoRejeitadoError, validar_pedido_baixado
 from src.resumo import ResumoExecucao
 from src.pedidos import ItemEsperado
 from src.erros import (
-    AbaPedidoIndisponivelError, ConfiguracaoError, NumeroInternoForaSequenciaError,
+    AbaPedidoIndisponivelError, ConfiguracaoError, NumeroInternoForaSequenciaError, XmlSemItensSisplanError,
     ProdutoSemCadastroError, SessaoPortalExpiradaError,
 )
 
@@ -469,7 +469,7 @@ def importar_novo(
             pedido, *recursos.sisplan, registrar_gravacao,
             referencia_numero=referencia_numero,
         )
-    except (AbaPedidoIndisponivelError, NumeroInternoForaSequenciaError):
+    except (AbaPedidoIndisponivelError, NumeroInternoForaSequenciaError, XmlSemItensSisplanError):
         # Nenhuma inclusão ficou aberta e nenhum comando de gravação foi enviado.
         historico.salvar(EstadoPedido(pedido, '', 'baixado'))
         raise
