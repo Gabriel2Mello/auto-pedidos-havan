@@ -207,9 +207,9 @@ class BancoSisplan:
 
     def confirmar_gravacao(
         self, pedido: str, numero: str, timeout: float = 10, intervalo: float = 0.5,
-        *, itens_esperados: Sequence[ItemEsperado] | None = None,
+        *, itens_esperados: Sequence[ItemEsperado] | None = None, empresa_esperada: int | None = None,
     ) -> PedidoExistente:
-        """Aguarda o cabeçalho e seus itens ficarem visíveis em leitura no banco."""
+        """Confere o cabeçalho e os itens visíveis em leitura no banco."""
         numero = numero.strip()
         if not numero:
             raise GravacaoNaoConfirmadaError('Número interno vazio; gravação não confirmada.')
@@ -231,10 +231,15 @@ class BancoSisplan:
                         'Confira o Sisplan antes de continuar.'
                     )
                 if linhas[0][2] is True:
+                    empresa = int(str(linhas[0][1])) if linhas[0][1] is not None else None
+                    if empresa_esperada is not None and empresa != empresa_esperada:
+                        raise GravacaoNaoConfirmadaError(
+                            f'Pedido {pedido}: empresa de faturamento divergente da esperada '
+                            f'({empresa_esperada:03d}). Confira o Sisplan antes de continuar.'
+                        )
                     divergencias = self.divergencias_itens(pedido, numero, itens_esperados) if itens_esperados is not None else []
                     if not divergencias:
-                        empresa = linhas[0][1]
-                        return PedidoExistente(numero, int(str(empresa)) if empresa is not None else None)
+                        return PedidoExistente(numero, empresa)
             restante = limite - monotonic()
             if restante <= 0:
                 if divergencias:

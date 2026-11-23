@@ -138,6 +138,9 @@ A empresa de faturamento é **001 (Matriz)** quando todos os produtos têm
 `produto_001.tipo_prod = 21` (Governador). Pedidos com outros tipos, tipos
 misturados ou tipo vazio ou nulo vão para **002 (Filial)**. Os tipos são
 consultados novamente na pré-validação imediatamente antes da inclusão.
+A empresa esperada fica no histórico antes da gravação. Se a leitura de
+confirmação no Sisplan indicar outra empresa ou deixar o campo vazio, o pedido
+fica pendente para conferência, inclusive na retomada.
 
 Todas as consultas usam parâmetros e transações de leitura, com limite de oito
 segundos por consulta. Falha de conexão ou consulta interrompe a importação antes

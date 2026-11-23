@@ -347,7 +347,9 @@ def retomar_impressao(
             # Migração de uma inclusão pendente criada antes desta versão.
             itens = validar_pedido_baixado(banco, pedido).itens
             historico.salvar_itens_esperados(pedido, itens)
-        confirmado = banco.confirmar_gravacao(pedido, numero, itens_esperados=itens)
+        confirmado = banco.confirmar_gravacao(
+            pedido, numero, itens_esperados=itens, empresa_esperada=registro.empresa,
+        )
     else:
         confirmado = banco.confirmar_gravacao(pedido, numero)
     if registro is None or registro.etapa in (*ETAPAS_INICIAIS, *INCLUSOES_INCERTAS, 'existente'):
@@ -461,9 +463,11 @@ def importar_novo(
     referencia_numero = banco.consultar_referencia_numero()
     if recursos.sisplan is None:
         recursos.sisplan = recursos.contexto.integracoes.sisplan()
-    historico.salvar(EstadoPedido(pedido, '', 'importacao_iniciada'))
+    empresa_esperada = int(validado.codigo_empresa)
+    historico.salvar(EstadoPedido(pedido, '', 'importacao_iniciada', empresa=empresa_esperada))
+
     def registrar_gravacao(numero: str) -> None:
-        historico.salvar(EstadoPedido(pedido, numero, 'gravacao_pendente'))
+        historico.salvar(EstadoPedido(pedido, numero, 'gravacao_pendente', empresa=empresa_esperada))
 
     try:
         resultado = recursos.contexto.integracoes.importar(
@@ -486,7 +490,9 @@ def importar_novo(
             'O Sisplan encontrou produto sem cadastro. Pedido salvo. '
             'Após cadastrar os produtos, use Conferir cadastro novamente e depois Importe os pedidos aptos.'
         )
-    confirmado = banco.confirmar_gravacao(pedido, resultado.numero, itens_esperados=validado.itens)
+    confirmado = banco.confirmar_gravacao(
+        pedido, resultado.numero, itens_esperados=validado.itens, empresa_esperada=empresa_esperada,
+    )
     historico.salvar(EstadoPedido(pedido, confirmado.numero, 'importado', confirmado.empresa))
     resumo.importados.add(pedido)
     registrar_inclusao(pedido, confirmado)

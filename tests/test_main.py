@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from pypdf import PdfWriter
 
 import src.servico_pedidos as main
-from src.banco import BancoSisplanError, PedidoExistente, ProdutoCadastrado, GravacaoNaoConfirmadaError
+from src.banco import BancoSisplan, BancoSisplanError, PedidoExistente, ProdutoCadastrado, GravacaoNaoConfirmadaError
 from src.estado import EstadoPedido, EstadoPedidos
 from src.importar import ResultadoImportacao
 from src.prevalidacao import PedidoRejeitadoError
@@ -629,9 +629,34 @@ class FluxoPrevalidacaoTests(unittest.TestCase):
             historico.salvar_itens_esperados('2026-12345', itens)
         self.banco.consultar_pedidos.return_value = {'2026-12345': [PedidoExistente('100', 2)]}
         main.processar_pedidos([], modo='retomar')
-        self.banco.confirmar_gravacao.assert_called_once_with('2026-12345', '100', itens_esperados=itens)
+        self.banco.confirmar_gravacao.assert_called_once_with(
+            '2026-12345', '100', itens_esperados=itens, empresa_esperada=None,
+        )
         self.banco.consultar_barras.assert_not_called()
         self.importar.assert_not_called()
+
+    def test_empresa_divergente_preserva_pendencia_na_inclusao_e_na_retomada(self) -> None:
+        pedido = '2026-12345'
+        self.preparar(pedido)
+        with patch('src.banco.carregar_parametros', return_value={}):
+            banco_leitura = BancoSisplan(self.pasta / 'banco.json')
+        self.banco.confirmar_gravacao.side_effect = banco_leitura.confirmar_gravacao
+
+        with patch.object(banco_leitura, '_consultar', return_value=[['100', 1, True]]):
+            with self.assertRaisesRegex(GravacaoNaoConfirmadaError, 'empresa de faturamento divergente'):
+                main.processar_pedidos([pedido])
+
+            self.banco.consultar_pedidos.return_value = {pedido: [PedidoExistente('100', 1)]}
+            with self.assertRaisesRegex(GravacaoNaoConfirmadaError, 'empresa de faturamento divergente'):
+                main.processar_pedidos([], modo='retomar')
+
+        with EstadoPedidos(self.estado_path) as historico:
+            registro = historico.obter(pedido)
+            assert registro is not None
+            self.assertEqual((registro.numero, registro.etapa, registro.empresa), ('100', 'gravacao_pendente', 2))
+        self.importar.assert_called_once()
+        self.imprimir.assert_not_called()
+        self.notificar.assert_not_called()
 
     def test_falha_ao_preservar_itens_impede_primeira_interacao_com_erp(self) -> None:
         from src.estado import EstadoError
