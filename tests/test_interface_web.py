@@ -96,7 +96,7 @@ class InterfaceTests(BaseInterface):
         self.iniciar(pedidos='2026-12345')
         self.aguardar(lambda: self.estado.fase == 'CONCLUIDO')
         pedido = self.estado.situacao()['pedidos'][0]
-        self.assertEqual(pedido['erro'], 'Não foi possível baixar os arquivos do pedido. Verifique o portal')
+        self.assertEqual(pedido['erro'], 'Não foi possível baixar os arquivos do pedido. Verifique o portal ou a conexão.')
         self.estado.encerrar()
         self.estado.worker.join(3)
         with EstadoPedidos(self.caminho) as historico:

@@ -96,7 +96,9 @@ As próximas ações ficam na linha do pedido (as descrições abaixo explicam o
 | Situação | Ação |
 | --- | --- |
 | Produto sem cadastro | Corrija os EANs indicados e use **Conferir cadastro novamente**. Os arquivos são reaproveitados; depois, solicite a importação dos aptos. |
+| Cadastro ambíguo | Peça ao responsável para conferir os vínculos do EAN no Sisplan. Após a correção, use **Conferir cadastro novamente**. |
 | Arquivos baixados a conferir | **Conferir arquivos e produtos** revalida sem download nem inclusão. |
+| Falha no download | Verifique o portal ou a conexão e use **Tentar baixar e conferir novamente**. |
 | Download ausente ou inválido | **Baixar e conferir** obtém os arquivos novamente. |
 | Inclusão a conferir | **Conferir gravação** consulta o Sisplan. Se o pedido estiver ausente, confirme no Sisplan que a inclusão anterior está encerrada e use **Liberar nova tentativa**. A liberação consulta o banco novamente e devolve o pedido à conferência. Os demais pedidos aptos podem ser importados quando a pendência for resolvida. |
 | Existência a conferir | **Conferir gravação** consulta o Sisplan após um aviso. A pendência bloqueia novas inclusões até encontrar uma correspondência única no banco. |
@@ -116,9 +118,10 @@ na coluna de ações. Nas impressões incertas, a orientação permanece junto d
 situação e não há botão de reenvio. A coluna de ações fica alinhada à direita;
 em áreas estreitas, os campos continuam empilhados com seus rótulos.
 No sumário, as situações usam texto colorido com marcador circular, sem fundo de
-etiqueta. **Cadastro pendente** traz a orientação curta **Cadastro precisa de
-revisão.**; os EANs, produtos e a mensagem completa continuam na tabela detalhada
-de **2. Conferir resultados**. As orientações de inclusão ou impressão incerta
+etiqueta. **Produto sem cadastro** orienta a corrigir o cadastro no Sisplan. Os
+EANs e produtos continuam disponíveis em **2. Conferir resultados**. O sumário
+também indica quando pedir a revisão de um cadastro ambíguo ou tentar baixar
+novamente. As orientações de inclusão ou impressão incerta
 continuam visíveis no próprio sumário.
 Após iniciar a importação, a página sobe suavemente até o topo, preservando a entrada expandida ou
 recolhida, para acompanhar o pedido. O botão informa quantos pedidos estão aptos e fica desabilitado com o texto

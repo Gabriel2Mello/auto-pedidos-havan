@@ -29,6 +29,9 @@ const apto=p=>p.etapa==='pronto_importar'&&!p.erro;
 const iniciais=['para_baixar','baixado','sem_cadastro','pronto_importar'];
 const inclusoesLiberaveis=['importacao_iniciada','gravacao_pendente'];
 const inclusoesIncertas=[...inclusoesLiberaveis,'aviso_pendente'];
+const orientacaoCadastro=demonstracao?'Use Conferir cadastro novamente para simular a correção.':'Corrija o cadastro no Sisplan e use Conferir cadastro novamente.';
+const cadastroAmbiguo=p=>['baixado','sem_cadastro'].includes(p.etapa)
+  && /(?:^|; )Código de barras com cadastro ambíguo: [0-9]+/i.test(p.erro||'');
 function grupoPedido(p){return apto(p)?'prontos':p.etapa==='sem_cadastro'?'sem_cadastro':p.etapa==='existente'?'existentes':etapasImportadas.includes(p.etapa)?'importados':'outras';}
 const etapasAtencao=['sem_cadastro',...inclusoesIncertas,'impressao_incerta'];
 const exigeAtencao=p=>Boolean(p.erro)||etapasAtencao.includes(p.etapa)||['falhou','rejeitado','gravacao_pendente','impressao_incerta','impressao_pendente','sem_cadastro'].includes(p.resultado);
@@ -109,7 +112,7 @@ function correspondeFiltro(p,filtro){
   return p.fila===filtro;
 }
 function acaoDoPedido(p){
-  if(p.etapa==='sem_cadastro')return ['revalidar','Conferir cadastro novamente','repetir'];
+  if(p.etapa==='sem_cadastro'||cadastroAmbiguo(p))return ['revalidar','Conferir cadastro novamente','repetir'];
   if(p.etapa==='baixado'||p.etapa==='pronto_importar'&&p.erro)return ['revalidar','Conferir arquivos e produtos','repetir'];
   if(p.etapa==='para_baixar'){
     if(p.erro==='Pedido não encontrado no Portal Havan.')return null;
@@ -121,13 +124,15 @@ function acaoDoPedido(p){
   return null;
 }
 function apresentacaoPedido(p){
-  const motivos={existente:'Já existe no Sisplan.',baixado:'Confira os arquivos e produtos.',sem_cadastro:'Confira novamente.',importacao_iniciada:'Inclusão iniciada. Confira no Sisplan.',gravacao_pendente:'Gravação não confirmada no Sisplan.',aviso_pendente:'Duplicidade não confirmada. Confira no Sisplan.',importado:'Importação confirmada. Retome a impressão.',pdf_pronto:'PDF pronto. Retome a impressão.',impressao_pendente:'Retome a impressão.',impressao_iniciada:'Confira a fila de impressão com o responsável.',impressao_incerta:'Confira a fila de impressão com o responsável.'};
-  const rotulos={para_baixar:'Aguardando download',baixado:'Conferência pendente',sem_cadastro:'Cadastro pendente',pronto_importar:'Pronto para importar',importacao_iniciada:'Inclusão a conferir',gravacao_pendente:'Inclusão a conferir',aviso_pendente:'Existência a conferir',importado:'Impressão pendente',pdf_pronto:'Impressão pendente',impressao_pendente:'Impressão pendente',impressao_iniciada:'Impressão a conferir',impressao_incerta:'Impressão a conferir',impressao_enviada:'Enviado para impressão',existente:'Sem ação necessária'};
+  const motivos={existente:'Já existe no Sisplan.',baixado:'Confira os arquivos e produtos.',sem_cadastro:orientacaoCadastro,importacao_iniciada:'Inclusão iniciada. Confira no Sisplan.',gravacao_pendente:'Gravação não confirmada. Confira no Sisplan.',aviso_pendente:'Duplicidade não confirmada. Confira no Sisplan.',importado:'Importação confirmada. Retome a impressão.',pdf_pronto:'PDF pronto. Retome a impressão.',impressao_pendente:'Retome a impressão.',impressao_iniciada:'Confira a fila de impressão com o responsável.',impressao_incerta:'Confira a fila de impressão com o responsável.'};
+  const rotulos={para_baixar:'Aguardando download',baixado:'Conferência pendente',sem_cadastro:'Produto sem cadastro',pronto_importar:'Pronto para importar',importacao_iniciada:'Inclusão a conferir',gravacao_pendente:'Inclusão a conferir',aviso_pendente:'Existência a conferir',importado:'Impressão pendente',pdf_pronto:'Impressão pendente',impressao_pendente:'Impressão pendente',impressao_iniciada:'Impressão a conferir',impressao_incerta:'Impressão a conferir',impressao_enviada:'Enviado para impressão',existente:'Sem ação necessária'};
+  const ambiguo=cadastroAmbiguo(p);
   let situacao=rotulos[p.etapa]||p.rotulo||'Conferir situação';
   if(p.erro){
     if(p.etapa==='para_baixar'){
       if(p.erro==='Pedido não encontrado no Portal Havan.')situacao='Não disponível';
-      else if(p.erro.startsWith('Não foi possível baixar os arquivos do pedido'))situacao='Falha no download';
+      else if(p.erro.startsWith('Não foi possível baixar os arquivos do pedido')||
+        p.erro.startsWith('Pedido encontrado, mas link para download ausente.'))situacao='Falha no download';
       else situacao='Preparação pendente';
     }
     if(['pronto_importar','existente','impressao_enviada'].includes(p.etapa))situacao='Conferência pendente';
@@ -142,6 +147,13 @@ function apresentacaoPedido(p){
     if(['baixado','existente'].includes(p.etapa)||p.erro.includes(motivo))motivo='';
     if(['importado','pdf_pronto','impressao_pendente','impressao_iniciada','impressao_incerta'].includes(p.etapa)&&p.erro.includes('Confira a fila de impressão com o responsável.'))motivo='';
   }
+  if(ambiguo){
+    situacao=p.etapa==='sem_cadastro'?'Cadastro pendente':'Cadastro ambíguo';
+    motivo=p.etapa==='sem_cadastro'
+      ?'Corrija os cadastros ausentes e peça ao responsável para conferir os vínculos ambíguos no Sisplan. Após a correção, use Conferir cadastro novamente.'
+      :'Peça ao responsável para conferir os vínculos do EAN no Sisplan. Após a correção, use Conferir cadastro novamente.';
+  }
+  if(situacao==='Falha no download')motivo='Tente baixar e conferir novamente.';
   const observacao=[p.erro||'',motivo,!p.erro&&(falhaResultado||!rotulos[p.etapa])?resultado:''].filter(Boolean).join('\n');
   return {situacao,observacao:observacao.replace(/;\s+/g,';\n').replace(/\. (?=Pedido salvo\.|Após cadastrar)/g,'.\n')||'—'};
 }
@@ -282,7 +294,7 @@ function renderizarSumario(base){
     etiqueta.className='situacao'+(atencao?' atencao':['existente','impressao_enviada'].includes(p.etapa)?' concluido':'');situacao.append(etiqueta);
     let observacao=apresentacao.observacao;
     if(!atencao&&['existente','impressao_enviada','pronto_importar'].includes(p.etapa))observacao='';
-    else if(p.etapa==='sem_cadastro')observacao='Cadastro precisa de revisão.';
+    else if(apresentacao.situacao==='Produto sem cadastro')observacao=demonstracao?orientacaoCadastro:'Corrija o cadastro no Sisplan.';
     if(observacao&&observacao!=='—'){
       const orientacao=document.createElement('p');orientacao.className='dica orientacao-sumario';orientacao.textContent=observacao;situacao.append(orientacao);
     }

@@ -7,7 +7,7 @@ class MensagemObservacaoTests(unittest.TestCase):
     def test_padroniza_mensagens_atuais_e_do_historico(self) -> None:
         exemplos = (
             ('Não consegui baixar os arquivos do pedido 2026-037398. Verifique o portal ou a conexão.',
-             'Não foi possível baixar os arquivos do pedido. Verifique o portal'),
+             'Não foi possível baixar os arquivos do pedido. Verifique o portal ou a conexão.'),
             ('Não consegui validar o XML do pedido 2026-037398: XML sem itens de compra',
              'Não foi possível validar o XML do pedido: XML sem itens de compra'),
             ('Não encontrei uma gravação única desse pedido no Sisplan para reimprimir.',
@@ -59,15 +59,15 @@ class MensagemObservacaoTests(unittest.TestCase):
         exemplos = (
             ('EAN 0123456789012 (Produto sintético / Azul) sem cadastro. '
              'Use Conferir cadastro novamente após corrigir.',
-             'EAN 0123456789012 (Produto sintético / Azul) sem cadastro. Confira novamente.'),
+             'EAN 0123456789012 (Produto sintético / Azul) sem cadastro.'),
             ('Código de barras não cadastrado: 0123456789012 (Produto / Azul). Pedido salvo. '
              'Após cadastrar os produtos, use Conferir cadastro novamente e depois Importe os pedidos aptos.',
-             'EAN 0123456789012 (Produto / Azul) sem cadastro. Confira novamente.'),
+             'EAN 0123456789012 (Produto / Azul) sem cadastro.'),
             ('O Sisplan encontrou produto sem cadastro. Pedido salvo. Após cadastrar os produtos, '
              'use Conferir cadastro novamente e depois Importe os pedidos aptos.',
-             'Produto sem cadastro no Sisplan. Confira novamente.'),
+             'Produto sem cadastro no Sisplan.'),
             ('Demonstração: produto sem cadastro. Use Conferir cadastro novamente para simular o cadastro corrigido.',
-             'Demonstração: produto sem cadastro. Confira novamente.'),
+             'Demonstração: produto sem cadastro.'),
             ('Código de barras não cadastrado: 0123456789012 (Produto / Azul). Pedido salvo.',
              'EAN 0123456789012 (Produto / Azul) sem cadastro. Pedido salvo.'),
         )
@@ -87,7 +87,7 @@ class MensagemObservacaoTests(unittest.TestCase):
         esperado = (
             'EAN 0123456789012 (Produto A (kit) / Azul) sem cadastro; '
             'EAN 1234567890123 (Produto B / Verde) sem cadastro; '
-            'Código de barras com cadastro ambíguo: 2345678901234 (Produto C / Branco). Confira novamente.'
+            'Código de barras com cadastro ambíguo: 2345678901234 (Produto C / Branco).'
         )
         self.assertEqual(mensagem_observacao(original, '2026-037398'), esperado)
 

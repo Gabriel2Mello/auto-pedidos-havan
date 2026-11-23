@@ -605,7 +605,7 @@ test('situação considera pendências e ações curtas preservam operações e 
     ['para_baixar','','Aguardando download',null],
     ['para_baixar','Sessão expirada','Preparação pendente',null],
     ['baixado','','Conferência pendente','Conferir'],
-    ['sem_cadastro','EAN ausente','Cadastro pendente','Conferir'],
+    ['sem_cadastro','EAN ausente','Produto sem cadastro','Conferir'],
     ['pronto_importar','','Pronto para importar',null],
     ['pronto_importar','Erro na consulta','Conferência pendente','Conferir'],
     ['importacao_iniciada','','Inclusão a conferir','Conferir'],
@@ -634,23 +634,25 @@ test('situação considera pendências e ações curtas preservam operações e 
 test('observações curtas não repetem instruções e preservam avisos nas etapas incertas',()=>{
   const p=painel();
   const casos=[
-    ['sem_cadastro','EAN 0123456789012 (Produto sintético / Azul) sem cadastro. Confira novamente.',
-      'EAN 0123456789012 (Produto sintético / Azul) sem cadastro. Confira novamente.'],
+    ['sem_cadastro','EAN 0123456789012 (Produto sintético / Azul) sem cadastro.',
+      'EAN 0123456789012 (Produto sintético / Azul) sem cadastro.\nCorrija o cadastro no Sisplan e use Conferir cadastro novamente.'],
     ['sem_cadastro','EAN 0123456789012 sem cadastro',
-      'EAN 0123456789012 sem cadastro\nConfira novamente.'],
+      'EAN 0123456789012 sem cadastro\nCorrija o cadastro no Sisplan e use Conferir cadastro novamente.'],
+    ['sem_cadastro','EAN 0123456789012 sem cadastro; Código de barras com cadastro ambíguo: 2345678901234 (Produto C / Branco).',
+      'EAN 0123456789012 sem cadastro;\nCódigo de barras com cadastro ambíguo: 2345678901234 (Produto C / Branco).\nCorrija os cadastros ausentes e peça ao responsável para conferir os vínculos ambíguos no Sisplan. Após a correção, use Conferir cadastro novamente.'],
     ['baixado','XML inválido. Avise o responsável.','XML inválido. Avise o responsável.'],
     ['existente','Divergência no histórico','Divergência no histórico'],
     ['importacao_iniciada','Cancelamento não confirmado. Avise o responsável.',
       'Cancelamento não confirmado. Avise o responsável.\nInclusão iniciada. Confira no Sisplan.'],
     ['gravacao_pendente','Itens e quantidades divergentes.',
-      'Itens e quantidades divergentes.\nGravação não confirmada no Sisplan.'],
+      'Itens e quantidades divergentes.\nGravação não confirmada. Confira no Sisplan.'],
     ['aviso_pendente','Aviso desconhecido.',
       'Aviso desconhecido.\nDuplicidade não confirmada. Confira no Sisplan.'],
     ['impressao_incerta','Fila sem resposta.',
       'Fila sem resposta.\nConfira a fila de impressão com o responsável.'],
     ['baixado','','Confira os arquivos e produtos.'],
     ['importacao_iniciada','','Inclusão iniciada. Confira no Sisplan.'],
-    ['gravacao_pendente','','Gravação não confirmada no Sisplan.'],
+    ['gravacao_pendente','','Gravação não confirmada. Confira no Sisplan.'],
     ['aviso_pendente','','Duplicidade não confirmada. Confira no Sisplan.'],
     ['importado','','Importação confirmada. Retome a impressão.'],
     ['pdf_pronto','','PDF pronto. Retome a impressão.'],
@@ -664,6 +666,10 @@ test('observações curtas não repetem instruções e preservam avisos nas etap
     p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',etapa,erro}]});
     const observacao=p.obter('linhas').children[0].children[0].children[4].textContent;
     assert.equal(observacao,esperado,etapa);
+    if(erro.includes('cadastro ambíguo:')){
+      const sumario=p.obter('linhas-sumario').children[0].children[0].children;
+      assert.equal(sumario[1].children[1].textContent,esperado);
+    }
   }
 });
 
@@ -882,15 +888,17 @@ test('sumário separa situação, orientação e ações sem repetir instruçõe
   const p=painel();
   for(const [etapa,erro,situacao,orientacao,acao] of [
     ['para_baixar','Pedido não encontrado no Portal Havan.','Não disponível','Pedido não encontrado no Portal Havan.','—'],
-    ['para_baixar','Não foi possível baixar os arquivos do pedido.','Falha no download','Não foi possível baixar os arquivos do pedido.',''],
+    ['para_baixar','Não foi possível baixar os arquivos do pedido.','Falha no download','Não foi possível baixar os arquivos do pedido.\nTente baixar e conferir novamente.',''],
+    ['para_baixar','Pedido encontrado, mas link para download ausente. Verifique o portal','Falha no download',
+      'Pedido encontrado, mas link para download ausente. Verifique o portal\nTente baixar e conferir novamente.',''],
     ['existente','','Já existe no Sisplan',null,'—'],
     ['existente','Consulta falhou','Conferência pendente','Consulta falhou',''],
     ['pronto_importar','','Pronto para importar',null,'—'],
     ['impressao_enviada','','Enviado para impressão',null,'—'],
     ['impressao_incerta','','Impressão a conferir','Confira a fila de impressão com o responsável.','—'],
     ['importado','','Impressão pendente','Importação confirmada. Retome a impressão.',''],
-    ['sem_cadastro','','Cadastro pendente','Cadastro precisa de revisão.',''],
-    ['gravacao_pendente','','Inclusão a conferir','Gravação não confirmada no Sisplan.','']
+    ['sem_cadastro','','Produto sem cadastro','Corrija o cadastro no Sisplan.',''],
+    ['gravacao_pendente','','Inclusão a conferir','Gravação não confirmada. Confira no Sisplan.','']
   ]){
     p.renderizar({...p.estado,pedidos:[{pedido:'2026-12345',numero:'11111',etapa,erro}]});
     const celulas=p.obter('linhas-sumario').children[0].children[0].children;
@@ -902,6 +910,54 @@ test('sumário separa situação, orientação e ações sem repetir instruçõe
     assert.equal(celulas[2].children.length,etapa==='gravacao_pendente'?2:1);
     assert.equal(celulas[2].children[0].textContent,acao);
     assert.equal(Boolean(celulas[2].children[0].onclick),acao!=='—');
+  }
+});
+
+test('lote misto preserva motivos e ações no sumário e nos detalhes ao reabrir',()=>{
+  const pedidos=[
+    {pedido:'2026-990001',etapa:'pronto_importar',erro:''},
+    {pedido:'2026-990002',etapa:'existente',numero:'777',erro:''},
+    {pedido:'2026-990003',etapa:'sem_cadastro',erro:'EAN 9999999999999 (PRODUTO 0 / AZUL) sem cadastro.'},
+    {pedido:'2026-990004',etapa:'baixado',erro:'Código de barras com cadastro ambíguo: 2345678901234 (PRODUTO 0 / AZUL)'},
+    {pedido:'2026-990005',etapa:'para_baixar',erro:'Não foi possível baixar os arquivos do pedido. Verifique o portal ou a conexão.'},
+  ];
+  const pendencias=[
+    [2,/Corrija o cadastro no Sisplan/,/EAN 9999999999999/,/Conferir cadastro novamente/,'revalidar'],
+    [3,/Peça ao responsável.*Sisplan/,/cadastro ambíguo: 2345678901234/,/Conferir cadastro novamente/,'revalidar'],
+    [4,/Tente baixar e conferir novamente/,/Verifique o portal ou a conexão/,/Tentar baixar e conferir novamente/,'preparar'],
+  ];
+  const lote=pedidos.map(p=>p.pedido);
+  for(const aposImportar of [false,true]){
+    const p=painel(), chamadas=[];
+    p.contexto.registrarAcao=(modo,selecionados)=>chamadas.push([modo,...selecionados]);
+    vm.runInContext('executarEtapa=registrarAcao',p.contexto);
+    const registros=aposImportar?[{...pedidos[0],etapa:'importado',numero:'100'},...pedidos.slice(1)]:pedidos;
+    p.renderizar({...p.estado,pedidos:registros,execucao:aposImportar?'':'preparo',
+      lote:aposImportar?[]:lote,lote_preparacao:aposImportar?[]:lote});
+    assert.match(p.obter('alcance-sumario').textContent,aposImportar?/Todos os pedidos salvos/:/Lote em conferência/);
+    assert.equal(p.obter('importar-aptos').disabled,aposImportar);
+    assert.equal(p.obter('importar-aptos').textContent,aposImportar?'Nenhum pedido':'Importar 1 pedido');
+    const sumario=p.obter('linhas-sumario').children[0].children.map(linha=>linha.children);
+    const detalhes=p.obter('linhas').children[0].children.map(linha=>linha.children);
+    assert.match(sumario[1][1].textContent,/Já existe no Sisplan/);
+    assert.equal(sumario[1][2].textContent,'—');
+    assert.equal(p.obter('n-pendencias').textContent,3);
+    assert.equal(sumario[3][1].children[0].textContent,'Cadastro ambíguo');
+    assert.equal(detalhes[3][2].textContent,'Cadastro ambíguo');
+    if(!aposImportar){
+      p.obter('importar-aptos').onclick();
+      assert.deepEqual(chamadas.pop(),['importar',lote[0]]);
+    }
+    for(const [indice,orientacao,motivo,rotulo,modo] of pendencias){
+      assert.match(sumario[indice][1].textContent,orientacao);
+      assert.match(detalhes[indice][4].textContent,motivo);
+      assert.match(detalhes[indice][4].textContent,orientacao);
+      for(const botao of [sumario[indice][2].children[0],detalhes[indice][3].children[0]]){
+        assert.match(botao.getAttribute('aria-label'),rotulo);
+        botao.onclick();
+        assert.deepEqual(chamadas.pop(),[modo,lote[indice]]);
+      }
+    }
   }
 });
 
@@ -1000,7 +1056,7 @@ test('orientação curta no sumário preserva erro completo nos detalhes e reval
   const s={...p.estado,pedidos:[{pedido,etapa:'sem_cadastro',erro},{pedido:'2026-54321',etapa:'pronto_importar',erro:''}]};
   p.renderizar(s);
   const celulas=p.obter('linhas-sumario').children[0].children[0].children;
-  assert.equal(celulas[1].children[1].textContent,'Cadastro precisa de revisão.');
+  assert.equal(celulas[1].children[1].textContent,'Corrija o cadastro no Sisplan.');
   assert.match(p.obter('linhas').children[0].children[0].children[4].textContent,/EAN 7891234567890 sem cadastro/);
   const botao=celulas[2].children[0],chamadas=[];
   assert.equal(botao.atributos['data-icone-download'],'repetir');

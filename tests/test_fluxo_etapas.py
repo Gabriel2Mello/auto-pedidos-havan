@@ -6,7 +6,8 @@ from tests import test_baixar, test_main
 from src import servico_pedidos as servico
 from src.baixar import baixar_pedidos
 from src.estado import EstadoPedido, EstadoPedidos
-from src.banco import BancoSisplanError, PedidoExistente
+from src.banco import BancoSisplanError, PedidoExistente, ProdutoCadastrado
+from src.interface_web import EstadoInterface
 
 class FluxoEtapasTests(unittest.TestCase):
     setUp = test_main.FluxoPrevalidacaoTests.setUp
@@ -80,15 +81,60 @@ class FluxoEtapasTests(unittest.TestCase):
         self.banco.consultar_barras.assert_called_once()
         self.assertEqual(resultado.importados, {'2026-12345'})
 
-    def test_separa_existentes_sem_cadastro_e_aptos_sem_pausar(self):
-        self.preparar('2026-12345', barra='9999999999999')
-        self.preparar('2026-67890')
-        self.banco.consultar_pedidos.return_value={'2026-99999':[PedidoExistente('777',2)]}
-        decidir=Mock(return_value='encerrar')
-        r=servico.processar_pedidos(['2026-99999','2026-12345','2026-67890'], 'preparar', ao_erro=decidir)
-        self.assertEqual(r.situacoes, {'2026-99999':'existente','2026-12345':'sem_cadastro','2026-67890':'pronto_importar'})
-        decidir.assert_not_called(); self.assert_sem_interface()
-        self.assertTrue(all('2026-99999' not in c.args[1] for c in self.baixar.call_args_list))
+    def test_lote_misto_importa_somente_apto_e_preserva_pendencias_ao_reabrir(self):
+        apto, existente, ausente, ambiguo, download = [f'2026-99000{i}' for i in range(1, 6)]
+        ean_ausente, ean_ambiguo = '9999999999999', '2345678901234'
+        self.preparar(apto)
+        self.preparar(ausente, barra=ean_ausente)
+        self.preparar(ambiguo, barra=ean_ambiguo)
+        self.banco.consultar_barras.return_value[ean_ambiguo] = {
+            ProdutoCadastrado('P2', 'C1', 'T1'), ProdutoCadastrado('P3', 'C1', 'T1'),
+        }
+        self.banco.consultar_pedidos.return_value = {existente: [PedidoExistente('777', 2)]}
+        decidir = Mock(return_value='encerrar')
+        resultado = servico.processar_pedidos(
+            [apto, existente, ausente, ambiguo, download], 'preparar', ao_erro=decidir,
+        )
+        self.assertEqual(resultado.situacoes, {
+            apto: 'pronto_importar', existente: 'existente', ausente: 'sem_cadastro',
+            ambiguo: 'rejeitado', download: 'rejeitado',
+        })
+        decidir.assert_not_called()
+        self.assert_sem_interface()
+        self.assertEqual([c.args[1] for c in self.baixar.call_args_list], [[apto], [ausente], [ambiguo], [download]])
+
+        def abrir_painel():
+            painel = EstadoInterface(self.estado_path)
+            try:
+                self.assertTrue(painel.pronto.wait(3))
+                return {p['pedido']: (p['etapa'], p['numero'], p['erro']) for p in painel.situacao()['pedidos']}
+            finally:
+                painel.encerrar()
+                painel.worker.join(3)
+                self.assertFalse(painel.worker.is_alive())
+
+        conferidos = abrir_painel()
+        self.assertEqual(conferidos[apto], ('pronto_importar', '', ''))
+        self.assertEqual(conferidos[existente], ('existente', '777', ''))
+        self.assertEqual(conferidos[ausente][0], 'sem_cadastro')
+        self.assertRegex(conferidos[ausente][2], f'EAN {ean_ausente} .* sem cadastro')
+        self.assertEqual(conferidos[ambiguo][0], 'baixado')
+        self.assertIn(f'cadastro ambíguo: {ean_ambiguo}', conferidos[ambiguo][2])
+        self.assertEqual(conferidos[download], (
+            'para_baixar', '', 'Não foi possível baixar os arquivos do pedido. Verifique o portal ou a conexão.',
+        ))
+        self.assertEqual(abrir_painel(), conferidos)
+
+        self.baixar.reset_mock()
+        resultado = servico.processar_pedidos([apto], 'importar')
+        self.assertEqual(resultado.importados, {apto})
+        self.assertEqual(self.importar.call_args.args[0], apto)
+        self.importar.assert_called_once()
+        self.baixar.assert_not_called()
+        reabertos = abrir_painel()
+        self.assertEqual(reabertos.pop(apto), ('importado', '100', ''))
+        conferidos.pop(apto)
+        self.assertEqual(reabertos, conferidos)
 
     def test_revalidar_cadastro_reaproveita_arquivos_e_exige_importacao_posterior(self):
         self.preparar(); cadastradas=self.banco.consultar_barras.return_value

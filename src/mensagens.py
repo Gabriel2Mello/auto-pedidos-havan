@@ -26,10 +26,6 @@ def mensagem_observacao(texto: str, pedido: str) -> str:
         'Não encontrei uma gravação única desse pedido no Sisplan para reimprimir.',
         'Não foi encontrada uma gravação única no Sisplan para reimprimir.',
     )
-    texto = texto.replace(
-        'Não foi possível baixar os arquivos do pedido. Verifique o portal ou a conexão.',
-        'Não foi possível baixar os arquivos do pedido. Verifique o portal',
-    )
     for orientacao in (
         '. Pedido salvo. Após cadastrar os produtos, '
         'use Conferir cadastro novamente e depois Importe os pedidos aptos.',
@@ -37,15 +33,15 @@ def mensagem_observacao(texto: str, pedido: str) -> str:
         '. Use Conferir cadastro novamente para simular o cadastro corrigido.',
     ):
         if texto.endswith(orientacao):
-            texto = texto[:-len(orientacao)] + '. Confira novamente.'
+            texto = texto[:-len(orientacao)] + '.'
             break
     texto = re.sub(
         r'Código de barras não cadastrado: (\d+) (\([^;\n]*\))',
         r'EAN \1 \2 sem cadastro', texto,
     )
     texto = texto.replace(
-        'O Sisplan encontrou produto sem cadastro. Confira novamente.',
-        'Produto sem cadastro no Sisplan. Confira novamente.',
+        'O Sisplan encontrou produto sem cadastro.',
+        'Produto sem cadastro no Sisplan.',
     )
     impressao = 'A impressão do pedido não foi concluída com segurança. Confira a impressora.'
     if texto in (impressao, impressao + ' O pedido está salvo para retomar ou reimprimir.',
